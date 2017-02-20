@@ -25,6 +25,7 @@ static void workTh(void *args)
         //When we get a semaphore, should check is a task should be done, or threadPool will be destroyed.
         if(pThMgrInfo->state == THMGR_STATE_STOP)
         {
+            debug("pThMgrInfo->state == THMGR_STATE_STOP, work thread will exit now!\n");
             //This thread pool will be destroyed, so this thread will exit now.
             pthread_exit(NULL);
         }
@@ -102,6 +103,8 @@ void * moUtils_TP_init(const unsigned int thNum)
             error("pthread_create failed! ret = %d, errno = %d, desc = [%s]\n", 
                 ret, errno, strerror(errno));
 
+            pThMgrInfo->state = THMGR_STATE_STOP;
+
             //If create failed, we should stop the running threads firstly, then do other operations
             unsigned int j = 0;
             for(j = 0; j < i; j++)
@@ -114,24 +117,27 @@ void * moUtils_TP_init(const unsigned int thNum)
             }
 
             //free the list memory
-            free(pThMgrInfo->pThInfoList);
-            pThMgrInfo->pThInfoList = NULL;
+            if(NULL != pThMgrInfo->pThInfoList)
+            {
+                free(pThMgrInfo->pThInfoList);
+                pThMgrInfo->pThInfoList = NULL;
+            }
 
             //uninit the task queue in this threadPool
             taskQueueUnInit(&(pThMgrInfo->taskQueue));
 
             //free the ThMgr
-            free(pThMgrInfo);
-            pThMgrInfo = NULL;
+            if(NULL != pThMgrInfo)
+            {
+                free(pThMgrInfo);
+                pThMgrInfo = NULL;
+            }
 
             return NULL;
         }
 
-        TH_INFO thInfo;
-        memset(&thInfo, 0x00, sizeof(TH_INFO));
-        thInfo.thId = thId;
-        thInfo.state = TH_STATE_IDLE;
-        memcpy(pThMgrInfo->pThInfoList + i * sizeof(TH_INFO), &thInfo, sizeof(TH_INFO));
+        pThMgrInfo->pThInfoList[i].thId = thId;
+        pThMgrInfo->pThInfoList[i].state = TH_STATE_IDLE;
     }
 
     //If all threads being create succeed, save it to var
@@ -145,6 +151,8 @@ void moUtils_TP_uninit(void *pTpMgr)
     if(pTpMgr)
     {
         THMGR_INFO * pThMgrInfo = (THMGR_INFO *)pTpMgr;
+
+        pThMgrInfo->state = THMGR_STATE_STOP;
         
         //Stop all threads
         unsigned int j = 0;
@@ -158,15 +166,21 @@ void moUtils_TP_uninit(void *pTpMgr)
         }
 
         //free the list memory
-        free(pThMgrInfo->pThInfoList);
-        pThMgrInfo->pThInfoList = NULL;
+        if(NULL != pThMgrInfo->pThInfoList)
+        {
+            free(pThMgrInfo->pThInfoList);
+            pThMgrInfo->pThInfoList = NULL;
+        }
 
         //uninit the taskqueue
         taskQueueUnInit(&(pThMgrInfo->taskQueue));
 
         //free the ThMgr
-        free(pThMgrInfo);
-        pThMgrInfo = NULL;
+        if(NULL != pThMgrInfo)
+        {
+            free(pThMgrInfo);
+            pThMgrInfo = NULL;
+        }
     }
 }
 

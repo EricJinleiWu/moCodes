@@ -12,7 +12,7 @@ TST_FILES = $(TST_DIR)/tst.c
 TAR = tstThreadPool
 
 all:
-	$(CC) -o $(TAR) $(SRC_FILES) $(TST_FILES) $(INC_DIR)
+	$(CC) -o $(TAR) $(SRC_FILES) $(TST_FILES) $(INC_DIR) -lpthread
 
 clean:
 	rm -rf $(TAR)

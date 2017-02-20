@@ -8,6 +8,8 @@ extern "C" {
 #include <pthread.h>
 #include <semaphore.h>
 
+#include "taskQueue.h"
+
 typedef enum
 {
     TH_STATE_IDLE,  //thread is idle, can be used
