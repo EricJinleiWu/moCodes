@@ -1,4 +1,4 @@
-DIRS = select poll epoll
+DIRS = select epoll
 
 all:
 	for i in $(DIRS); do \
