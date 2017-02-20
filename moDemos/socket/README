@@ -1,0 +1,10 @@
+Author : wujl
+Date : 20170105
+Description :
+    This is a demo which communicate with client and server by using socket;
+    Several types being used in this demo : block, NoBlock, MultiPlexing(select/pool/epool), and others;
+    
+Definations:
+    Client and server will use IP 127.0.0.1;
+    Client use port 8081, server use port 8082;
+

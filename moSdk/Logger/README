@@ -1,0 +1,12 @@
+Author : Eric Wu
+Create Time : 2016-12-27
+
+V1.0.0:
+	Create this project for logging.
+	This will output a so library;
+	This so depends on libMoIniParser.so to parse ini file;
+	Currently, support logout to stdout, and logout to file;
+	In my design, just can use one config file with all processes once;
+
+	
+	

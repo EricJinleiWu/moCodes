@@ -1,0 +1,16 @@
+V1.0.0
+    EricWu, 
+        create RC4 algo, can do encrypt and decrypt with RC4 to a string;
+    
+V1.0.1
+    EricWu, 
+        To RC4 algo, support do crypt to file;
+        and do crypt in blockes, the block has length with 1024(bytes), this can be better when string is long or file size is large.
+
+V1.1.0
+    EricWu, 20170214
+        create MD5 algo, can get MD5 value to the input string;
+
+V1.1.1
+    EricWu, 20170215
+        Modify MD5 algo, can get md5 value for an input file, too.

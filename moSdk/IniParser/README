@@ -1,0 +1,19 @@
+Author : Eric Wu
+Create Time : 2016-04-18
+
+V1.0.0:
+	Create this project for parsing a ini file.
+	The ini is in stantard forat, include section, attributes, comments. The section must be in "[]", attributes must be like "key=value", comments must be starts with ";".
+	The section cannot be duplicated;
+	The key in a section cannot be duplicated;
+	In one moment, just one ini file can be parsed, if want to parse another one, should do Uninit to release this file resource firstly.
+
+	Bug I know : cannot being used in multi-threads;
+
+V1.0.1:
+	Modify APIs, when init, input a filepath, and will return a list of info;
+	This can assure safe when some callers use this lib at the same time, and assure threads-safe;
+
+	Feature I want: use a tree to save all info, donot a list. this will better.
+	
+	

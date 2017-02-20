@@ -1,0 +1,230 @@
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdarg.h>
+#include <errno.h>
+#include <stdlib.h>
+
+#include "moLogger.h"
+#include "moLoggerUtils.h"
+#include "moIniParser.h"
+
+#define ATTR_LEVEL      "level"
+#define ATTR_LOCALFILE  "localfile"
+
+//typedef struct
+//{
+//    char moduleName[SECTION_NAME_MAX_LEN];
+//    MO_LOGGER_LEVEL level;
+//    char localFilepath[ATTR_VALUE_MAX_LEN];
+//    //This will be extended in future
+    char remoteFilepath[ATTR_VALUE_MAX_LEN];  
+//}MODULE_INFO;
+
+//typedef struct MODULE_INFO_NODE_T
+//{
+//    MODULE_INFO info;
+//    struct MODULE_INFO_NODE_T *next;
+//}MODULE_INFO_NODE;
+
+//static MODULE_INFO_NODE *gHeadNode = NULL;
+
+static MO_LOGGER_BOOL gIsInited = MO_LOGGER_FALSE;
+
+static SECTION_INFO_NODE *gpSecHeadNode = NULL;
+
+static char gFileDir[256] = {0x00};
+
+static void setInitFlag(void)
+{
+	gIsInited = MO_LOGGER_TRUE;
+}
+
+static void clearInitFlag(void)
+{
+	gIsInited = MO_LOGGER_FALSE;
+}
+
+static MO_LOGGER_BOOL isInited(void)
+{
+	return gIsInited;
+}
+
+/* Do init for moLogger;
+ * 1.find log file from @fileDir;
+ * 2.parse log config file;
+ * 3.record all settings in log config file, and open local file if neccessary;
+ *
+ * return :
+ * 		0 : init OK;
+ * 		0-: init failed;
+ * */
+int moLoggerInit(const char *fileDir)
+{
+	if(NULL == fileDir)
+	{
+		moLoggerOwnInfo("Input param is NULL!\n");
+		return -1;
+	}
+
+	if(isInited())
+	{
+        if(0 == strcmp(fileDir, gFileDir))
+        {
+            //This file has been init by other processes, will not init again
+            return 0;
+        }
+        else
+        {
+            moLoggerOwnInfo("moLogger has been inited yet! should not init again!\n");
+            return -2;
+        }
+	}
+
+	if(!isConfFileExist(fileDir))
+	{
+		return -3;
+	}
+
+    int filepathLen = strlen(fileDir) + strlen(MO_LOGGER_CONF_FILENAME) + 2;
+    char *filepath = NULL;
+    filepath = (char *)malloc(sizeof(char) * filepathLen);
+    if(NULL == filepath)
+    {
+        moLoggerOwnInfo("Malloc for ini filepath failed!\n");
+        return -4;
+    }
+    sprintf(filepath, "%s/%s", fileDir, MO_LOGGER_CONF_FILENAME);
+    filepath[filepathLen - 1] = 0x00;
+
+    /* Parse this config file */
+    gpSecHeadNode = moIniParser_Init(filepath);
+    if(NULL == gpSecHeadNode)
+	{
+		moLoggerOwnInfo("moIniParser_Init failed! file directory is [%s], filepath is [%s].\n",
+				fileDir, filepath);
+        free(filepath);
+        filepath = NULL;
+		return -5;
+	}
+
+    //This just for test
+//    moIniParser_DumpAllInfo(gpSecHeadNode);
+    
+    free(filepath);
+    filepath = NULL;
+
+	setInitFlag();
+
+    strcpy(gFileDir, fileDir);
+
+	return 0;
+}
+
+/* Output log info;
+ * 1.get module info with @moduleName;
+ * 2.if level larger than configLevel, step3; else, quit;
+ * 3.generate info;
+ * 4.if configLocalFile valid, output to file; else, output to stdout;
+ * */
+void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *fmt, ...)
+{
+	if(NULL == moduleName)
+	{
+		moLoggerOwnInfo("Input param is NULL!\n");
+		return ;
+	}
+
+	if(!isValidLevel(level))
+	{
+		moLoggerOwnInfo("Input level = %d, donot a valid value!\n", level);
+		return ;
+	}
+
+    /* Get the level firstly */
+    char value[ATTR_VALUE_MAX_LEN] = {0x00};
+    memset(value, 0x00, ATTR_VALUE_MAX_LEN);
+    int ret = moIniParser_GetAttrValue(moduleName, ATTR_LEVEL, value, gpSecHeadNode);
+    if(0 != ret)
+    {
+        moLoggerOwnInfo("moIniParser_GetAttrValue failed! ret = %d, moduleName = [%s], ATTR_LEVEL = [%s]\n",
+            ret, moduleName, ATTR_LEVEL);
+        return ;
+    }
+    if(!isValidLevelValue(value))
+    {
+        moLoggerOwnInfo("Level = [%s], donot valid!\n", value);
+        return ;
+    }
+    unsigned int configLevel = atoi(value);
+
+    if(level >= configLevel)    //Need output this log
+    {        
+        /* Check logout to file or not */
+        memset(value, 0x00, ATTR_VALUE_MAX_LEN);
+        MO_LOGGER_BOOL isWriteLog2File = MO_LOGGER_FALSE;
+        ret = moIniParser_GetAttrValue(moduleName, ATTR_LOCALFILE, value, gpSecHeadNode);
+        if(0 == ret)
+        {
+            //Need output to file, filepath being defined in @value
+            isWriteLog2File = MO_LOGGER_TRUE;
+        }
+        char filepath[ATTR_VALUE_MAX_LEN] = {0x00};
+        strcpy(filepath, value);
+
+        /* generate the log info in my format */
+        char fmtbuf[MO_LOGGER_MAX_LOG_LEN] = {0x00};
+        memset(fmtbuf, 0x00, MO_LOGGER_MAX_LOG_LEN);
+        char curLoginfo[MO_LOGGER_MAX_LOG_LEN] = {0x00};
+        memset(curLoginfo, 0x00, MO_LOGGER_MAX_LOG_LEN);
+        char curTimeStr[MO_LOGGER_TIME_LEN] = {0x00};
+        memset(curTimeStr, 0x00, MO_LOGGER_TIME_LEN);
+        getCurTime(curTimeStr);
+
+        va_list args;
+        va_start(args, fmt);
+
+        snprintf(fmtbuf, sizeof(fmtbuf), "%s %s", curTimeStr, fmt);
+        vsnprintf(curLoginfo, sizeof(curLoginfo), fmtbuf, args);
+        
+        va_end(args);
+        
+        if(isWriteLog2File)
+        {
+            FILE *fp = NULL;
+            fp = fopen(filepath, "a");
+            if(NULL == fp)
+            {
+                moLoggerOwnInfo("Open file [%s] failed! errno = %d, desc = [%s]\n", 
+                    filepath, errno, strerror(errno));
+            }
+            else
+            {
+                fwrite(curLoginfo, 1, strlen(curLoginfo), fp);
+                fflush(fp);
+                fclose(fp);
+                fp = NULL;
+            }
+        }
+        else
+        {
+            write(fileno(stdout), curLoginfo, sizeof(curLoginfo));
+        }
+    }
+}
+
+/*
+    Free memory;
+    reset all global info;
+*/
+int moLoggerUnInit(void)
+{
+    /* Release all info being parsed from config file. */
+    moIniParser_UnInit(gpSecHeadNode);
+
+    /* Reset the flag; */
+    clearInitFlag();
+    
+    return 0;
+}
+

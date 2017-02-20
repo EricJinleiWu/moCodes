@@ -1,0 +1,283 @@
+#include <stdio.h>
+#include <errno.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+
+#include "moUtils.h"
+
+#if 1
+#define error(format, ...) printf("MO_UTILS_THREADPOOL : [%s, %s, %d ERR] : "format, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define debug(format, ...) printf("MO_UTILS_THREADPOOL : [%s, %s, %d ERR] : "format, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#else
+#define error(format, ...)
+#define debug(format, ...)
+#endif
+
+static void workThread(void *args);
+
+#define THREAD_RUN  0
+#define THREAD_STOP 1
+
+#define INIT_FAILED 0
+#define INIT_OK     1
+
+static unsigned int gIsRunning = THREAD_RUN;
+
+int moUtils_ThreadPool_init(const unsigned int initThNum, const unsigned int maxThNum,
+    const unsigned int maxTaskListSize, MOUTILS_THREADPOOL_CTR *pCtr)
+{
+    if(NULL == pCtr)
+    {
+        error("Input param is NULL!\n");
+        return MOUTILS_TPERR_NULLPARAM;
+    }
+    
+    //initThNum should not larger than maxThNum!
+    if(initThNum > maxThNum)
+    {
+        error("initThNum = %d, maxThNum = %d, initThNum should not larger than maxThNum!\n", 
+            initThNum, maxThNum);
+        return MOUTILS_TPERR_INITPARAMERR;
+    }
+
+    //all thread should start when process init
+    gIsRunning = THREAD_RUN;
+    
+    pCtr->pThreadIds = (pthread_t *)malloc(sizeof(pthread_t) * initThNum);
+    if(NULL == pCtr->pThreadIds)
+    {
+        error("malloc for pThreadIds failed! errno = %d, desc = [%s]\n", errno, strerror(errno));
+        return MOUTILS_TPERR_MALLOCFAILED;
+    }
+
+    //Set all params
+    pCtr->initThNum = initThNum;
+    pCtr->maxThNum = maxThNum;
+    pCtr->curThNum = initThNum;
+    pthread_mutex_init(&pCtr->mutex, NULL); //TODO, if need some attributes, should set here.
+    sem_init(&pCtr->sem, 0, 0);
+    pCtr->curTaskListSize = 0;
+    pCtr->maxTaskListSize = maxTaskListSize;
+    pCtr->head = NULL;  //No node in
+    pCtr->tail = NULL;  //No node in
+
+    //Create all workThreads 
+    int ret = 0;
+    unsigned int i = 0;
+    for(i = 0; i < initThNum; i++)
+    {
+        pthread_t threadId;
+        ret = pthread_create(&threadId, NULL, (void *)workThread, (void *)pCtr);    //TODO, if need some thread attributes, set here
+        if(0 != ret)
+        {
+            error("pthread_create failed! i = %d, ret = %d, errno = %d, desc = [%s]\n",
+                i, ret, errno, strerror(errno));
+            pCtr->isInited = INIT_FAILED;
+            //TODO, should kill all threads being created, how?
+
+            //should free memory
+            free(pCtr->pThreadIds);
+            pCtr->pThreadIds = NULL;
+            
+            return MOUTILS_TPERR_CREATETHREADFAILED;
+        }
+        *(pCtr->pThreadIds + i) = threadId;
+    }
+    
+    pCtr->isInited = INIT_OK;
+    
+    return MOUTILS_ERR_OK;
+}
+
+/*
+    get a task node from taskList, get the tail node because when add will add to head;
+*/
+static MOUTILS_THREADPOOL_TASKNODE * getTaskNode(MOUTILS_THREADPOOL_CTR *pCtr)
+{
+    if(NULL == pCtr)
+    {
+        error("Input param is NULL.\n");
+        return NULL;
+    }
+
+    pthread_mutex_lock(&(pCtr->mutex));
+
+    MOUTILS_THREADPOOL_TASKNODE * ret = NULL;
+
+    if(pCtr->tail == NULL)
+    {
+        error("pCtr->tail == NULL, cannot get any node from taskList.\n");
+        pCtr->curTaskListSize = 0;
+        ret = NULL;
+    }
+    else
+    {
+        //the last node being get
+        MOUTILS_THREADPOOL_TASKNODE * ret = pCtr->tail;
+        //refresh the last node
+        MOUTILS_THREADPOOL_TASKNODE * pNewTailNode = pCtr->tail->prev;
+        if(pNewTailNode == NULL)
+        {
+            //no nodes in
+            pCtr->head = NULL;
+            pCtr->tail = NULL;
+        }
+        pNewTailNode->next = NULL;
+        
+        pCtr->curTaskListSize--;
+    }
+    
+    pthread_mutex_unlock(&(pCtr->mutex));
+
+    return ret;
+}
+
+static void workThread(void *args)
+{
+    MOUTILS_THREADPOOL_CTR *pCtr = (MOUTILS_THREADPOOL_CTR *)args;
+    
+    while(gIsRunning == THREAD_RUN)
+    {
+        sem_wait(&pCtr->sem);
+        if(gIsRunning != THREAD_RUN)
+        {
+            debug("work thread will stop because gIsRunning == %d\n", gIsRunning);
+            break;
+        }
+        //TODO, goto taskList, find a task from it, and do it.
+        MOUTILS_THREADPOOL_TASKNODE * pTask = getTaskNode(pCtr);
+        if(NULL == pTask)
+        {
+            error("Recv a semphore, but donot get a valid task node!\n");
+            continue;
+        }
+        else
+        {
+            pMoUtilsTpTaskFunc f = pTask->task.pFunc();
+            f(pTask->task.args);
+            //Should free memory here, because this task node has not been free
+            free(pTask);
+            pTask = NULL;
+        }
+    }
+}
+
+/*
+    add the pTaskNode to be the head node in taskList, we will get node from tail.
+*/
+static int addTaskNode(const MOUTILS_THREADPOOL_TASKNODE *pTaskNode, MOUTILS_THREADPOOL_CTR *pCtr)
+{
+    if(NULL == pTaskNode || NULL == pCtr)
+    {
+        error("Input param is NULL.\n");
+        return MOUTILS_TPERR_NULLPARAM;
+    }
+
+    pthread_mutex_lock(&(pCtr->mutex));
+
+    //the taskList has no node now.
+    if(pCtr->head == NULL && pCtr->tail == NULL)
+    {
+        pCtr->head = pTaskNode;
+        pCtr->tail = pTaskNode;
+        pCtr->curTaskListSize = 1;
+    }
+    else
+    {
+        MOUTILS_THREADPOOL_TASKNODE * pCurFirstNode = pCtr->head;
+        pCtr->head = pTaskNode;
+        pCtr->head->next = pCurFirstNode;
+        pCurFirstNode->prev = pCtr->head;
+        pCtr->curTaskListSize++;
+    }
+    
+    pthread_mutex_lock(&(pCtr->mutex));
+    return MOUTILS_ERR_OK;
+}
+
+int moUtils_ThreadPool_addTask(MOUTILS_THREADPOOL_CTR *pCtr, pMoUtilsTpTaskFunc pFunc, void * args)
+{
+    if(NULL == pCtr || NULL == pFunc || NULL == args)
+    {
+        error("Input param is NULL.\n");
+        return MOUTILS_TPERR_NULLPARAM;
+    }
+
+    //Check current thread number in valid range or not
+    
+    
+    //malloc for memory for the task being added
+    MOUTILS_THREADPOOL_TASKNODE * pTaskNode = NULL;
+    pTaskNode = (MOUTILS_THREADPOOL_TASKNODE *)malloc(sizeof(MOUTILS_THREADPOOL_TASKNODE) * 1);
+    if(NULL == pTaskNode)
+    {
+        error("Malloc for new task node failed! errno = %d, desc = [%s]\n",
+            errno, strerror(errno));
+        return MOUTILS_TPERR_MALLOCFAILED;
+    }
+    memset(pTaskNode, 0x00, sizeof(MOUTILS_THREADPOOL_TASKNODE));
+
+    //set values
+    pTaskNode->next = NULL;
+    pTaskNode->prev = NULL;
+    //FIXME, this two params will invalid then?
+    pTaskNode->task.pFunc = pFunc;
+    pTaskNode->task.args = args;
+    
+    int ret = addTaskNode(pTaskNode, pCtr);
+    if(ret != MOUTILS_ERR_OK)
+    {
+        error("addTaskNode failed! ret = 0x%x\n", ret);
+        return ret;
+    }
+    sem_post(&(pCtr->sem), 0, 0);
+    return MOUTILS_ERR_OK;
+}
+
+/*
+    1.Stop all work threads;
+    2.free all memory;
+*/
+void moUtils_ThreadPool_unInit(MOUTILS_THREADPOOL_CTR *pCtr)
+{
+    if(NULL == pCtr)
+    {
+        error("Input param is NULL.\n");
+        return ;
+    }
+
+    if(pCtr->isInited != INIT_OK)
+    {
+        error("Before do uninit, should init firstly!\n");
+        return ;
+    }
+
+    //set flag to stop all threads
+    gIsRunning = THREAD_STOP;
+
+    //wait for all work threads being stopped
+    int i = 0;
+    for(i = 0; i < pCtr->curThNum; i++)
+    {
+        sem_post(&pCtr->sem);        
+    }
+    for(i = 0; i < pCtr->curThNum; i++)
+    {
+        pthread_join(pCtr->pThreadIds[i], NULL);        
+    }
+
+    //free all memory being malloced
+    free(pCtr->pThreadIds);
+    pCtr->pThreadIds = NULL;
+
+    MOUTILS_THREADPOOL_TASKNODE *pCurTaskNode = pCtr->head;
+    MOUTILS_THREADPOOL_TASKNODE *pNextTaskNode = NULL;
+    while(pCurTaskNode != NULL)
+    {
+        pNextTaskNode = pCurTaskNode->next;
+        free(pCurTaskNode);
+        pCurTaskNode = pNextTaskNode;
+    }
+}
+
