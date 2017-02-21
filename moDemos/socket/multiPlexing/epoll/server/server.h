@@ -4,6 +4,7 @@
 using namespace std;
 
 #include <string>
+#include <vector>
 
 #define INVALID_SOCK_ID (-1)
 
@@ -19,16 +20,18 @@ public:
     Server & operator = (const Server & other);
 
 public:
-    //TODO, other APIs
+    void Run();
 
 private:
-    //TODO, other functions
-
+    int initSock();
 
 private:
     string mIp;
     unsigned int mPort;
     int mSockId;
+    int mEpfd;  //The fd of epoll
+    vector<int> mCliFdsVector;  //A vector which save all fd of clients
+    unsigned int mMaxFds;   //When epoll_wait, we need to know how many fd will be checked, this is the max value.
 };
 
 #endif
