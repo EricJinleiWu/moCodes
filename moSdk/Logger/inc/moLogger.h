@@ -1,6 +1,6 @@
 /* Wujl
  * Create at 2016-11-28
- * V1.0.0, support print logs to stdout;
+ * V1.0.0, support print logs to stdout and local file;
  * */
 
 #ifndef __MO_LOGGER_H__

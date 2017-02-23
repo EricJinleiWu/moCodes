@@ -12,23 +12,6 @@
 #define ATTR_LEVEL      "level"
 #define ATTR_LOCALFILE  "localfile"
 
-//typedef struct
-//{
-//    char moduleName[SECTION_NAME_MAX_LEN];
-//    MO_LOGGER_LEVEL level;
-//    char localFilepath[ATTR_VALUE_MAX_LEN];
-//    //This will be extended in future
-    char remoteFilepath[ATTR_VALUE_MAX_LEN];  
-//}MODULE_INFO;
-
-//typedef struct MODULE_INFO_NODE_T
-//{
-//    MODULE_INFO info;
-//    struct MODULE_INFO_NODE_T *next;
-//}MODULE_INFO_NODE;
-
-//static MODULE_INFO_NODE *gHeadNode = NULL;
-
 static MO_LOGGER_BOOL gIsInited = MO_LOGGER_FALSE;
 
 static SECTION_INFO_NODE *gpSecHeadNode = NULL;
@@ -107,9 +90,6 @@ int moLoggerInit(const char *fileDir)
         filepath = NULL;
 		return -5;
 	}
-
-    //This just for test
-//    moIniParser_DumpAllInfo(gpSecHeadNode);
     
     free(filepath);
     filepath = NULL;
