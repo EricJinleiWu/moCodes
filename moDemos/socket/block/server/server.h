@@ -5,11 +5,20 @@ using namespace std;
 
 #include <string>
 
+#define UNIX_SOCK_PATH  "/tmp/moDemosSocketBlockUnixmodefile"
+
+typedef enum
+{
+    TCP_MODE,
+    UDP_MODE,
+    UNIX_MODE
+}RUNNING_MODE;
+
 class Server
 {
 public:
-    Server();
-    Server(const string &ip, const unsigned int port);
+    Server(const RUNNING_MODE mode);
+    Server(const RUNNING_MODE mode, const string &ip, const unsigned int port);
     Server(const Server & other);
     virtual ~Server();
 
@@ -31,6 +40,7 @@ private:
     int initSocket();
 
 private:
+    RUNNING_MODE mMode;
     string mIp;
     unsigned int mPort;
     int mSockId;

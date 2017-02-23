@@ -7,24 +7,26 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <signal.h>
+#include <sys/un.h>
 
 #include "server.h"
 
-#define TCP_MODE    0
+//#define TCP_MODE    0
 
-Server::Server() : mIp("127.0.0.1"), mPort(8082), mIsSocketInited(false), mSockId(-1)
+Server::Server(const RUNNING_MODE mode) : mMode(mode), mIp("127.0.0.1"), mPort(8082), mIsSocketInited(false), mSockId(-1)
 {
     ;
 }
 
-Server::Server(const string & ip, const unsigned int port) :
-    mIp(ip), mPort(port), mIsSocketInited(false), mSockId(-1)
+Server::Server(const RUNNING_MODE mode, const string & ip, const unsigned int port) :
+    mMode(mode), mIp(ip), mPort(port), mIsSocketInited(false), mSockId(-1)
 {
     ;
 }
     
 Server::Server(const Server & other)
 {
+    mMode = other.mMode;
     mIp = other.mIp;
     mPort = other.mPort;
     mIsSocketInited = other.mIsSocketInited;
@@ -39,6 +41,10 @@ Server::~Server()
 
 Server & Server::operator = (const Server & other)
 {
+    if(this == &other)
+        return *this;
+
+    mMode = other.mMode;
     mIp = other.mIp;
     mPort = other.mPort;
     mIsSocketInited = other.mIsSocketInited;
@@ -69,16 +75,53 @@ void Server::run()
             }
         }
 
-#if TCP_MODE
-        printf("Start accept reqeust from client now.\n");
-        int clientSockId = accept(mSockId, NULL, NULL);
-        if(clientSockId > 0)
+        if(mMode == TCP_MODE)
         {
-            printf("accept a request from client.\n");
-//            printf("accept a request from client : ip = [%s], port = [%d]\n");
-            char recvMsg[128] = {0x00};
-            memset(recvMsg, 0x00, 128);
-            int ret = recv(clientSockId, recvMsg, 128, 0);
+            printf("Start accept reqeust from client now.\n");
+            int clientSockId = accept(mSockId, NULL, NULL);
+            if(clientSockId > 0)
+            {
+                printf("accept a request from client.\n");
+    //            printf("accept a request from client : ip = [%s], port = [%d]\n");
+                char recvMsg[128] = {0x00};
+                memset(recvMsg, 0x00, 128);
+                int ret = recv(clientSockId, recvMsg, 128, 0);
+                if(ret < 0)
+                {
+                    printf("recv failed! ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
+                    continue;
+                }
+                else
+                {
+                    recvMsg[127] = 0x00;
+                    printf("recv succeed. msg being send is [%s]\n", recvMsg);
+                }
+    
+                //Send a message to be response
+                string respMsg("Response");
+                ret = send(clientSockId, respMsg.c_str(), respMsg.length(), 0);
+                if(ret < 0)
+                {
+                    printf("send response failed! ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
+                    continue;
+                }
+                else
+                {
+                    printf("send response succeed.\n");
+                }
+            }
+        }
+        else if(mMode == UDP_MODE)
+        {
+            //UDP mode, just recvfrom is OK.
+            struct sockaddr_in clientAddr;
+            memset(&clientAddr, 0x00, sizeof(struct sockaddr_in));
+            socklen_t clientAddrLen = sizeof(struct sockaddr_in);
+            char recvBuf[128] = {0x00};
+            memset(recvBuf, 0x00, 128);
+            recvBuf[127] = 0x00;
+            int recvLen = 128;
+            int ret = recvfrom(mSockId, (void *)recvBuf, recvLen, 0, (struct sockaddr *)&clientAddr, &clientAddrLen);
             if(ret < 0)
             {
                 printf("recv failed! ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
@@ -86,58 +129,51 @@ void Server::run()
             }
             else
             {
-                recvMsg[127] = 0x00;
-                printf("recv succeed. msg being send is [%s]\n", recvMsg);
-            }
-
-            //Send a message to be response
-            string respMsg("Response");
-            ret = send(clientSockId, respMsg.c_str(), respMsg.length(), 0);
-            if(ret < 0)
-            {
-                printf("send response failed! ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
-                continue;
-            }
-            else
-            {
-                printf("send response succeed.\n");
+                recvBuf[127] = 0x00;
+                printf("recv succeed. recv msg is [%s], client ip = [%s], port = %d\n", 
+                    recvBuf, inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
+            
+                //Send a message to be response
+                string respMsg("Response");
+                ret = sendto(mSockId, respMsg.c_str(), respMsg.length(), 0, (struct sockaddr *)&clientAddr, sizeof(struct sockaddr));
+                if(ret < 0)
+                {
+                    printf("send response to client failed! ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
+                    continue;
+                }
+                else
+                {
+                    printf("send response to client succeed.\n");
+                }
             }
         }
-#else
-        //UDP mode, just recvfrom is OK.
-        struct sockaddr_in clientAddr;
-        memset(&clientAddr, 0x00, sizeof(struct sockaddr_in));
-        socklen_t clientAddrLen = sizeof(struct sockaddr_in);
-        char recvBuf[128] = {0x00};
-        memset(recvBuf, 0x00, 128);
-        recvBuf[127] = 0x00;
-        int recvLen = 128;
-        int ret = recvfrom(mSockId, (void *)recvBuf, recvLen, 0, (struct sockaddr *)&clientAddr, &clientAddrLen);
-        if(ret < 0)
+        else if(mMode == UNIX_MODE)
         {
-            printf("recv failed! ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
-            continue;
+            struct sockaddr_un clientAddr;
+            memset(&clientAddr, 0x00, sizeof(struct sockaddr_un));
+            socklen_t clientAddrLen = sizeof(struct sockaddr_un);
+            char recvBuf[128] = {0x00};
+            memset(recvBuf, 0x00, 128);
+            recvBuf[127] = 0x00;
+            int recvLen = 128;
+            int ret = recvfrom(mSockId, (void *)recvBuf, recvLen, 0, (struct sockaddr *)&clientAddr, &clientAddrLen);
+            if(ret < 0)
+            {
+                printf("recv failed! ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
+                continue;
+            }
+            recvBuf[127] = 0x00;
+            printf("recv succeed! recvMsg is [%s]\n", recvBuf);
+
+            //TODO, should do sendto, but I have no time now.
+
+            
         }
         else
         {
-            recvBuf[127] = 0x00;
-            printf("recv succeed. recv msg is [%s], client ip = [%s], port = %d\n", 
-                recvBuf, inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
-
-            //Send a message to be response
-            string respMsg("Response");
-            ret = sendto(mSockId, respMsg.c_str(), respMsg.length(), 0, (struct sockaddr *)&clientAddr, sizeof(struct sockaddr));
-            if(ret < 0)
-            {
-                printf("send response to client failed! ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
-                continue;
-            }
-            else
-            {
-                printf("send response to client succeed.\n");
-            }
+            printf("mMode == %d, not valid!\n", mMode);
+            break;
         }
-#endif
     }
 }
 
@@ -151,11 +187,19 @@ int Server::initSocket()
     //init socket with ip and port
     if(!mIsSocketInited)
     {
-#if TCP_MODE
-        mSockId = socket(AF_INET, SOCK_STREAM, 0);
-#else
-        mSockId = socket(AF_INET, SOCK_DGRAM, 0);
-#endif
+        mSockId = -1;
+        if(mMode == TCP_MODE)        
+            mSockId = socket(AF_INET, SOCK_STREAM, 0);
+        else if(mMode == UDP_MODE)
+            mSockId = socket(AF_INET, SOCK_DGRAM, 0);
+        else if(mMode == UNIX_MODE)
+            mSockId = socket(AF_UNIX, SOCK_DGRAM, 0);
+        else
+        {
+            printf("mMode = %d, invalid!\n", mMode);
+            return -1;
+        }
+        
         if(-1 == mSockId)
         {
             printf("socket failed!\n");
@@ -183,34 +227,58 @@ int Server::initSocket()
         }
         printf("setsockopt SO_BROADCAST succeed.\n");
 
-        //binding socket
-        struct sockaddr_in clientAddr;
-        bzero(&clientAddr, sizeof(struct sockaddr_in));
-        clientAddr.sin_family = AF_INET;
-        clientAddr.sin_port = htons(mPort);
-        clientAddr.sin_addr.s_addr = inet_addr(mIp.c_str());
-        ret = bind(mSockId, (struct sockaddr *)&clientAddr, sizeof(struct sockaddr_in));
-        if(0 != ret)
+        if(mMode == UNIX_MODE)
         {
-            printf("bind to ip[%s],port[%d] failed! ret = %d\n", mIp.c_str(), mPort);
-            close(mSockId);
-            mSockId = -1;
-            return -2;
+            //must delete this file firstly, or bind will fail
+            unlink(UNIX_SOCK_PATH);
+        
+            struct sockaddr_un addr;
+            addr.sun_family = AF_UNIX;
+            strcpy(addr.sun_path, UNIX_SOCK_PATH);
+            
+            ret = bind(mSockId, (struct sockaddr *)&addr,sizeof(struct sockaddr_un));
+            if(0 != ret)
+            {
+                printf("bind failed in UNIX UDP mode! ret = %d, errno = %d, desc = [%s]\n",
+                    ret, errno, strerror(errno));
+                close(mSockId);
+                mSockId = -1;
+                return -2;
+            }
         }
-        printf("server being binded.\n");
+        else
+        {
+            //binding socket
+            struct sockaddr_in clientAddr;
+            bzero(&clientAddr, sizeof(struct sockaddr_in));
+            clientAddr.sin_family = AF_INET;
+            clientAddr.sin_port = htons(mPort);
+            clientAddr.sin_addr.s_addr = inet_addr(mIp.c_str());
+            ret = bind(mSockId, (struct sockaddr *)&clientAddr, sizeof(struct sockaddr_in));
+            if(0 != ret)
+            {
+                printf("bind to ip[%s],port[%d] failed! ret = %d\n", mIp.c_str(), mPort);
+                close(mSockId);
+                mSockId = -1;
+                return -2;
+            }
+            printf("server being binded.\n");
 
-#if TCP_MODE
-        //Listen
-        ret = listen(mSockId, 128);
-        if(ret < 0)
-        {
-            printf("Listen failed! ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
-            close(mSockId);
-            mSockId = -1;
-            return -3;
+            if(mMode == TCP_MODE)
+            {
+                //Listen
+                ret = listen(mSockId, 128);
+                if(ret < 0)
+                {
+                    printf("Listen failed! ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
+                    close(mSockId);
+                    mSockId = -1;
+                    return -3;
+                }
+                printf("Server being listened.\n");
+            }
         }
-        printf("Server being listened.\n");
-#endif
+        
         mIsSocketInited = true;
     }
 

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <signal.h>
+#include <string.h>
 
 #include "client.h"
 
@@ -13,6 +14,27 @@
 */
 int main(int argc, char **argv)
 {
+    if(argc != 2)
+    {
+        fprintf(stderr, "Usage : %s runMode\n", argv[0]);
+        fprintf(stderr, "Usage : Currently, we support runModes : [TCP, UDP, UNIX]\n");
+        return -1;
+    }
+
+    RUNNING_MODE runMode = TCP_MODE;
+    if(0 == strcmp(argv[1], "TCP"))
+        runMode = TCP_MODE;
+    else if(0 == strcmp(argv[1], "UDP"))
+        runMode = UDP_MODE;
+    else if(0 == strcmp(argv[1], "UNIX"))
+        runMode = UNIX_MODE;
+    else
+    {
+        fprintf(stderr, "Input runMode = [%s], donot in our runMode range [TCP, UDP, UNIX]!\n",
+            argv[1]);
+        return -2;
+    }
+        
     //signal SIGPIPE will be set to SIG_IGN, 
     //If donot do this operation, when server donot run, client do send will return SIGPIPE, and this signal
     //  will kill our process directly.
@@ -20,7 +42,7 @@ int main(int argc, char **argv)
 
     string ip(CLIENT_IP);
     unsigned int port = CLIENT_PORT;
-    Client *pClient = new Client(ip, port);
+    Client *pClient = new Client(runMode, ip, port);
 
     pClient->dump();
 
