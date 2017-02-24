@@ -1,17 +1,3 @@
-/* 
-	Wujl, create at 20160614, exec the RC4 algorithm;
-
-	V1.0.0 : just support basic crypt, a plain text can be encrypt and decrypt;
-
-	V1.0.1 : support crypt to files;
-	        can deal with strings with length larger than 1024;
-
-	V1.0.2 : Modify a bug : when cryptFile, if srcFilepath is abstract filepath, dstFilepath is not, but they are same file in fact, cannot deal;
-	         20161222, Wujl;
-
-    V1.1.0 : Support MD5 algorithm, can get md5 value of a string;
-*/
-
 #ifndef __MO_CRYPT_H__
 #define __MO_CRYPT_H__
 
@@ -63,7 +49,6 @@ typedef struct
 #define MOCRYPTMD5_ERR_WRONGFILEMODE (0x00001003)   //input filepath donot a file, is a directory or any other things.
 #define MOCRYPTMD5_ERR_OPENFILEFAIL (0x00001004)    //fopen failed!
 
-
 /*
     Dump the md5 value in hex mode;
 */
@@ -95,6 +80,62 @@ int moCrypt_MD5_String(const unsigned char *txt, MO_MD5_VALUE *pValue);
 */
 int moCrypt_MD5_File(const char *pSrcFilepath, MO_MD5_VALUE *pValue);
 
+
+typedef enum
+{
+    BASE64_CRYPT_METHOD_ENCRYPT,
+    BASE64_CRYPT_METHOD_DECRYPT
+}BASE64_CRYPT_METHOD;
+
+#define MOCRYPTBASE64_ERR_OK                (0x00000000)
+#define MOCRYPTBASE64_ERR_INPUTNULL         (0x00002000)
+#define MOCRYPTBASE64_ERR_FILEOPENFAIL      (0x00002001)
+#define MOCRYPTBASE64_ERR_FILEWRITEFAIL     (0x00002002)
+
+/*
+    Do encrypt or decrypt to input string @src;
+
+    @param : 
+        method : encrypt or decrypt;
+        src : the pointer of charactors which should be done;
+        srcLen : The bytes being crypted from @src;
+
+    @return :
+        pointer : the pointer to dst characotr array;
+
+    Be careful, after use this function, return value is a pointer being malloced, 
+    you must free it by moCrypt_BASE64_free()!!
+*/
+unsigned char * moCrypt_BASE64_Chars(const BASE64_CRYPT_METHOD method, 
+    const unsigned char *src, const unsigned int srcLen, unsigned int *dstLen);
+
+/*
+    Dump the chars, because we donot limit '\0', so printf("%s") cannot be used, 
+    this function can help us to see infomation;
+*/
+void moCrypt_BASE64_dumpChars(const unsigned char *pTxt, const unsigned int len);
+
+/*
+    free the memory which being pointed by @pChars;
+*/
+void moCrypt_BASE64_free(unsigned char * pChars);
+
+/*
+    Do encrypt or decrypt to input file @pSrcFilepath;
+
+    @param : 
+        method : encrypt or decrypt;
+        pSrcFilepath : the pointer of charactors which should be done;
+        pDstFilepath : The bytes being crypted from @src;
+
+    @return :
+        0 : succeed;
+        error : failed;
+
+    srcFilepath and dstFilepath can be same;
+*/
+int moCrypt_BASE64_File(const BASE64_CRYPT_METHOD method, 
+    const char * pSrcFilepath, const char * pDstFilepath);
 
 #ifdef __cplusplus
 }

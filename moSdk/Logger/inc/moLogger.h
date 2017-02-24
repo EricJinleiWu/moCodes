@@ -47,66 +47,6 @@ void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *fmt
  * */
 int moLoggerUnInit(void);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#if 0
-va_start(args, fmt);
-doDebug(sysId, modId, level, NULL, fmt, args);
-va_end(args);
-
-static void doDebug(int sysId, int modId, int level, char *txt, const char *fmt, va_list args)
-{
-    char msgbuf[KIT_DEBUG_MSG_BUF_SIZE] = {0};
-    char fmtbuf[KIT_DEBUG_MSG_BUF_SIZE] = {0};
-    int output = STDERR_FILENO;
- 
-         
-    if (KIT_DEBUG_LEVEL_FORCE != level)
-    {
-        if (level > debugCtrl[sysId][modId].level ||
-            KIT_DEBUG_LEVEL_QUIET == debugCtrl[sysId][modId].level ||
-            KIT_DEBUG_LEVEL_QUIET == level)
-        {
-            return;
-        }
-    }
-    
-    output = debugCtrl[sysId][modId].output;
-
-    if (NULL == txt)
-    {
-        vsnprintf(msgbuf, sizeof(msgbuf), fmt, args);
-    }
-    else
-    {
-        snprintf(fmtbuf, sizeof(fmtbuf), "%s %s", txt, fmt);
-        vsnprintf(msgbuf, sizeof(msgbuf), fmtbuf, args);
-    }
-
-    write(output, msgbuf, strlen(msgbuf));
-
-    return;
-}
-#endif
-
-
-
-
-
 #ifdef __cplusplus
 }
 #endif
