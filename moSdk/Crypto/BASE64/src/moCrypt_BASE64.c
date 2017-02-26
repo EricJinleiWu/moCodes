@@ -179,6 +179,7 @@ static unsigned char * decryptChars(const unsigned char *src, const unsigned int
         else
             break;
     }
+    debug("padSymbNum = %d\n", padSymbNum);
 
     //calc the pDstLen append on padSymbNum
     int blockNum = srcLen / DECRYPT_BLOCK_SIZE;
@@ -197,6 +198,7 @@ static unsigned char * decryptChars(const unsigned char *src, const unsigned int
         default:
             break;
     }
+    debug("completeBlockNum = %d, lastBlockBytes = %d\n", completeBlockNum, lastBlockBytes);
 
     //get memory for pDst
     unsigned char *pDst = NULL;
@@ -207,52 +209,62 @@ static unsigned char * decryptChars(const unsigned char *src, const unsigned int
             completeBlockNum * ENCRYPT_BLOCK_SIZE + lastBlockBytes);
         return NULL;
     }
+    debug("The size of dst txt is %d\n", completeBlockNum * ENCRYPT_BLOCK_SIZE + lastBlockBytes);
 
     //complete block being done firstly
     int blkCnt = 0;
     for(blkCnt = 0; blkCnt < completeBlockNum; blkCnt++)
     {
+    	debug("blkCnt = %d\n", blkCnt);
+
+    	//Convert all cipher char to pos in MAP
+    	unsigned char var0 =
+    			convertFromBase64SymbolTonum(*(src + blkCnt * DECRYPT_BLOCK_SIZE + 0));
+    	unsigned char var1 =
+    			convertFromBase64SymbolTonum(*(src + blkCnt * DECRYPT_BLOCK_SIZE + 1));
+    	unsigned char var2 =
+    			convertFromBase64SymbolTonum(*(src + blkCnt * DECRYPT_BLOCK_SIZE + 2));
+    	unsigned char var3 =
+    			convertFromBase64SymbolTonum(*(src + blkCnt * DECRYPT_BLOCK_SIZE + 3));
+
         *(pDst + blkCnt * ENCRYPT_BLOCK_SIZE + 0) = 
-            (((*(src + blkCnt * DECRYPT_BLOCK_SIZE + 0)) & 0x3f) << 2) | 
-            (((*(src + blkCnt * DECRYPT_BLOCK_SIZE + 1)) & 0x30) >> 4);
-        *(pDst + blkCnt * ENCRYPT_BLOCK_SIZE + 0) = 
-            convertFromBase64SymbolTonum(*(pDst + blkCnt * ENCRYPT_BLOCK_SIZE + 0));
+            (((var0) & 0x3f) << 2) | (((var1) & 0x30) >> 4);
 
         *(pDst + blkCnt * ENCRYPT_BLOCK_SIZE + 1) = 
-            (((*(src + blkCnt * DECRYPT_BLOCK_SIZE + 1)) & 0x0f) << 4) | 
-            (((*(src + blkCnt * DECRYPT_BLOCK_SIZE + 2)) & 0x3c) >> 2);
-        *(pDst + blkCnt * ENCRYPT_BLOCK_SIZE + 1) = 
-            convertFromBase64SymbolTonum(*(pDst + blkCnt * ENCRYPT_BLOCK_SIZE + 1));
+            (((var1) & 0x0f) << 4) | (((var2) & 0x3c) >> 2);
         
         *(pDst + blkCnt * ENCRYPT_BLOCK_SIZE + 2) = 
-            (((*(src + blkCnt * DECRYPT_BLOCK_SIZE + 2)) & 0x03) << 6) | 
-            (((*(src + blkCnt * DECRYPT_BLOCK_SIZE + 3)) & 0x3f) >> 0);
-        *(pDst + blkCnt * ENCRYPT_BLOCK_SIZE + 2) = 
-            convertFromBase64SymbolTonum(*(pDst + blkCnt * ENCRYPT_BLOCK_SIZE + 2));
+            (((var2) & 0x03) << 6) | (((var3) & 0x3f) >> 0);
     }
 
     //the last block being done, '='is padding symbol, number is 1 or 2;
     switch(lastBlockBytes)
     {
         case 1:
+        {
+        	unsigned char var0 =
+        			convertFromBase64SymbolTonum(*(src + blkCnt * DECRYPT_BLOCK_SIZE + 0));
+        	unsigned char var1 =
+        			convertFromBase64SymbolTonum(*(src + blkCnt * DECRYPT_BLOCK_SIZE + 1));
+
             *(pDst + completeBlockNum * ENCRYPT_BLOCK_SIZE) = 
-                (((*(src + completeBlockNum * DECRYPT_BLOCK_SIZE + 0)) & 0x3f) << 2) | 
-                (((*(src + completeBlockNum * DECRYPT_BLOCK_SIZE + 1)) & 0x30) >> 4);
-            *(pDst + completeBlockNum * ENCRYPT_BLOCK_SIZE) = 
-                convertFromBase64SymbolTonum(*(pDst + completeBlockNum * ENCRYPT_BLOCK_SIZE));
+                (((var0) & 0x3f) << 2) | (((var1) & 0x30) >> 4);
+        }
             break;
         case 2:
+        {
+        	unsigned char var0 =
+        			convertFromBase64SymbolTonum(*(src + blkCnt * DECRYPT_BLOCK_SIZE + 0));
+        	unsigned char var1 =
+        			convertFromBase64SymbolTonum(*(src + blkCnt * DECRYPT_BLOCK_SIZE + 1));
+        	unsigned char var2 =
+        			convertFromBase64SymbolTonum(*(src + blkCnt * DECRYPT_BLOCK_SIZE + 2));
+
             *(pDst + completeBlockNum * ENCRYPT_BLOCK_SIZE) = 
-                (((*(src + completeBlockNum * DECRYPT_BLOCK_SIZE + 0)) & 0x3f) << 2) | 
-                (((*(src + completeBlockNum * DECRYPT_BLOCK_SIZE + 1)) & 0x30) >> 4);
-            *(pDst + completeBlockNum * ENCRYPT_BLOCK_SIZE) = 
-                convertFromBase64SymbolTonum(*(pDst + completeBlockNum * ENCRYPT_BLOCK_SIZE));
-            
+                (((var0) & 0x3f) << 2) | (((var1) & 0x30) >> 4);
             *(pDst + completeBlockNum * ENCRYPT_BLOCK_SIZE + 1) = 
-                (((*(src + completeBlockNum * DECRYPT_BLOCK_SIZE + 1)) & 0x0f) << 4) | 
-                (((*(src + completeBlockNum * DECRYPT_BLOCK_SIZE + 2)) & 0x3c) >> 2);
-            *(pDst + completeBlockNum * ENCRYPT_BLOCK_SIZE + 1) = 
-                convertFromBase64SymbolTonum(*(pDst + completeBlockNum * ENCRYPT_BLOCK_SIZE + 1));
+                (((var1) & 0x0f) << 4) | (((var2) & 0x3c) >> 2);
+        }
             break;
         default:
             break;
