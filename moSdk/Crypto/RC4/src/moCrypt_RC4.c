@@ -94,7 +94,7 @@ static void rangeVectorS(unsigned char *vectorS, const unsigned char *vectorT)
 }
 
 static void genCipherStream(unsigned char *stream, const unsigned int txtLen, unsigned char *vectorS)
-{
+{
 	unsigned int i = 0, j = 0, cnt = 0;
 	for(cnt = 0; cnt < txtLen; cnt++)
 	{
@@ -137,7 +137,7 @@ static int blockEncryptDecrypt(const unsigned char *key, const unsigned int keyl
 	stream = (unsigned char *)malloc(txtLen * sizeof(unsigned char ));
 	if(NULL == stream)
 	{
-		return -1;
+		return -1;
 	}
 	memset(stream, 0x00, txtLen);
 	genCipherStream(stream, txtLen, vectorS);
@@ -166,7 +166,7 @@ int moCrypt_RC4_cryptString(const unsigned char *key, const unsigned int keylen,
 	}
 	if(0 != isRightFormatKey(key, keylen))
 	{
-		return -2;
+		return -2;
 	}
 
 	int ret = 0;
