@@ -5,3 +5,8 @@ V1.0.0
 
 		Bug I know : cannot get result for each thread;
     
+V1.1.0
+    EricWu, 20170228
+        Add a new sub directory : File to Utils;
+        In this directory, I want to exec some functions about file, just like get file size, get directory from filepath, and so on.
+

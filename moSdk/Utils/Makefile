@@ -11,10 +11,14 @@ MO_SDK_RELEASE_DIR = ../release
 ThreadPool_DIR = ./ThreadPool
 ThreadPool_SRC_DIR = $(ThreadPool_DIR)/src
 ThreadPool_INC_DIR = $(ThreadPool_DIR)/inc
+File_DIR = ./File
+File_SRC_DIR = $(File_DIR)/src
+File_INC_DIR = $(File_DIR)/inc
 
 # INC DIRS.
 INCDIRS = -I./inc \
-	      -I$(ThreadPool_INC_DIR)
+	      -I$(ThreadPool_INC_DIR) \
+	      -I$(File_INC_DIR)
 
 # System lib path
 LDFLAGS =	-lpthread
@@ -28,6 +32,7 @@ PROGRAM_OBJ_DIR = ./obj
 
 # source file obj
 MAIN_OBJS = $(patsubst $(ThreadPool_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(ThreadPool_SRC_DIR)/*.c))
+MAIN_OBJS += $(patsubst $(File_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(File_SRC_DIR)/*.c))
 
 #target is a lib
 TARGET_DIR = ./lib
@@ -49,6 +54,9 @@ DEPENDS:
 
 # src --> obj.
 $(PROGRAM_OBJ_DIR)/%.o: $(ThreadPool_SRC_DIR)/%.c
+	@echo ">>> compiling $< ..."
+	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
+$(PROGRAM_OBJ_DIR)/%.o: $(File_SRC_DIR)/%.c
 	@echo ">>> compiling $< ..."
 	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
 	
