@@ -90,7 +90,8 @@ typedef enum
 #define MOCRYPTBASE64_ERR_OK                (0x00000000)
 #define MOCRYPTBASE64_ERR_INPUTNULL         (0x00002000)
 #define MOCRYPTBASE64_ERR_FILEOPENFAIL      (0x00002001)
-#define MOCRYPTBASE64_ERR_FILEWRITEFAIL     (0x00002002)
+#define MOCRYPTBASE64_ERR_MALLOCFAILED      (0x00002003)
+#define MOCRYPTBASE64_ERR_OTHER             (0x00002004)
 
 /*
     Do encrypt or decrypt to input string @src;

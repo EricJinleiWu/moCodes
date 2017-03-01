@@ -16,11 +16,15 @@ V1.1.1
         Modify MD5 algo, can get md5 value for an input file, too.
 
 V1.2.0
-    EricWu, 20172023
+    EricWu, 20170223
         create base64 algo, can do encrypt and decrypt to the input string;
         Feature need add : do crypt to file with this algo.
 
 V1.2.1
-    EricWu, 20172026
+    EricWu, 20170226
 	Debug for moCrypt_BASE64_Chars, and modify some bug in this funciton;
         Feature need add : do crypt to file with this algo.
+
+V1.2.2
+    EricWu, 20170302
+    Add a feature : moCrypt-BASE64, can do crypt to file.

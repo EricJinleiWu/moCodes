@@ -124,12 +124,6 @@ char * moUtils_File_getAbsFilePath(const char *pFilepath)
         return NULL;
     }
 
-    if(!(isFile(pFilepath)))
-    {
-        error("Input path [%s] is not a file.\n", pFilepath);
-        return NULL;
-    }
-
     //Get dirpath and name from filepath
     MOUTILS_FILE_DIR_FILENAME info;
     memset(&info, 0x00, sizeof(MOUTILS_FILE_DIR_FILENAME));
@@ -305,12 +299,6 @@ int moUtils_File_getDirAndFilename(const char *pFilepath, MOUTILS_FILE_DIR_FILEN
         return MOUTILS_FILE_ERR_INPUTPARAMNULL;
     }
 
-    if(!(isFile(pFilepath)))
-    {
-        error("Input path [%s] isnot a filepath!\n", pFilepath);
-        return MOUTILS_FILE_ERR_NOTFILE;
-    }
-
     //Get the last symbol '/' position, this is the separator between dir and filename;
     char *pLastSymbPos = strrchr(pFilepath, '/');
     if(NULL == pLastSymbPos)
@@ -388,14 +376,6 @@ int moUtils_File_getFilepathSameState(const char *pSrcFilepath, const char *pDst
         error("Input param is NULL.\n");
         *pState = MOUTILS_FILE_ABSPATH_STATE_ERR;
         return MOUTILS_FILE_ERR_INPUTPARAMNULL;
-    }
-
-    if(!(isFile(pSrcFilepath)) || !(isFile(pDstFilepath)))
-    {
-        error("pSrcFilepath[%s], pDstFilepath[%s], must be file!\n",
-            pSrcFilepath, pDstFilepath);
-        *pState = MOUTILS_FILE_ABSPATH_STATE_ERR;
-        return MOUTILS_FILE_ERR_NOTFILE;
     }
 
     //If they have same value, of course they are same path.

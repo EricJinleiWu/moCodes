@@ -2,20 +2,26 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <unistd.h>
 
 #include "moCrypt.h"
+#include "moUtils.h"
 
 #define ENCRYPT_BLOCK_SIZE      3               //In base64, 3bytes is a block when encrypt, 4bytes is a block when decrypt
 #define DECRYPT_BLOCK_SIZE      4               //In base64, 3bytes is a block when encrypt, 4bytes is a block when decrypt
 #define TEMP_FILE_PREFIX		"moBase64Temp_"
 #define PADDING_SYMB            '='
+//Each time, read CRYPT_FILE_BLOCKSIZE bytes data from src file, do encrypt, and set result to dst file
+//768 = 256 * 3 = 192 * 4
+#define CRYPT_FILE_BLOCKSIZE  768
+
 
 #if 1
-#define error(format, ...) printf("MO_CRYPT_BASE64 : [%s, %s, %d ERR] : "format, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define debug(format, ...) printf("MO_CRYPT_BASE64 : [%s, %s, %d DBG] : "format, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define errorBase64(format, ...) printf("MO_CRYPT_BASE64 : [%s, %s, %d ERR] : "format, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define debugBase64(format, ...) printf("MO_CRYPT_BASE64 : [%s, %s, %d DBG] : "format, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #else
-#define error(format, ...)
-#define debug(format, ...)
+#define errorBase64(format, ...)
+#define debugBase64(format, ...)
 #endif
 
 static const unsigned char gMap[64] = {
@@ -68,7 +74,7 @@ static unsigned char * encryptChars(const unsigned char *src, const unsigned int
 {
     if(NULL == src || NULL == pDstLen)
     {
-        error("Input param is NULL.\n");
+        errorBase64("Input param is NULL.\n");
         return NULL;
     }
     
@@ -83,7 +89,7 @@ static unsigned char * encryptChars(const unsigned char *src, const unsigned int
     pDst = (unsigned char *)malloc(sizeof(unsigned char) * allBlockNum * DECRYPT_BLOCK_SIZE);
     if(NULL == pDst)
     {
-        error("Malloc for cipher text failed! dst length = %d\n", allBlockNum * DECRYPT_BLOCK_SIZE);
+        errorBase64("Malloc for cipher text failed! dst length = %d\n", allBlockNum * DECRYPT_BLOCK_SIZE);
         return NULL;
     }
 
@@ -165,7 +171,7 @@ static unsigned char * decryptChars(const unsigned char *src, const unsigned int
 {
     if(NULL == src || NULL == pDstLen)
     {
-        error("Input param is NULL.\n");
+        errorBase64("Input param is NULL.\n");
         return NULL;
     }
 
@@ -179,7 +185,7 @@ static unsigned char * decryptChars(const unsigned char *src, const unsigned int
         else
             break;
     }
-    debug("padSymbNum = %d\n", padSymbNum);
+    debugBase64("padSymbNum = %d\n", padSymbNum);
 
     //calc the pDstLen append on padSymbNum
     int blockNum = srcLen / DECRYPT_BLOCK_SIZE;
@@ -198,24 +204,24 @@ static unsigned char * decryptChars(const unsigned char *src, const unsigned int
         default:
             break;
     }
-    debug("completeBlockNum = %d, lastBlockBytes = %d\n", completeBlockNum, lastBlockBytes);
+    debugBase64("completeBlockNum = %d, lastBlockBytes = %d\n", completeBlockNum, lastBlockBytes);
 
     //get memory for pDst
     unsigned char *pDst = NULL;
     pDst = (unsigned char *)malloc(sizeof(unsigned char ) * (completeBlockNum * ENCRYPT_BLOCK_SIZE + lastBlockBytes));
     if(NULL == pDst)
     {
-        error("malloc failed! errno = %d, desc = [%s], size = [%d]\n", errno, strerror(errno), 
+        errorBase64("malloc failed! errno = %d, desc = [%s], size = [%d]\n", errno, strerror(errno), 
             completeBlockNum * ENCRYPT_BLOCK_SIZE + lastBlockBytes);
         return NULL;
     }
-    debug("The size of dst txt is %d\n", completeBlockNum * ENCRYPT_BLOCK_SIZE + lastBlockBytes);
+    debugBase64("The size of dst txt is %d\n", completeBlockNum * ENCRYPT_BLOCK_SIZE + lastBlockBytes);
 
     //complete block being done firstly
     int blkCnt = 0;
     for(blkCnt = 0; blkCnt < completeBlockNum; blkCnt++)
     {
-    	debug("blkCnt = %d\n", blkCnt);
+    	debugBase64("blkCnt = %d\n", blkCnt);
 
     	//Convert all cipher char to pos in MAP
     	unsigned char var0 =
@@ -282,13 +288,13 @@ unsigned char * moCrypt_BASE64_Chars(const BASE64_CRYPT_METHOD method,
 {
     if(NULL == src || NULL == pDstLen)
     {
-        error("Input param is NULL.\n");
+        errorBase64("Input param is NULL.\n");
         return NULL;
     }
 
     if(0 == srcLen)
     {
-        error("Input length is 0, will do nothing.\n");
+        errorBase64("Input length is 0, will do nothing.\n");
         return NULL;
     }
 
@@ -303,7 +309,7 @@ unsigned char * moCrypt_BASE64_Chars(const BASE64_CRYPT_METHOD method,
             pDst = decryptChars(src, srcLen, pDstLen);
             break;
         default:
-            error("Input method is %d, invalid!\n", method);
+            errorBase64("Input method is %d, invalid!\n", method);
             break;
     }
     
@@ -321,10 +327,329 @@ void moCrypt_BASE64_dumpChars(const unsigned char *pTxt, const unsigned int len)
     printf("\n");
 }
 
+/*
+    Get the tmp file path;
+*/
+static char * getTmpFilepath(const char * pSrcFilepath)
+{
+    if(NULL == pSrcFilepath)
+    {
+        errorBase64("Input param is NULL.\n");
+        return NULL;
+    }
+
+    MOUTILS_FILE_DIR_FILENAME info;
+    memset(&info, 0x00, sizeof(MOUTILS_FILE_DIR_FILENAME));
+    int ret = moUtils_File_getDirAndFilename(pSrcFilepath, &info);
+    if(ret != MOUTILS_FILE_ERR_OK)
+    {
+        errorBase64("moUtils_File_getDirAndFilename failed! ret = %x, srcFilepath = [%s]\n",
+            ret, pSrcFilepath);
+        return NULL;
+    }
+
+    char * pTmpFilepath = NULL;
+    unsigned int len = strlen(info.pDirpath) + 1 + strlen(TEMP_FILE_PREFIX) + strlen(info.pFilename) + 1;
+    pTmpFilepath = (char *)malloc(sizeof(char) * len);
+    if(NULL == pTmpFilepath)
+    {
+        errorBase64("Malloc failed! length = %d, errno = %d, desc = [%s]\n", 
+            len, errno, strerror(errno));
+        goto OUT;
+    }
+    memset(pTmpFilepath, 0x00, len);
+    sprintf(pTmpFilepath, "%s/%s%s", info.pDirpath, TEMP_FILE_PREFIX, info.pFilename);
+    debugBase64("pTmpFilepath is [%s]\n", pTmpFilepath);
+    
+OUT:
+    free(info.pDirpath);
+    info.pDirpath = NULL;
+    free(info.pFilename);
+    info.pFilename = NULL;
+    return pTmpFilepath;
+}
+
+/*
+    1.Get tmp filepath;
+    2.open src as reading mode, open tmp as writing mode;
+    3.do crypt from src to tmp;
+    4.close src and tmp;
+    5.open src as writing mode, open tmp as reading mode;
+    6.copy from tmp to src;
+    7.close src and tmp;
+    8.delete tmp;
+*/
+static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFilepath)
+{
+    if(NULL == pSrcFilepath)
+    {
+        errorBase64("Input param is NULL.\n");
+        return MOCRYPTBASE64_ERR_INPUTNULL;
+    }
+
+    //1.Get the tmp file path
+    char * pTmpFilepath = getTmpFilepath(pSrcFilepath);
+    if(NULL == pTmpFilepath)
+    {
+        errorBase64("getTmpFilepath failed!\n");
+        return MOCRYPTBASE64_ERR_MALLOCFAILED;
+    }
+    debugBase64("Step 1 : get tmp file path has been over, it is [%s]\n", pTmpFilepath);
+    
+    //2.Open src file for reading, open tmp for writing
+    FILE * fpSrc = fopen(pSrcFilepath, "rb");
+    if(NULL == fpSrc)
+    {
+        errorBase64("Open src file [%s] for reading failed! errno = %d, desc = [%s]\n", 
+            pSrcFilepath, errno, strerror(errno));
+        free(pTmpFilepath);
+        pTmpFilepath = NULL;
+        return MOCRYPTBASE64_ERR_FILEOPENFAIL;
+    }
+    FILE * fpTmp = fopen(pTmpFilepath, "wb");
+    if(NULL == fpTmp)
+    {
+        errorBase64("Open tmp file [%s] for writing failed! errno = %d, desc = [%s]\n", 
+            pTmpFilepath, errno, strerror(errno));
+        free(pTmpFilepath);
+        pTmpFilepath = NULL;
+        fclose(fpSrc);
+        fpSrc = NULL;
+        return MOCRYPTBASE64_ERR_FILEOPENFAIL;
+    }
+    debugBase64("Step 2 : open src for read, open tmp for write has been over.\n");
+    
+    //3.Do crypt 
+    int readNum = 0;
+    unsigned char buf[CRYPT_FILE_BLOCKSIZE] = {0x00};
+    while((readNum = fread(buf, 1, CRYPT_FILE_BLOCKSIZE, fpSrc)) > 0)
+    {
+        debugBase64("In this loop, readNum = %d, CRYPT_FILE_BLOCKSIZE = %d\n", 
+            readNum, CRYPT_FILE_BLOCKSIZE);
+        
+        if(method == BASE64_CRYPT_METHOD_ENCRYPT)
+        {
+            unsigned int cipherLen = 0;
+            unsigned char * pCipherTxt = encryptChars(buf, readNum, &cipherLen);
+            if(NULL == pCipherTxt)
+            {
+                errorBase64("encryptChars failed!\n");
+                free(pTmpFilepath);
+                pTmpFilepath = NULL;
+                fclose(fpSrc);
+                fpSrc = NULL;
+                fclose(fpTmp);
+                fpTmp = NULL;
+                return MOCRYPTBASE64_ERR_MALLOCFAILED;
+            }
+            //Write to dst file
+            fwrite(pCipherTxt, 1, cipherLen, fpTmp);
+            fflush(fpTmp);
+            free(pCipherTxt);
+            pCipherTxt = NULL;
+        }
+        else
+        {
+            unsigned int plainLen = 0;
+            unsigned char * pPlainTxt = decryptChars(buf, readNum, &plainLen);
+            if(NULL == pPlainTxt)
+            {
+                errorBase64("decryptChars failed!\n");
+                free(pTmpFilepath);
+                pTmpFilepath = NULL;
+                fclose(fpSrc);
+                fpSrc = NULL;
+                fclose(fpTmp);
+                fpTmp = NULL;
+                return MOCRYPTBASE64_ERR_MALLOCFAILED;
+            }
+            //Write to dst file
+            fwrite(pPlainTxt, 1, plainLen, fpTmp);
+            fflush(fpTmp);
+            free(pPlainTxt);
+            pPlainTxt = NULL;
+        }
+
+        memset(buf, 0x00, CRYPT_FILE_BLOCKSIZE);
+    }
+    debugBase64("Step 3 : do crypt from src to tmp has been over.\n");
+
+    //4.close files
+    fclose(fpSrc);
+    fpSrc = NULL;
+    fclose(fpTmp);
+    fpTmp = NULL;
+    debugBase64("Step 4 : Close src file and tmp file temply has been over.\n");
+
+    //5.open src file for writing, open tmp for reading
+    fpSrc = fopen(pSrcFilepath, "wb");
+    if(fpSrc == NULL)
+    {
+        errorBase64("Open src file [%s] for writing failed! errno = %d, desc = [%s]\n",
+            pSrcFilepath, errno, strerror(errno));
+        free(pTmpFilepath);
+        pTmpFilepath = NULL;
+        return MOCRYPTBASE64_ERR_FILEOPENFAIL;
+    }
+    fpTmp = fopen(pTmpFilepath, "rb");
+    if(fpTmp == NULL)
+    {
+        errorBase64("Open tmp file [%s] for reading failed! errno = %d, desc = [%s]\n",
+            pTmpFilepath, errno, strerror(errno));
+        fclose(fpSrc);
+        fpSrc = NULL;
+        free(pTmpFilepath);
+        pTmpFilepath = NULL;
+        return MOCRYPTBASE64_ERR_FILEOPENFAIL;
+    }
+    debugBase64("Step 5 : open src for write, open tmp for read has been over.\n");
+
+    //6.Copy contents from tmp to src
+    while((readNum = fread(buf, 1, CRYPT_FILE_BLOCKSIZE, fpTmp)) > 0)
+    {
+        fwrite(buf, 1, readNum, fpSrc);
+        fflush(fpSrc);
+        memset(buf, 0x00, CRYPT_FILE_BLOCKSIZE);
+    }
+    debugBase64("Step 6 : copy from tmp to src has been over.\n");
+
+    //7.close them
+    fclose(fpSrc);
+    fpSrc = NULL;
+    fclose(fpTmp);
+    fpTmp = NULL;
+    debugBase64("Step 7 : Close src file and tmp file finally has been over.\n");
+
+    //8.delete tmp file, free memory
+    unlink(pTmpFilepath);
+    free(pTmpFilepath);
+    pTmpFilepath = NULL;
+    debugBase64("Step 8 : crypt being done!\n");
+    
+    return MOCRYPTBASE64_ERR_OK;
+}
+
+
+/*
+    1.Open src in reading mode, open dst in writing mode;
+    2.do crypt from src to dst;
+    3.close src and dst;
+*/
+static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFilepath,const char * pDstFilepath)
+{
+    if(NULL == pSrcFilepath || NULL == pDstFilepath)
+    {
+        errorBase64("Input param is NULL.\n");
+        return MOCRYPTBASE64_ERR_INPUTNULL;
+    }
+
+    //1.Open them
+    FILE * fpSrc = NULL;
+    fpSrc = fopen(pSrcFilepath, "rb");
+    if(NULL == fpSrc)
+    {
+        errorBase64("Open src file [%s] for reading failed! errno = %d, desc = [%s]\n",
+            pSrcFilepath, errno, strerror(errno));
+        return MOCRYPTBASE64_ERR_FILEOPENFAIL;
+    }
+    FILE * fpDst = NULL;
+    fpDst = fopen(pDstFilepath, "wb");
+    if(NULL == fpDst)
+    {
+        errorBase64("Open dst file [%s] for writing failed! errno = %d, desc = [%s]\n",
+            pDstFilepath, errno, strerror(errno));
+
+        fclose(fpSrc);
+        fpSrc = NULL;
+        
+        return MOCRYPTBASE64_ERR_FILEOPENFAIL;
+    }
+
+    //2.Do crypt 
+    int ret = MOCRYPTBASE64_ERR_OK;
+    int readNum = 0;
+    unsigned char buf[CRYPT_FILE_BLOCKSIZE] = {0x00};
+    while((readNum = fread(buf, 1, CRYPT_FILE_BLOCKSIZE, fpSrc)) > 0)
+    {
+        debugBase64("In this loop, readNum = %d, CRYPT_FILE_BLOCKSIZE = %d\n", 
+            readNum, CRYPT_FILE_BLOCKSIZE);
+        
+        if(method == BASE64_CRYPT_METHOD_ENCRYPT)
+        {
+            unsigned int cipherLen = 0;
+            unsigned char * pCipherTxt = encryptChars(buf, readNum, &cipherLen);
+            if(NULL == pCipherTxt)
+            {
+                errorBase64("encryptChars failed!\n");
+                ret = MOCRYPTBASE64_ERR_MALLOCFAILED;
+                goto OUT;
+            }
+            //Write to dst file
+            fwrite(pCipherTxt, 1, cipherLen, fpDst);
+            fflush(fpDst);
+            free(pCipherTxt);
+            pCipherTxt = NULL;
+        }
+        else
+        {
+            unsigned int plainLen = 0;
+            unsigned char * pPlainTxt = decryptChars(buf, readNum, &plainLen);
+            if(NULL == pPlainTxt)
+            {
+                errorBase64("decryptChars failed!\n");
+                ret = MOCRYPTBASE64_ERR_MALLOCFAILED;
+                goto OUT;
+            }
+            //Write to dst file
+            fwrite(pPlainTxt, 1, plainLen, fpDst);
+            fflush(fpDst);
+            free(pPlainTxt);
+            pPlainTxt = NULL;
+        }
+    }
+    
+OUT:
+    fclose(fpSrc);
+    fpSrc = NULL;
+    fclose(fpDst);
+    fpDst = NULL;
+    return ret;
+}
+
+/*
+    1.srcFilepath is the same with dstFilepath or not;
+    2.read src file with block, do crypt looply, write to dst file;
+*/
 int moCrypt_BASE64_File(const BASE64_CRYPT_METHOD method,const char * pSrcFilepath,const char * pDstFilepath)
 {
-    //TODO
-    return 0;
+    if(NULL == pSrcFilepath || NULL == pDstFilepath)
+    {
+        errorBase64("Input param is NULL.\n");
+        return MOCRYPTBASE64_ERR_INPUTNULL;
+    }
+    
+    MOUTILS_FILE_ABSPATH_STATE sameState;
+    int ret = moUtils_File_getFilepathSameState(pSrcFilepath, pDstFilepath, &sameState);
+    if(ret != 0)
+    {
+        errorBase64("moUtils_File_getFilepathSameState failed! ret = %d(0x%x)\n", ret, ret);
+        return MOCRYPTBASE64_ERR_OTHER;
+    }
+
+    switch(sameState)
+    {
+        case MOUTILS_FILE_ABSPATH_STATE_SAME:
+            ret = cryptFileToSame(method, pSrcFilepath);
+            break;
+        case MOUTILS_FILE_ABSPATH_STATE_DIFF:
+            ret = cryptFileToDiff(method, pSrcFilepath, pDstFilepath);
+            break;
+        default:
+            ret = MOCRYPTBASE64_ERR_OTHER;
+            break;
+    }
+    
+    return ret;
 }
 
 void moCrypt_BASE64_free(unsigned char * pChars)

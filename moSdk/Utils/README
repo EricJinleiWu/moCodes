@@ -10,3 +10,8 @@ V1.1.0
         Add a new sub directory : File to Utils;
         In this directory, I want to exec some functions about file, just like get file size, get directory from filepath, and so on.
 
+V1.1.1
+    EricWu, 20170301
+        Modify a bug: When file donot exist, In moSdk-Utils-Files, cannot get abstract filepath, and the diff state of two files,
+                        this is not in right rule.
+        

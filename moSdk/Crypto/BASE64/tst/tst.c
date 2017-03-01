@@ -40,9 +40,54 @@ static void tst_moCrypt_BASE64_Chars(void)
 	moCrypt_BASE64_free(pCipherTxt);
 }
 
+void tst_moCrypt_BASE64_File(void)
+{
+    //1.src and dst file is not same
+    char *srcfile = "a.txt";  //a.txt, abspath format
+//    char *dstfile = "./b.txt";
+//    int ret = moCrypt_BASE64_File(BASE64_CRYPT_METHOD_ENCRYPT, srcfile, dstfile);
+//    if(ret != 0)
+//    {
+//        printf("moCrypt_BASE64_File to encrypt from src to dst failed! ret = %d\n", ret);
+//        return ;
+//    }
+//    printf("moCrypt_BASE64_File to encrypt from src to dst succeed.\n");
+
+//    char *plainfile = "c.txt";
+//    ret = moCrypt_BASE64_File(BASE64_CRYPT_METHOD_DECRYPT, dstfile, plainfile);
+//    if(ret != 0)
+//    {
+//        printf("moCrypt_BASE64_File to decrypt from dst to src failed! ret = %d\n", ret);
+//        return ;
+//    }
+//    printf("moCrypt_BASE64_File to decrypt from dst to src succeed.\n");
+
+
+    //2.the same file
+    int ret = moCrypt_BASE64_File(BASE64_CRYPT_METHOD_ENCRYPT, srcfile, srcfile);
+    if(ret != 0)
+    {
+        printf("moCrypt_BASE64_File to encrypt from src to dst failed! ret = %d\n", ret);
+        return ;
+    }
+    printf("moCrypt_BASE64_File to encrypt from src to dst succeed.\n");
+
+    char *plainfile = "c.txt";
+    ret = moCrypt_BASE64_File(BASE64_CRYPT_METHOD_DECRYPT, srcfile, srcfile);
+    if(ret != 0)
+    {
+        printf("moCrypt_BASE64_File to decrypt from dst to src failed! ret = %d\n", ret);
+        return ;
+    }
+    printf("moCrypt_BASE64_File to decrypt from dst to src succeed.\n");
+}
+
 int main(int argc, char **argv)
 {
-	tst_moCrypt_BASE64_Chars();
+//	tst_moCrypt_BASE64_Chars();
+
+    tst_moCrypt_BASE64_File();
+
 
 	return 0;
 }

@@ -7,6 +7,10 @@ DVRGW_SUFFIX = $(VERNUM)
 
 MO_SDK_RELEASE_DIR = ../release
 
+#The inc dir of utils
+MOUTILS_DIR = ../Utils/
+MOUTILS_INCDIR = $(MOUTILS_DIR)inc
+
 #src dir, When add a new algorithm, add its dir here.
 RC4_DIR = ./RC4
 RC4_SRC_DIR = $(RC4_DIR)/src
@@ -22,7 +26,8 @@ BASE64_INC_DIR = $(BASE64_DIR)/inc
 INCDIRS = -I./inc \
 	      -I$(RC4_INC_DIR) \
 		  -I$(MD5_INC_DIR) \
-		  -I$(BASE64_INC_DIR)
+		  -I$(BASE64_INC_DIR) \
+		  -I$(MOUTILS_INCDIR)
 
 # System lib path
 #LDFLAGS =	-lpthread -lrt -ldl
