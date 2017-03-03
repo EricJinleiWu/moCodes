@@ -9,5 +9,9 @@ V1.0.0:
 	In my design, just can use one config file with all processes once;
 	I will use config file named "moLoggerConf.ini", when init, you should input a directory path, and this config file must be exist in this dir.
 
-	
+V1.0.1:
+    EricWu, 20170303
+    Canbe used in multi processes, but just allow one config file!
+    If one process has been init succeed, the other process call init, then if they have same config file, it will return OK, and can be used;
+    	
 	
