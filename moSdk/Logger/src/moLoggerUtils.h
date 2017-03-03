@@ -23,6 +23,9 @@ extern "C" {
 //The max length of a log
 #define MO_LOGGER_MAX_LOG_LEN       1024
 
+//The max length of a directory path
+#define MO_LOGGER_MAX_DIRPATH_LEN   256
+
 typedef enum
 {
 	MO_LOGGER_FALSE = 0,

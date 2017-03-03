@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #include "moLogger.h"
 #include "moLoggerUtils.h"
@@ -12,11 +13,15 @@
 #define ATTR_LEVEL      "level"
 #define ATTR_LOCALFILE  "localfile"
 
+static pthread_mutex_t gLock = PTHREAD_MUTEX_INITIALIZER;
+
 static MO_LOGGER_BOOL gIsInited = MO_LOGGER_FALSE;
 
 static SECTION_INFO_NODE *gpSecHeadNode = NULL;
 
-static char gFileDir[256] = {0x00};
+static char gFileDir[MO_LOGGER_MAX_DIRPATH_LEN] = {0x00};
+
+static unsigned int gInitCnt = 0;
 
 static void setInitFlag(void)
 {
@@ -50,22 +55,30 @@ int moLoggerInit(const char *fileDir)
 		return -1;
 	}
 
+    pthread_mutex_lock(&gLock);
+
 	if(isInited())
 	{
         if(0 == strcmp(fileDir, gFileDir))
         {
             //This file has been init by other processes, will not init again
+            gInitCnt++;
+            pthread_mutex_unlock(&gLock);
             return 0;
         }
         else
         {
             moLoggerOwnInfo("moLogger has been inited yet! should not init again!\n");
+            pthread_mutex_unlock(&gLock);
             return -2;
         }
 	}
 
 	if(!isConfFileExist(fileDir))
 	{
+        moLoggerOwnInfo("In dir [%s], donot find moLogger config file : [%s]\n",
+            fileDir, MO_LOGGER_CONF_FILENAME);
+        pthread_mutex_unlock(&gLock);
 		return -3;
 	}
 
@@ -75,6 +88,7 @@ int moLoggerInit(const char *fileDir)
     if(NULL == filepath)
     {
         moLoggerOwnInfo("Malloc for ini filepath failed!\n");
+        pthread_mutex_unlock(&gLock);
         return -4;
     }
     sprintf(filepath, "%s/%s", fileDir, MO_LOGGER_CONF_FILENAME);
@@ -88,15 +102,23 @@ int moLoggerInit(const char *fileDir)
 				fileDir, filepath);
         free(filepath);
         filepath = NULL;
+        pthread_mutex_unlock(&gLock);
 		return -5;
 	}
-    
+
+    //Free the memory we malloced 
     free(filepath);
     filepath = NULL;
-
-	setInitFlag();
-
+    //Save the dir path
     strcpy(gFileDir, fileDir);
+
+    //do count
+    gInitCnt++;
+    
+    //Has init, set flag
+	setInitFlag();
+    
+    pthread_mutex_unlock(&gLock);
 
 	return 0;
 }
@@ -120,6 +142,12 @@ void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *fmt
 		moLoggerOwnInfo("Input level = %d, donot a valid value!\n", level);
 		return ;
 	}
+
+    if(!isInited())
+    {
+        moLoggerOwnInfo("Donot init yet, cannot logger anything.\n");
+        return ;
+    }
 
     /* Get the level firstly */
     char value[ATTR_VALUE_MAX_LEN] = {0x00};
@@ -199,11 +227,24 @@ void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *fmt
 */
 int moLoggerUnInit(void)
 {
-    /* Release all info being parsed from config file. */
-    moIniParser_UnInit(gpSecHeadNode);
+    pthread_mutex_lock(&gLock);
+    if(isInited())
+    {
+        gInitCnt--;
+        //All user has been uninit yet, will release our resource
+        if(0 == gInitCnt)
+        {
+            /* Release all info being parsed from config file. */
+            moIniParser_UnInit(gpSecHeadNode);
+            gpSecHeadNode = NULL;
 
-    /* Reset the flag; */
-    clearInitFlag();
+            memset(gFileDir, 0x00, MO_LOGGER_MAX_DIRPATH_LEN);
+                
+            /* Reset the flag; */
+            clearInitFlag();
+        }
+    }
+    pthread_mutex_unlock(&gLock);
     
     return 0;
 }
