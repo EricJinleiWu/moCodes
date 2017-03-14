@@ -5,6 +5,10 @@
 extern "C" {
 #endif
 
+#include "moLogger.h"
+
+#define MOCRYPT_LOGGER_MODULE_NAME  "MOCRYPT"
+
 /*
     Do crypt with RC4 algorithm, include encrypt and decrypt;
 

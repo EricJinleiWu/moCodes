@@ -15,7 +15,7 @@ static void workTh(void *args)
 {
     if(NULL == args)
     {
-        error("Input param is NULL.\n");
+        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
         return ;
     }
     THMGR_INFO * pThMgrInfo = (THMGR_INFO *)args;
@@ -25,7 +25,7 @@ static void workTh(void *args)
         //When we get a semaphore, should check is a task should be done, or threadPool will be destroyed.
         if(pThMgrInfo->state == THMGR_STATE_STOP)
         {
-            debug("pThMgrInfo->state == THMGR_STATE_STOP, work thread will exit now!\n");
+            //debug("pThMgrInfo->state == THMGR_STATE_STOP, work thread will exit now!\n");
             //This thread pool will be destroyed, so this thread will exit now.
             pthread_exit(NULL);
         }
@@ -35,7 +35,7 @@ static void workTh(void *args)
             TASKNODE * pTaskNode = taskQueueGetTask(&(pThMgrInfo->taskQueue));
             if(NULL == pTaskNode)
             {
-                error("taskQueueGetTask failed!\n");
+                moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "taskQueueGetTask failed!\n");
             }
             else
             {
@@ -59,7 +59,7 @@ void * moUtils_TP_init(const unsigned int thNum)
     pThMgrInfo = (THMGR_INFO *)malloc(sizeof(THMGR_INFO) * 1);
     if(NULL == pThMgrInfo)
     {
-        error("Malloc for a thMgr failed! errno = %d, desc = [%s]\n",
+        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "Malloc for a thMgr failed! errno = %d, desc = [%s]\n",
             errno, strerror(errno));
         return NULL;
     }
@@ -69,7 +69,7 @@ void * moUtils_TP_init(const unsigned int thNum)
     int ret = taskQueueInit(&(pThMgrInfo->taskQueue));
     if(ret != 0)
     {
-        error("taskQueueInit failed! ret = 0x%x\n", ret);
+        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "taskQueueInit failed! ret = 0x%x\n", ret);
         free(pThMgrInfo);
         pThMgrInfo = NULL;
         return NULL;
@@ -80,7 +80,7 @@ void * moUtils_TP_init(const unsigned int thNum)
     pThMgrInfo->pThInfoList = (TH_INFO *)malloc(sizeof(TH_INFO) * thNum);
     if(NULL == pThMgrInfo->pThInfoList)
     {
-        error("Malloc for thInfoList failed! errno = %d, desc = [%s]\n",
+        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "Malloc for thInfoList failed! errno = %d, desc = [%s]\n",
             errno, strerror(errno));
 
         taskQueueUnInit(&(pThMgrInfo->taskQueue));
@@ -100,7 +100,7 @@ void * moUtils_TP_init(const unsigned int thNum)
         ret = pthread_create(&thId, NULL, (void *)workTh, (void *)pThMgrInfo);
         if(ret != 0)
         {
-            error("pthread_create failed! ret = %d, errno = %d, desc = [%s]\n", 
+            moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "pthread_create failed! ret = %d, errno = %d, desc = [%s]\n", 
                 ret, errno, strerror(errno));
 
             pThMgrInfo->state = THMGR_STATE_STOP;
@@ -188,7 +188,7 @@ int moUtils_TP_addTask(void *pTpMgr, MOUTILS_TP_TASKINFO taskInfo)
 {
     if(NULL == pTpMgr)
     {
-        error("Input param is NULL.\n");
+        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
         return MOUTILS_TP_ERR_INPUTPARAMNULL;
     }
     
@@ -196,7 +196,7 @@ int moUtils_TP_addTask(void *pTpMgr, MOUTILS_TP_TASKINFO taskInfo)
     int ret = taskQueueAddTask(&(pThMgrInfo->taskQueue), taskInfo);
     if(ret != 0)
     {
-        error("taskQueueAddTask failed! ret = 0x%x\n", ret);
+        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "taskQueueAddTask failed! ret = 0x%x\n", ret);
         return ret;
     }
     

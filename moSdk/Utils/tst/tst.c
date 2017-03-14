@@ -96,16 +96,19 @@ static void tst_moUtils_File_getFilepathSameState(void)
 
 int main(int argc, char **argv)
 {
-//    tst_moUtils_File_getSize();
+    moLoggerInit("./");
+    
+    tst_moUtils_File_getSize();
 
-//    tst_moUtils_File_getAbsFilePath();
+    tst_moUtils_File_getAbsFilePath();
 
-//    tst_moUtils_File_getAbsDirPath();
+    tst_moUtils_File_getAbsDirPath();
 
-//    tst_moUtils_File_getDirAndFilename();
+    tst_moUtils_File_getDirAndFilename();
 
     tst_moUtils_File_getFilepathSameState();
 
+    moLoggerUnInit();
     
     return 0;
 }

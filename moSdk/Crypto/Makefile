@@ -11,6 +11,10 @@ MO_SDK_RELEASE_DIR = ../release
 MOUTILS_DIR = ../Utils/
 MOUTILS_INCDIR = $(MOUTILS_DIR)inc
 
+#The inc dir of Logger
+MOLOGGER_DIR = ../Logger
+MOLOGGER_INCDIR = $(MOLOGGER_DIR)/inc
+
 #src dir, When add a new algorithm, add its dir here.
 RC4_DIR = ./RC4
 RC4_SRC_DIR = $(RC4_DIR)/src
@@ -27,7 +31,8 @@ INCDIRS = -I./inc \
 	      -I$(RC4_INC_DIR) \
 		  -I$(MD5_INC_DIR) \
 		  -I$(BASE64_INC_DIR) \
-		  -I$(MOUTILS_INCDIR)
+		  -I$(MOUTILS_INCDIR) \
+		  -I$(MOLOGGER_INCDIR)
 
 # System lib path
 #LDFLAGS =	-lpthread -lrt -ldl

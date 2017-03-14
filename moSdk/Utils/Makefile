@@ -15,10 +15,15 @@ File_DIR = ./File
 File_SRC_DIR = $(File_DIR)/src
 File_INC_DIR = $(File_DIR)/inc
 
+#MoLogger dir
+MOLOGGER_DIR = ../Logger
+MOLOGGER_INC = $(MOLOGGER_DIR)/inc
+
 # INC DIRS.
 INCDIRS = -I./inc \
 	      -I$(ThreadPool_INC_DIR) \
-	      -I$(File_INC_DIR)
+	      -I$(File_INC_DIR) \
+		  -I$(MOLOGGER_INC)
 
 # System lib path
 LDFLAGS =	-lpthread

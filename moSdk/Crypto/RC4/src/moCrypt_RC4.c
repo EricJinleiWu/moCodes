@@ -388,7 +388,7 @@ static int cryptFile(FILE *srcFd, FILE *dstFd, const unsigned char *key, const i
 	{
 		return -1;
 	}
-    printf("cryptFile enter\n");
+    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, "cryptFile enter\n");
 	int ret = 0;
 	unsigned char readBuf[RDWR_BLOCKNUM_ONCE * BLOCK_SIZE] = {0x00};
 	memset(readBuf, 0x00, RDWR_BLOCKNUM_ONCE * BLOCK_SIZE);
@@ -407,7 +407,7 @@ static int cryptFile(FILE *srcFd, FILE *dstFd, const unsigned char *key, const i
 			break;
 		}
 		memset(readBuf, 0x00, BLOCK_SIZE * RDWR_BLOCKNUM_ONCE);		
-        printf("readLen = %d, writeLen = %d\n", readLen, writeLen);
+        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, "readLen = %d, writeLen = %d\n", readLen, writeLen);
 	}
 	
 	return (0 == ret) ? 0 : -2;
@@ -421,7 +421,7 @@ static int cryptFile(FILE *srcFd, FILE *dstFd, const unsigned char *key, const i
 */
 static int copyContentsToDstfile(FILE *srcFd, FILE *dstFd)
 {
-    printf("copyContentsToDstfile enter \n");
+    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, "copyContentsToDstfile enter \n");
 	if(NULL == srcFd || NULL == dstFd)
 	{
 		return -1;
@@ -483,7 +483,7 @@ int moCrypt_RC4_cryptFile(const char *srcFilepath, const char *dstFilepath, cons
 		{
 			return -4;
 		}
-        printf("tempDstFilepath = [%s]\n", tempDstFilepath);
+        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, "tempDstFilepath = [%s]\n", tempDstFilepath);
 		if(NULL == (dstFd = fopen(tempDstFilepath, "wb")))
 		{
 			fclose(srcFd);

@@ -28,3 +28,11 @@ V1.2.1
 V1.2.2
     EricWu, 20170302
     Add a feature : moCrypt-BASE64, can do crypt to file.
+
+V1.2.3
+    EricWu, 20170303
+    Change logger method from printf to moLogger.
+
+V1.2.4
+    EricWu, 20170314
+    Modify some warnings being found when make;

@@ -129,7 +129,7 @@ static int AddSecInfoNode(const char *pSecName, const SECTION_INFO_NODE *pSecInf
 	}
 
 	int isNodeExist = -1;
-	SECTION_INFO_NODE *pLastSecInfoNode = pSecInfoHeadNode;
+	SECTION_INFO_NODE *pLastSecInfoNode = (SECTION_INFO_NODE *)pSecInfoHeadNode;
 
 	while(pLastSecInfoNode->next != NULL)
 	{
@@ -166,7 +166,7 @@ static int AddSecInfoNode(const char *pSecName, const SECTION_INFO_NODE *pSecInf
 	}
 
 	pNewSecInfoNode->next = NULL;
-	strncpy(&pNewSecInfoNode->sectionName, pSecName, SECTION_NAME_MAX_LEN);
+	strncpy(pNewSecInfoNode->sectionName, pSecName, SECTION_NAME_MAX_LEN);
 	memset(pNewSecInfoNode->pHeadAttrNode, 0x00, sizeof(ATTR_INFO_NODE));
 
 	//Add the new node to the section node list
@@ -228,7 +228,7 @@ static int AddAttrInfoNode(const ATTR_INFO *pAttrInfo, const char *pSecName, con
 	if(0 == isFindAttr)
 	{
 		error("Attr node has been exist in section [%s], cannot add it again!\n",
-				__FUNCTION__, __LINE__, pSecName);
+				pSecName);
 		return -4;
 	}
 	//Malloc a new node for the attribute

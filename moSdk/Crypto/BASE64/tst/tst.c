@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "moCrypt.h"
+#include "moLogger.h"
 
 static void tst_moCrypt_BASE64_Chars(void)
 {
@@ -84,10 +85,13 @@ void tst_moCrypt_BASE64_File(void)
 
 int main(int argc, char **argv)
 {
+    moLoggerInit("./");
+    
 //	tst_moCrypt_BASE64_Chars();
 
     tst_moCrypt_BASE64_File();
 
+    moLoggerUnInit();
 
 	return 0;
 }

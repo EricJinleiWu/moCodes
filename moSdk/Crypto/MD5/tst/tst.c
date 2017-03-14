@@ -57,9 +57,13 @@ static void tst_moCrypt_MD5_File()
 
 int main(int argc, char **argv)
 {
+    moLoggerInit("./");
+    
 //    tst_ROTATE_LEFT_SHIFT();
 //    tst_moCrypt_MD5_String();
     tst_moCrypt_MD5_File();
+
+    moLoggerUnInit();
 
 	return 0;
 }

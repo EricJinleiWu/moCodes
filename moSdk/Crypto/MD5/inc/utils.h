@@ -74,15 +74,6 @@ extern "C" {
 #define MOD_LEN_BITS    (448)
 #define MOD_LEN_BYTES    (56)
 
-//Define log output format
-#define error(format, ...) printf("MO_CRYPT_MD5 : [%s, %s, %d ERR] : "format, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-//When release, this should not logout!
-#if DEBUG_MODE
-#define debug(format, ...) printf("MO_CRYPT_MD5 : [%s, %s, %d DBG] : "format, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#else
-#define debug(format, ...)
-#endif
-
 #ifdef __cplusplus
 }
 #endif

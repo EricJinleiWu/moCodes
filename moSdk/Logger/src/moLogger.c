@@ -14,14 +14,15 @@
 #define ATTR_LOCALFILE  "localfile"
 
 static pthread_mutex_t gLock = PTHREAD_MUTEX_INITIALIZER;
-
 static MO_LOGGER_BOOL gIsInited = MO_LOGGER_FALSE;
-
 static SECTION_INFO_NODE *gpSecHeadNode = NULL;
-
 static char gFileDir[MO_LOGGER_MAX_DIRPATH_LEN] = {0x00};
-
 static unsigned int gInitCnt = 0;
+
+static const char strLevel[5][8] = {
+    "debug", "info", "warn", "error", "fatal"
+    };
+
 
 static void setInitFlag(void)
 {
@@ -192,7 +193,7 @@ void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *fmt
         va_list args;
         va_start(args, fmt);
 
-        snprintf(fmtbuf, sizeof(fmtbuf), "%s %s", curTimeStr, fmt);
+        snprintf(fmtbuf, sizeof(fmtbuf), "%s[%s] %s", curTimeStr, strLevel[level], fmt);
         vsnprintf(curLoginfo, sizeof(curLoginfo), fmtbuf, args);
         
         va_end(args);

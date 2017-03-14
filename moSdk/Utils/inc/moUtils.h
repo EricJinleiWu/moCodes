@@ -5,16 +5,9 @@
 extern "C" {
 #endif
 
-/*
-    The log info output format;
-*/
-#if 1
-#define error(format, ...) printf("MO_UTILS : [%s, %s, %d ERR] : "format, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define debug(format, ...) printf("MO_UTILS : [%s, %s, %d DBG] : "format, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#else
-#define error(format, ...)
-#define debug(format, ...)
-#endif
+#include "moLogger.h"
+
+#define MOUTILS_LOGGER_MODULE_NAME  "MOUTILS"
 
 /**********************************************************************************
     TP is ThreaPool, "moUtils_TP_" will be prefix to ThreadPool
