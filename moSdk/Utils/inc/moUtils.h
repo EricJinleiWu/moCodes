@@ -14,12 +14,12 @@ extern "C" {
 ***********************************************************************************/
 
 #define MOUTILS_TP_ERR_OK  0
-#define MOUTILS_TP_ERR_INPUTPARAMNULL           (0x00010000)    //input param is NULL.
-#define MOUTILS_TP_ERR_INITPARAMERR             (0x00010001)    //when init threadPool, initThNum larger than maxThNum
-#define MOUTILS_TP_ERR_CREATETHREADFAILED       (0x00010002)    //pthread_create for work thread failed
-#define MOUTILS_TP_ERR_MALLOCFAILED             (0x00010003)    //malloc for memory failed!
-#define MOUTILS_TP_ERR_SEMINITFAILED            (0x00010004)    //init semaphore failed
-#define MOUTILS_TP_ERR_MUTEXINITFAILED          (0x00010005)    //init mutex failed
+#define MOUTILS_TP_ERR_INPUTPARAMNULL           (0 - 10000)    //input param is NULL.
+#define MOUTILS_TP_ERR_INITPARAMERR             (0 - 10001)    //when init threadPool, initThNum larger than maxThNum
+#define MOUTILS_TP_ERR_CREATETHREADFAILED       (0 - 10002)    //pthread_create for work thread failed
+#define MOUTILS_TP_ERR_MALLOCFAILED             (0 - 10003)    //malloc for memory failed!
+#define MOUTILS_TP_ERR_SEMINITFAILED            (0 - 10004)    //init semaphore failed
+#define MOUTILS_TP_ERR_MUTEXINITFAILED          (0 - 10005)    //init mutex failed
 
 /*
     The task API, should be given by caller;
@@ -73,11 +73,11 @@ int moUtils_TP_addTask(void *pTpMgr, MOUTILS_TP_TASKINFO taskInfo);
 ***********************************************************************************/
 
 #define MOUTILS_FILE_ERR_OK                         (0x00000000)
-#define MOUTILS_FILE_ERR_INPUTPARAMNULL             (0 - 0x00011000)    //input param is NULL.
-#define MOUTILS_FILE_ERR_MALLOCFAILED               (0 - 0x00011001)    //malloc for memory failed!
-#define MOUTILS_FILE_ERR_OPENFAILED                 (0 - 0x00011002)    //open for reading or writing failed!
-#define MOUTILS_FILE_ERR_NOTFILE                    (0 - 0x00011003)    //Input path point to a directory
-#define MOUTILS_FILE_ERR_STATFAILED                 (0 - 0x00011004)    //Input path point to a directory
+#define MOUTILS_FILE_ERR_INPUTPARAMNULL             (0 - 11000)    //input param is NULL.
+#define MOUTILS_FILE_ERR_MALLOCFAILED               (0 - 11001)    //malloc for memory failed!
+#define MOUTILS_FILE_ERR_OPENFAILED                 (0 - 11002)    //open for reading or writing failed!
+#define MOUTILS_FILE_ERR_NOTFILE                    (0 - 11003)    //Input path point to a directory
+#define MOUTILS_FILE_ERR_STATFAILED                 (0 - 11004)    //Input path point to a directory
 
 
 typedef struct
@@ -146,6 +146,53 @@ int moUtils_File_getDirAndFilename(const char *pFilepath, MOUTILS_FILE_DIR_FILEN
 */
 int moUtils_File_getFilepathSameState(const char *pSrcFilepath, const char *pDstFilepath, 
     MOUTILS_FILE_ABSPATH_STATE * pState);
+
+
+
+/**********************************************************************************
+    "moUtils_Search_" will be prefix to Search operation
+***********************************************************************************/
+
+#define MOUTILS_SEARCH_ERR_OK                         (0x00000000)
+#define MOUTILS_SEARCH_ERR_INPUTPARAMNULL             (0 - 12000)    //input param is NULL.
+#define MOUTILS_SEARCH_ERR_PATLENLARGER               (0 - 12001)    //pattern string has length larger than dst string!
+#define MOUTILS_SEARCH_ERR_PATNOTEXIST                (0 - 12002)    //donot find pattern string
+#define MOUTILS_SEARCH_ERR_MALLOCFAILED               (0 - 12003)    //malloc failed!
+#define MOUTILS_SEARCH_ERR_INVALIDLEN                 (0 - 12004)    //pattern should has len == 0, or we cannot search for anything.
+
+/*
+    In input char array @pSrc, search @pPattern exist or not;
+    Use Brute Force Algorithm to do search;
+
+    return : 
+        0+: @pPattern exist, and the result is the pos in @pSrc, start from 0;
+        0-: @pPattern donot exist, or param is not allowed, or any other error;
+*/
+int moUtils_Search_BF(const unsigned char * pSrc, const unsigned int srcLen, 
+    const unsigned char * pPattern, const unsigned int patternLen);
+
+/*
+    In input char array @pSrc, search @pPattern exist or not;
+    Use KMP Algorithm to do search;
+
+    return : 
+        0+: @pPattern exist, and the result is the pos in @pSrc, start from 0;
+        0-: @pPattern donot exist, or param is not allowed, or any other error;
+*/
+int moUtils_Search_KMP(const unsigned char * pSrc, const unsigned int srcLen, 
+    const unsigned char * pPattern, const unsigned int patternLen);
+
+/*
+    In input char array @pSrc, search @pPattern exist or not;
+    Use Boyer Mooer Algorithm to do search;
+
+    return : 
+        0+: @pPattern exist, and the result is the pos in @pSrc, start from 0;
+        0-: @pPattern donot exist, or param is not allowed, or any other error;
+*/
+int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen, 
+    const unsigned char * pPattern, const unsigned int patternLen);
+
 
 #ifdef __cplusplus
 }

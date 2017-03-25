@@ -1,10 +1,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "moUtils.h"
 
-/* Do test to moUitls_File module. */
+/* ********************************************************************* 
+ ********************** Do test to moUitls_File module. ****************
+ ***********************************************************************/
 static void tst_moUtils_File_getSize(void)
 {
     char *path = "./a.txt";
@@ -94,10 +97,73 @@ static void tst_moUtils_File_getFilepathSameState(void)
     }
 }
 
+
+
+/* ********************************************************************* 
+ ********************** Do test to moUitls_Search module. ****************
+ ***********************************************************************/
+
+#define SRC_LEN     256
+#define PAT_LEN     8
+
+/*
+    tst BF algo. is right or not, just use strstr to cmp result.
+*/
+static void tst_moUtils_Search_BF(void)
+{
+    unsigned char src[SRC_LEN] = {0x00};
+    unsigned char pat[PAT_LEN] = {0x00};
+
+    //Gen this two strings firstly
+    int i = 0;
+    for(i = 0; i < SRC_LEN - 1; i++)
+    {
+        src[i] = rand() % 26 + 65;
+    }
+    for(i = 0; i < PAT_LEN - 1; i++)
+    {
+//        pat[i] = rand() % 26 + 65;
+        pat[i] = src[i + 160];
+    }
+    //use BF firstly
+    int retBF = moUtils_Search_BF(src, SRC_LEN - 1, pat, PAT_LEN - 1);
+    //use KMP secondly
+    int retKMP = moUtils_Search_KMP(src, SRC_LEN - 1, pat, PAT_LEN - 1);
+    //use strstr next
+    unsigned char *pos = strstr(src, pat);
+    int retStrstr = (pos != NULL) ? (pos - src) : -12002;    //-12002 is the ret to BF when donot find pat in src
+    //Cmp result
+    if(retStrstr == retBF)
+    {
+        printf("moUtils_Search_BF succeed! src = [%s], pat = [%s], offset = %d.\n", 
+            src, pat, retBF);
+     
+        if(retStrstr == retKMP)
+        {
+            printf("moUtils_Search_KMP succeed! src = [%s], pat = [%s], offset = %d.\n", 
+                src, pat,retKMP);
+            
+        }
+        else
+        {
+            printf("moUtils_Search_KMP failed! retKMP = %d, retStrstr = %d, src = [%s], pat = [%s]\n", 
+                retKMP, retStrstr, src, pat);
+        }   
+    }
+    else
+    {
+        printf("moUtils_Search_BF failed! retBF = %d, retStrstr = %d, src = [%s], pat = [%s]\n", 
+            retBF, retStrstr, src, pat);
+    }
+}
+
+
 int main(int argc, char **argv)
 {
-    moLoggerInit("./");
+    srand((unsigned int )time(NULL));
     
+    moLoggerInit("./");
+#if 0    
     tst_moUtils_File_getSize();
 
     tst_moUtils_File_getAbsFilePath();
@@ -107,6 +173,9 @@ int main(int argc, char **argv)
     tst_moUtils_File_getDirAndFilename();
 
     tst_moUtils_File_getFilepathSameState();
+#endif
+
+    tst_moUtils_Search_BF();
 
     moLoggerUnInit();
     

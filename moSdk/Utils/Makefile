@@ -14,6 +14,9 @@ ThreadPool_INC_DIR = $(ThreadPool_DIR)/inc
 File_DIR = ./File
 File_SRC_DIR = $(File_DIR)/src
 File_INC_DIR = $(File_DIR)/inc
+Search_DIR = ./Search
+Search_SRC_DIR = $(Search_DIR)/src
+Search_INC_DIR = $(Search_DIR)/inc
 
 #MoLogger dir
 MOLOGGER_DIR = ../Logger
@@ -23,6 +26,7 @@ MOLOGGER_INC = $(MOLOGGER_DIR)/inc
 INCDIRS = -I./inc \
 	      -I$(ThreadPool_INC_DIR) \
 	      -I$(File_INC_DIR) \
+		  -I$(Search_INC_DIR) \
 		  -I$(MOLOGGER_INC)
 
 # System lib path
@@ -38,6 +42,7 @@ PROGRAM_OBJ_DIR = ./obj
 # source file obj
 MAIN_OBJS = $(patsubst $(ThreadPool_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(ThreadPool_SRC_DIR)/*.c))
 MAIN_OBJS += $(patsubst $(File_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(File_SRC_DIR)/*.c))
+MAIN_OBJS += $(patsubst $(Search_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(Search_SRC_DIR)/*.c))
 
 #target is a lib
 TARGET_DIR = ./lib
@@ -62,6 +67,9 @@ $(PROGRAM_OBJ_DIR)/%.o: $(ThreadPool_SRC_DIR)/%.c
 	@echo ">>> compiling $< ..."
 	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
 $(PROGRAM_OBJ_DIR)/%.o: $(File_SRC_DIR)/%.c
+	@echo ">>> compiling $< ..."
+	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
+$(PROGRAM_OBJ_DIR)/%.o: $(Search_SRC_DIR)/%.c
 	@echo ">>> compiling $< ..."
 	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
 	

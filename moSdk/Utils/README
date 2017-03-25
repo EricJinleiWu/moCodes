@@ -22,3 +22,14 @@ V1.1.2
 V1.1.3
     EricWu, 20170314
         Modify some warnings being found when make;
+
+V1.1.4
+    EricWu, 20170315
+        Create a new directory "Search", to exec some search algo., like Brute force algo., BM algo., KMP algo., and so on.
+        In this version, just support Brute Force algo., and KMP algo.
+
+V1.1.5
+    EricWu, 20170325
+        Add BM algo. to Search;
+        Do basic test;
+        
