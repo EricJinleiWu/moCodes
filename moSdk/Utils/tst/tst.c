@@ -117,123 +117,182 @@ static void tst_moUtils_Search_Basic()
 {
     unsigned char pattern[8] = {0x00};
     unsigned char src[16] = {0x00};
-
-//    //src and pattern has same length
-//    unsigned int patLen = rand() % 8;
-//    memset(pattern, 0x00, 8);
-//    memset(src, 0x00, 16);
-//    int i = 0;
-//    for(i = 0; i < patLen; i++)
-//    {
-//        //A pattern in randm
-//        pattern[i] = rand() % 256;
-//        src[i] = pattern[i];    //same string
-//        src[i] = (pattern[i] + 1) % 256;    //different string
-//        
-//    }
-//    int retBF = moUtils_Search_BF(src, patLen, pattern, patLen);
-//    int retKmp = moUtils_Search_KMP(src, patLen, pattern, patLen);
-//    int retBm = moUtils_Search_BM(src, patLen, pattern, patLen);
-//    printf("src info : \n");
-//    DumpArray(src, patLen);
-//    printf("pattern info : \n");
-//    DumpArray(pattern, patLen);
-//    printf("After search, retBF=%d, retKmp=%d, retBm=%d\n",
-//            retBF, retKmp, retBm);
-
-//    //A pattern include same charactor 
-//    unsigned int patLen = rand() % 8;
-//    memset(pattern, 0x00, 8);
-//    memset(src, 0x00, 16);
-//    int i = 0;
-//    for(i = 0; i < patLen; i++)
-//    {        
-//        //A pattern include a duplicate charactor
-//        if(i == patLen / 2 && i > 0)
-//        {
-//            pattern[i] = pattern[i - 1];
-//        }
-//        else
-//        {
-//            pattern[i] = rand() % 256;
-//        }
-//        //Src include this pattern, can from beginning, and other position
-//        src[i] = pattern[i];    //src include pattern, pos is 0;
-//        src[i + 8] = pattern[i];    //src include pattern, pos is 8;
-
-//    }
-//    int retBF = moUtils_Search_BF(src, 8 + patLen, pattern, patLen);
-//    int retKmp = moUtils_Search_KMP(src, 8 + patLen, pattern, patLen);
-//    int retBm = moUtils_Search_BM(src, 8 + patLen, pattern, patLen);
-//    printf("src info : \n");
-//    DumpArray(src, 8 + patLen);
-//    printf("pattern info : \n");
-//    DumpArray(pattern, patLen);
-//    printf("After search, retBF=%d, retKmp=%d, retBm=%d\n",
-//            retBF, retKmp, retBm);
-
-    //A pattern include good suffix
-//    memset(pattern, 0x00, 8);
-//    memset(src, 0x00, 16);
-//    strcpy(pattern, "abdab");
-//    strcpy(src, "defdabdabce"); //good suffix is "ab", and exist in pattern
-//    int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
-//    int retKmp = moUtils_Search_KMP(src, strlen(src), pattern, strlen(pattern));
-//    int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern));
-//    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
-//            src, pattern, retBF, retKmp, retBm);
+    unsigned char kmpNext[8] = {0x00};
+    unsigned char bmBct[MOUTILS_SEARCH_BM_BCT_LEN] = {0x00};
+    unsigned char bmGst[8] = {0x00};
     
-//    memset(pattern, 0x00, 8);
-//    memset(src, 0x00, 16);
-//    strcpy(pattern, "bdab");
-//    strcpy(src, "xyzmbdxbce"); //good suffix is "b", and exist in pattern
-//    int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
-//    int retKmp = moUtils_Search_KMP(src, strlen(src), pattern, strlen(pattern));
-//    int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern));
-//    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
-//            src, pattern, retBF, retKmp, retBm);
-    
-//    memset(pattern, 0x00, 8);
-//    memset(src, 0x00, 16);
-//    strcpy(pattern, "bdab");
-//    strcpy(src, "xyzmbdxbdabc"); //good suffix is "b", and exist in pattern
-//    int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
-//    int retKmp = moUtils_Search_KMP(src, strlen(src), pattern, strlen(pattern));
-//    int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern));
-//    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
-//            src, pattern, retBF, retKmp, retBm);
+#if 0
 
-//    memset(pattern, 0x00, 8);
-//    memset(src, 0x00, 16);
-//    strcpy(pattern, "cadab");
-//    strcpy(src, "defdabdabce"); //good suffix is "ab", donot exist in pattern
-//    int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
-//    int retKmp = moUtils_Search_KMP(src, strlen(src), pattern, strlen(pattern));
-//    int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern));
-//    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
-//            src, pattern, retBF, retKmp, retBm);
-
+    //src and pattern has same length
+    unsigned int patLen = rand() % 8;
     memset(pattern, 0x00, 8);
     memset(src, 0x00, 16);
+    memset(kmpNext, 0x00, 8);
+    memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
+    memset(bmGst, 0x00, 8);
+    int i = 0;
+    for(i = 0; i < patLen; i++)
+    {
+        //A pattern in randm
+        pattern[i] = rand() % 256;
+        src[i] = pattern[i];    //same string
+//        src[i] = (pattern[i] + 1) % 256;    //different string
+        
+    }
+    int retBF = moUtils_Search_BF(src, patLen, pattern, patLen);
+    moUtils_Search_KMP_GenNextArray(kmpNext, pattern, patLen);
+    int retKmp = moUtils_Search_KMP(src, patLen, pattern, patLen, kmpNext);
+    moUtils_Search_BM_GenBCT(bmBct, pattern, patLen);
+    moUtils_Search_BM_GenGST(bmGst, pattern, patLen);
+    int retBm = moUtils_Search_BM(src, patLen, pattern, patLen, bmBct, bmGst);
+    printf("src info : \n");
+    DumpArray(src, patLen);
+    printf("pattern info : \n");
+    DumpArray(pattern, patLen);
+    printf("After search, retBF=%d, retKmp=%d, retBm=%d\n",
+            retBF, retKmp, retBm);
+#endif
+
+#if 0
+    //A pattern include same charactor 
+    unsigned int patLen = rand() % 8;
+    memset(pattern, 0x00, 8);
+    memset(src, 0x00, 16);
+    memset(kmpNext, 0x00, 8);
+    memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
+    memset(bmGst, 0x00, 8);
+    int i = 0;
+    for(i = 0; i < patLen; i++)
+    {        
+        //A pattern include a duplicate charactor
+        if(i == patLen / 2 && i > 0)
+        {
+            pattern[i] = pattern[i - 1];
+        }
+        else
+        {
+            pattern[i] = rand() % 256;
+        }
+        //Src include this pattern, can from beginning, and other position
+//        src[i] = pattern[i];    //src include pattern, pos is 0;
+        src[i + 8] = pattern[i];    //src include pattern, pos is 8;
+    }
+    int retBF = moUtils_Search_BF(src, patLen + 8, pattern, patLen);
+    moUtils_Search_KMP_GenNextArray(kmpNext, pattern, patLen);
+    int retKmp = moUtils_Search_KMP(src, patLen + 8, pattern, patLen, kmpNext);
+    moUtils_Search_BM_GenBCT(bmBct, pattern, patLen);
+    moUtils_Search_BM_GenGST(bmGst, pattern, patLen);
+    int retBm = moUtils_Search_BM(src, patLen + 8, pattern, patLen, bmBct, bmGst);
+    printf("src info : \n");
+    DumpArray(src, 8 + patLen);
+    printf("pattern info : \n");
+    DumpArray(pattern, patLen);
+    printf("After search, retBF=%d, retKmp=%d, retBm=%d\n",
+            retBF, retKmp, retBm);
+#endif
+
+#if 0
+    //A pattern include good suffix
+    memset(pattern, 0x00, 8);
+    memset(src, 0x00, 16);
+    memset(kmpNext, 0x00, 8);
+    memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
+    memset(bmGst, 0x00, 8);
+    strcpy(pattern, "abdab");
+    strcpy(src, "defdabdabce"); //good suffix is "ab", and exist in pattern
+    int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
+    moUtils_Search_KMP_GenNextArray(kmpNext, pattern, strlen(pattern));
+    int retKmp = moUtils_Search_KMP(src, strlen(src), pattern, strlen(pattern), kmpNext);
+    moUtils_Search_BM_GenBCT(bmBct, pattern, strlen(pattern));
+    moUtils_Search_BM_GenGST(bmGst, pattern, strlen(pattern));
+    int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern), bmBct, bmGst);
+    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
+            src, pattern, retBF, retKmp, retBm);
+#endif
+
+#if 0
+    memset(pattern, 0x00, 8);
+    memset(src, 0x00, 16);
+    memset(kmpNext, 0x00, 8);
+    memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
+    memset(bmGst, 0x00, 8);
+    strcpy(pattern, "bdab");
+    strcpy(src, "xyzmbdxbce"); //good suffix is "b", and exist in pattern
+    int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
+    moUtils_Search_KMP_GenNextArray(kmpNext, pattern, strlen(pattern));
+    int retKmp = moUtils_Search_KMP(src, strlen(src), pattern, strlen(pattern), kmpNext);
+    moUtils_Search_BM_GenBCT(bmBct, pattern, strlen(pattern));
+    moUtils_Search_BM_GenGST(bmGst, pattern, strlen(pattern));
+    int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern), bmBct, bmGst);
+    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
+            src, pattern, retBF, retKmp, retBm);
+#endif
+
+#if 0
+    memset(pattern, 0x00, 8);
+    memset(src, 0x00, 16);
+    memset(kmpNext, 0x00, 8);
+    memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
+    memset(bmGst, 0x00, 8);
+    strcpy(pattern, "bdab");
+    strcpy(src, "xyzmbdxbdabc"); //good suffix is "b", and exist in pattern
+    int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
+    moUtils_Search_KMP_GenNextArray(kmpNext, pattern, strlen(pattern));
+    int retKmp = moUtils_Search_KMP(src, strlen(src), pattern, strlen(pattern), kmpNext);
+    moUtils_Search_BM_GenBCT(bmBct, pattern, strlen(pattern));
+    moUtils_Search_BM_GenGST(bmGst, pattern, strlen(pattern));
+    int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern), bmBct, bmGst);
+    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
+            src, pattern, retBF, retKmp, retBm);
+#endif
+
+#if 0
+    memset(pattern, 0x00, 8);
+    memset(src, 0x00, 16);
+    memset(kmpNext, 0x00, 8);
+    memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
+    memset(bmGst, 0x00, 8);
+    strcpy(pattern, "cadab");
+    strcpy(src, "defdabdabce"); //good suffix is "ab", donot exist in pattern
+    int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
+    moUtils_Search_KMP_GenNextArray(kmpNext, pattern, strlen(pattern));
+    int retKmp = moUtils_Search_KMP(src, strlen(src), pattern, strlen(pattern), kmpNext);
+    moUtils_Search_BM_GenBCT(bmBct, pattern, strlen(pattern));
+    moUtils_Search_BM_GenGST(bmGst, pattern, strlen(pattern));
+    int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern), bmBct, bmGst);
+    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
+            src, pattern, retBF, retKmp, retBm);
+#endif 
+
+#if 1
+    memset(pattern, 0x00, 8);
+    memset(src, 0x00, 16);
+    memset(kmpNext, 0x00, 8);
+    memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
+    memset(bmGst, 0x00, 8);
     strcpy(pattern, "cbab");
     strcpy(src, "xyzmbdxbce"); //good suffix is "b", donot exist in pattern
     int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
-    int retKmp = moUtils_Search_KMP(src, strlen(src), pattern, strlen(pattern));
-    int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern));
+    moUtils_Search_KMP_GenNextArray(kmpNext, pattern, strlen(pattern));
+    int retKmp = moUtils_Search_KMP(src, strlen(src), pattern, strlen(pattern), kmpNext);
+    moUtils_Search_BM_GenBCT(bmBct, pattern, strlen(pattern));
+    moUtils_Search_BM_GenGST(bmGst, pattern, strlen(pattern));
+    int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern), bmBct, bmGst);
     printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
             src, pattern, retBF, retKmp, retBm);
+#endif
 }
 
-#define SRC_LEN     256
+#define SRC_LEN     2560
 #define PAT_LEN     26
 
 /*
-    tst BF algo. is right or not, just use strstr to cmp result.
+    tst many times to check our algo. return right or not.
 */
 static void tst_moUtils_Search_Rand(void)
 {
     int cnt = 0;
-    for(cnt = 0; cnt < 10240; cnt++)
+    for(cnt = 0; cnt < 102400; cnt++)
     {
         unsigned char src[SRC_LEN] = {0x00};
         unsigned char pat[PAT_LEN] = {0x00};
@@ -246,15 +305,21 @@ static void tst_moUtils_Search_Rand(void)
         }
         for(i = 0; i < PAT_LEN - 1; i++)
         {
-    //        pat[i] = rand() % 26 + 65;
+//            pat[i] = rand() % 26 + 65;
             pat[i] = src[i + 160];
         }
         //use BF firstly
         int retBF = moUtils_Search_BF(src, SRC_LEN - 1, pat, PAT_LEN - 1);
         //use KMP secondly
-        int retKMP = moUtils_Search_KMP(src, SRC_LEN - 1, pat, PAT_LEN - 1);
-        //use KMP secondly
-        int retBM = moUtils_Search_BM(src, SRC_LEN - 1, pat, PAT_LEN - 1);
+        unsigned char kmpNext[PAT_LEN] = {0x00};
+        moUtils_Search_KMP_GenNextArray(kmpNext, pat, PAT_LEN - 1);
+        int retKMP = moUtils_Search_KMP(src, SRC_LEN - 1, pat, PAT_LEN - 1, kmpNext);
+        //use BM lastly
+        unsigned char bmBct[MOUTILS_SEARCH_BM_BCT_LEN] = {0x00};
+        moUtils_Search_BM_GenBCT(bmBct, pat, PAT_LEN - 1);
+        unsigned char bmGst[PAT_LEN] = {0x00};
+        moUtils_Search_BM_GenGST(bmGst, pat, PAT_LEN - 1);
+        int retBM = moUtils_Search_BM(src, SRC_LEN - 1, pat, PAT_LEN - 1, bmBct, bmGst);
         //Cmp result
         if(retBF != retKMP || retBF != retBM)
         {
@@ -270,6 +335,79 @@ static void tst_moUtils_Search_Rand(void)
     }
 }
 
+static void tst_moUtils_Search_Effencicy(void)
+{
+    unsigned char src[SRC_LEN] = {0x00};
+    unsigned char pat[PAT_LEN] = {0x00};
+
+    //Gen this two strings firstly
+    int i = 0;
+    for(i = 0; i < SRC_LEN - 1; i++)
+    {
+        src[i] = rand() % 26 + 65;
+    }
+    printf("src info : \n");
+    DumpArray(src, SRC_LEN - 1);
+    for(i = 0; i < PAT_LEN - 1; i++)
+    {
+        pat[i] = rand() % 26 + 65;
+        pat[i] = src[i + 2160];
+    }
+    printf("pattern info : \n");
+    DumpArray(pat, PAT_LEN - 1);
+    
+    int cnt = 0, ret = 0, timeMaxTimes = 102400;
+
+    //BF algo. firstly
+    struct timeval beforeTime;
+    gettimeofday(&beforeTime, NULL);
+    for(cnt = 0; cnt < timeMaxTimes; cnt++)
+    {
+        //use BF firstly
+        ret = moUtils_Search_BF(src, SRC_LEN - 1, pat, PAT_LEN - 1);
+    }
+    struct timeval afterTime;
+    gettimeofday(&afterTime, NULL);
+    //calc the difftime
+    double difftime = (afterTime.tv_usec >= beforeTime.tv_usec) ? 
+        ((afterTime.tv_sec - beforeTime.tv_sec) * 1000 + (afterTime.tv_usec - beforeTime.tv_usec) / 1000) : 
+        ((afterTime.tv_sec - beforeTime.tv_sec) * 1000 - 1 + (afterTime.tv_usec + 1000 - beforeTime.tv_usec) / 1000);
+    printf("BF algo, %d times, ret = %d, difftime = %f\n", timeMaxTimes, ret, difftime);
+    
+    //KMP algo. secondly
+    gettimeofday(&beforeTime, NULL);
+    unsigned char kmpNext[PAT_LEN] = {0x00};
+    moUtils_Search_KMP_GenNextArray(kmpNext, pat, PAT_LEN -1);
+    for(cnt = 0; cnt < timeMaxTimes; cnt++)
+    {
+        //use KMP secondly
+        ret = moUtils_Search_KMP(src, SRC_LEN - 1, pat, PAT_LEN - 1, kmpNext);
+    }
+    gettimeofday(&afterTime, NULL);
+    //calc the difftime
+    difftime = (afterTime.tv_usec >= beforeTime.tv_usec) ? 
+        ((afterTime.tv_sec - beforeTime.tv_sec) * 1000 + (afterTime.tv_usec - beforeTime.tv_usec) / 1000) : 
+        ((afterTime.tv_sec - beforeTime.tv_sec) * 1000 - 1 + (afterTime.tv_usec + 1000 - beforeTime.tv_usec) / 1000);
+    printf("KMP algo, %d times, ret = %d, difftime = %f\n", timeMaxTimes, ret, difftime);
+    
+    //BM algo. thirdly
+    gettimeofday(&beforeTime, NULL);
+    unsigned char bmBct[MOUTILS_SEARCH_BM_BCT_LEN] = {0x00};
+    moUtils_Search_BM_GenBCT(bmBct, pat, PAT_LEN - 1);
+    unsigned char bmGst[PAT_LEN] = {0x00};
+    moUtils_Search_BM_GenGST(bmGst, pat, PAT_LEN - 1);
+    for(cnt = 0; cnt < timeMaxTimes; cnt++)
+    {
+        //use BM lastly
+        ret = moUtils_Search_BM(src, SRC_LEN - 1, pat, PAT_LEN - 1, bmBct, bmGst);
+    }
+    gettimeofday(&afterTime, NULL);
+    //calc the difftime
+    difftime = (afterTime.tv_usec >= beforeTime.tv_usec) ? 
+        ((afterTime.tv_sec - beforeTime.tv_sec) * 1000 + (afterTime.tv_usec - beforeTime.tv_usec) / 1000) : 
+        ((afterTime.tv_sec - beforeTime.tv_sec) * 1000 - 1 + (afterTime.tv_usec + 1000 - beforeTime.tv_usec) / 1000);
+    printf("BM algo, %d times, ret = %d, difftime = %f\n", timeMaxTimes, ret, difftime);
+}
 
 int main(int argc, char **argv)
 {
@@ -290,7 +428,9 @@ int main(int argc, char **argv)
 
 //    tst_moUtils_Search_Basic();
 
-    tst_moUtils_Search_Rand();
+//    tst_moUtils_Search_Rand();
+
+    tst_moUtils_Search_Effencicy();
 
     moLoggerUnInit();
     

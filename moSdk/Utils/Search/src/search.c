@@ -5,8 +5,6 @@
 
 #include "moUtils.h"
 
-#define BCT_TABLE_LEN   256
-
 #define DEBUG_MODE 0
 
 static void dumpArrayInfo(const char *pArrayName, const unsigned char *pArray, const unsigned int len)
@@ -134,15 +132,45 @@ static void genKmpNext(unsigned char *pNext, const unsigned char *pmt, const uns
     }
 }
 
+int moUtils_Search_KMP_GenNextArray(unsigned char * pNext,const unsigned char * pPattern,const unsigned int patternLen)
+{
+    if(NULL == pNext || NULL == pPattern)
+    {
+        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+            "Input param is NULL.\n");
+        return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
+    }
+
+    unsigned char *pPmt = NULL;
+    pPmt = (unsigned char *)malloc(sizeof(unsigned char) * patternLen);
+    if(NULL == pPmt)
+    {
+        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+            "Malloc for PMT failed! size = %d, errno = %d, desc = [%s]\n",
+            patternLen, errno, strerror(errno));
+        return MOUTILS_SEARCH_ERR_MALLOCFAILED;
+    }
+
+    genPMT(pPmt, pPattern, patternLen);
+
+    genKmpNext(pNext, pPmt, patternLen);
+
+    free(pPmt);
+    pPmt = NULL;
+
+    return MOUTILS_SEARCH_ERR_OK;
+}
+
 /*
     Generate Partital Match Table;
     Generate next[];
     start matching.
 */
 int moUtils_Search_KMP(const unsigned char * pSrc, const unsigned int srcLen, 
-    const unsigned char * pPattern, const unsigned int patternLen)
+    const unsigned char * pPattern, const unsigned int patternLen,
+    const unsigned char * pNext)
 {
-    if(NULL == pSrc || NULL == pPattern)
+    if(NULL == pSrc || NULL == pPattern || NULL == pNext)
     {
         moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
         return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
@@ -163,35 +191,7 @@ int moUtils_Search_KMP(const unsigned char * pSrc, const unsigned int srcLen,
             patternLen, srcLen);
         return MOUTILS_SEARCH_ERR_INVALIDLEN;
     }
-
-    //Generate a partital match table to @pPattern
-    unsigned char *pmt = NULL;
-    pmt = (unsigned char *)malloc(sizeof(unsigned char) * (patternLen));
-    if(NULL == pmt)
-    {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
-            "Malloc for Partital Match Table failed! table size = %d, errno = %d, desc = [%s]\n",
-            patternLen, errno, strerror(errno));
-        return MOUTILS_SEARCH_ERR_MALLOCFAILED;
-    }
-    genPMT(pmt, pPattern, patternLen);
-
-    //Generate next[] table, this save the jump bytes number
-    unsigned char *pNext = NULL;
-    pNext = (unsigned char *)malloc((sizeof(unsigned char)) * patternLen);
-    if(NULL == pNext)
-    {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
-            "Malloc for next table failed! size=%d, errno = %d, desc = [%s]\n",
-            patternLen, errno, strerror(errno));
-        //must free memory
-        free(pmt);
-        pmt = NULL;
-        
-        return MOUTILS_SEARCH_ERR_MALLOCFAILED;
-    }
-    genKmpNext(pNext, pmt, patternLen);
-
+    
     //Start matching from the first bytes.
     unsigned char isExist = 0;
     unsigned int i = 0;
@@ -217,10 +217,6 @@ int moUtils_Search_KMP(const unsigned char * pSrc, const unsigned int srcLen,
     }
 
     //Should free all resource, @pmt, @pNext
-    free(pNext);
-    pNext = NULL;
-    free(pmt);
-    pmt = NULL;
 
     //If find this pattern, return its pos; Or, return an errno
     if(isExist)
@@ -236,11 +232,18 @@ int moUtils_Search_KMP(const unsigned char * pSrc, const unsigned int srcLen,
     Just when the last charactor in pattern being not matched, BCT will be used;
     So we can save all in a table with length 256 because ASCII has 256 members.
 */
-static void genBCT(unsigned char *pBct, const unsigned char * pPattern, const unsigned int patternLen)
+int moUtils_Search_BM_GenBCT(unsigned char * pBct,const unsigned char * pPattern,const unsigned int patternLen)
 {
-    memset(pBct, 0x00, BCT_TABLE_LEN);
+    if(NULL == pBct || NULL == pPattern)
+    {
+        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+            "Input param is NULL.\n");
+        return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
+    }
+    
+    memset(pBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
     int i = 0;
-    for(i = 0; i < BCT_TABLE_LEN; i++)
+    for(i = 0; i < MOUTILS_SEARCH_BM_BCT_LEN; i++)
     {
         //Default, If the chactor donot exist in pattern, will jump @patternLen bytes
         pBct[i] = patternLen;
@@ -250,14 +253,22 @@ static void genBCT(unsigned char *pBct, const unsigned char * pPattern, const un
     {
         pBct[pPattern[j]] = patternLen - j - 1;
     }
+    return MOUTILS_SEARCH_ERR_OK;
 }
 
 /*
     Generate Good Suufix Table for BM algo.
     JumpBytes = PosInPattern - PrevPosInPattern;
 */
-static void genGST(unsigned char *pGst, const unsigned char * pPattern, const unsigned int patternLen)
+int moUtils_Search_BM_GenGST(unsigned char *pGst, const unsigned char * pPattern, const unsigned int patternLen)
 {
+    if(NULL == pGst || NULL == pPattern)
+    {
+        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+            "Input param is NULL.\n");
+        return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
+    }
+    
     int i = (int)(patternLen - 1);
     for(; i >= 0; i--)
     {
@@ -334,6 +345,8 @@ static void genGST(unsigned char *pGst, const unsigned char * pPattern, const un
         //如果所有好后缀都没有匹配成功，上一次出现的位置就是-1,后移位数就是整个模式串的长度
         pGst[i] = patternLen;
     }
+
+    return MOUTILS_SEARCH_ERR_OK;
 }
 
 /*
@@ -342,9 +355,10 @@ static void genGST(unsigned char *pGst, const unsigned char * pPattern, const un
     start matching.
 */
 int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen, 
-    const unsigned char * pPattern, const unsigned int patternLen)
+    const unsigned char * pPattern, const unsigned int patternLen,
+    const unsigned char * pBct, const unsigned char * pGst)
 {
-    if(NULL == pSrc || NULL == pPattern)
+    if(NULL == pSrc || NULL == pPattern || NULL == pBct || NULL == pGst)
     {
         moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
             "Input param is NULL!\n");
@@ -369,38 +383,6 @@ int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen,
 #if DEBUG_MODE
     //Dump the pattern firstly
     dumpArrayInfo("pattern", pPattern, patternLen);
-#endif
-
-    //generate the Bad Charactor Table
-    unsigned char pBct[BCT_TABLE_LEN] = {0x00};
-    genBCT(pBct, pPattern, patternLen);
-    moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
-        "Generate bad charactor table for pattern succeed!\n");
-#if DEBUG_MODE
-    //Dump the pBct then
-    dumpArrayInfo("badCharTab", pBct, BCT_TABLE_LEN);
-#endif
-
-    //generate the Good Suffix Table
-    unsigned char *pGst = NULL;
-    pGst = (unsigned char *)malloc(sizeof(unsigned char) * patternLen);
-    if(NULL == pGst)
-    {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
-            "Malloc for good suffix table failed! size = %d, errno = %d, desc = [%s]\n",
-            patternLen, errno, strerror(errno));
-
-        return MOUTILS_SEARCH_ERR_MALLOCFAILED;
-    }
-    moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
-        "Malloc for good suffix table succeed!\n");
-    
-    genGST(pGst, pPattern, patternLen);
-    moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
-        "Generate good suffix table for pattern succeed!\n");
-#if DEBUG_MODE
-    //Dump the pGst then
-    dumpArrayInfo("goodSuufixTab", pGst, patternLen);
 #endif
     
     //Start matching
@@ -439,20 +421,22 @@ int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen,
         {
             next = pGst[j + 1];
         }
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
-            "next = %d\n", next);
         //Jump
         i += next;
     }
 
-    //Free all resources being malloced
-    free(pGst);
-    pGst = NULL;
-
     //Return the pos being find 
     if(isSearchOk)
+    {
+        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
+            "BM algo find pattern in %d pos.\n", i);
         return i;
+    }
     else
+    {
+        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
+            "BM algo donot find pattern.\n");
         return MOUTILS_SEARCH_ERR_PATNOTEXIST;
+    }
 }
 

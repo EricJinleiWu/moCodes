@@ -32,4 +32,8 @@ V1.1.5
     EricWu, 20170325
         Add BM algo. to Search;
         Do basic test;
-        Should test much more, and modify bugs being find when testing. 
+
+V1.1.6
+    EricWu, 20170328
+        After effencicy test, To same string, use time : BF > KMP > BM;
+        I change API, add gen tables for KMP and BM, this can help user to generate them firstly, then if needed, use them without generating each time, this can save time, too.
