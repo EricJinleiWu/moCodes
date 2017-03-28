@@ -5,6 +5,22 @@
 
 #include "moUtils.h"
 
+#define BCT_TABLE_LEN   256
+
+#define DEBUG_MODE 0
+
+static void dumpArrayInfo(const char *pArrayName, const unsigned char *pArray, const unsigned int len)
+{
+    printf("Dump array [%s] info start:\n\t", pArrayName);
+    unsigned int i = 0;
+    for(; i < len; i++)
+    {
+        printf("0x%04x ", *(pArray + i));
+    }
+    printf("\nDump array [%s] over.\n", pArrayName);
+}
+
+
 /*
     Input should not NULL;
     srcLen should not less than patternLen;
@@ -126,7 +142,7 @@ static void genKmpNext(unsigned char *pNext, const unsigned char *pmt, const uns
 int moUtils_Search_KMP(const unsigned char * pSrc, const unsigned int srcLen, 
     const unsigned char * pPattern, const unsigned int patternLen)
 {
-    if(NULL == pSrc || NULL == pPattern || srcLen == 0 || patternLen == 0)
+    if(NULL == pSrc || NULL == pPattern)
     {
         moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
         return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
@@ -217,31 +233,22 @@ int moUtils_Search_KMP(const unsigned char * pSrc, const unsigned int srcLen,
 /*
     Generate Bad Charactor Table for BM algo.
     JumpBytes = PosInPattern - PrevPosInPattern;
+    Just when the last charactor in pattern being not matched, BCT will be used;
+    So we can save all in a table with length 256 because ASCII has 256 members.
 */
 static void genBCT(unsigned char *pBct, const unsigned char * pPattern, const unsigned int patternLen)
 {
+    memset(pBct, 0x00, BCT_TABLE_LEN);
     int i = 0;
-    for(i = (int)(patternLen - 1); i >= 0; i--)
+    for(i = 0; i < BCT_TABLE_LEN; i++)
     {
-        unsigned char isPrevExist = 0;
-        //Find the prev pos of this charactor
-        int j = 0;
-        for(j = i - 1; j >=0; j--)
-        {
-            if(pPattern[j] == pPattern[i])
-            {
-                isPrevExist = 1;
-                break;
-            }
-        }
-        //Get prevPosInPattern
-        unsigned int prevPos = -1;
-        if(isPrevExist)
-        {
-            prevPos = j;
-        }
-        //Get JumpBytes
-        pBct[i] = i - prevPos;
+        //Default, If the chactor donot exist in pattern, will jump @patternLen bytes
+        pBct[i] = patternLen;
+    }
+    unsigned int j = 0;
+    for(j = 0; j < patternLen; j++)
+    {
+        pBct[pPattern[j]] = patternLen - j - 1;
     }
 }
 
@@ -359,18 +366,20 @@ int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen,
             patternLen, srcLen);
         return MOUTILS_SEARCH_ERR_INVALIDLEN;
     }
+#if DEBUG_MODE
+    //Dump the pattern firstly
+    dumpArrayInfo("pattern", pPattern, patternLen);
+#endif
 
     //generate the Bad Charactor Table
-    unsigned char * pBct = NULL;
-    pBct = (unsigned char *)malloc(sizeof(unsigned char) * patternLen);
-    if(NULL == pBct)
-    {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
-            "Malloc for bad charactor table failed! size = %d, errno = %d, desc = [%s]\n",
-            patternLen, errno, strerror(errno));
-        return MOUTILS_SEARCH_ERR_MALLOCFAILED;
-    }
+    unsigned char pBct[BCT_TABLE_LEN] = {0x00};
     genBCT(pBct, pPattern, patternLen);
+    moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
+        "Generate bad charactor table for pattern succeed!\n");
+#if DEBUG_MODE
+    //Dump the pBct then
+    dumpArrayInfo("badCharTab", pBct, BCT_TABLE_LEN);
+#endif
 
     //generate the Good Suffix Table
     unsigned char *pGst = NULL;
@@ -380,13 +389,19 @@ int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen,
         moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
             "Malloc for good suffix table failed! size = %d, errno = %d, desc = [%s]\n",
             patternLen, errno, strerror(errno));
-        //Should free the memory being malloced by myself
-        free(pBct);
-        pBct = NULL;
 
         return MOUTILS_SEARCH_ERR_MALLOCFAILED;
     }
+    moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
+        "Malloc for good suffix table succeed!\n");
+    
     genGST(pGst, pPattern, patternLen);
+    moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
+        "Generate good suffix table for pattern succeed!\n");
+#if DEBUG_MODE
+    //Dump the pGst then
+    dumpArrayInfo("goodSuufixTab", pGst, patternLen);
+#endif
     
     //Start matching
     unsigned char isSearchOk = 0;
@@ -396,7 +411,7 @@ int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen,
         unsigned char isFind = 1;
         //Start matching from end to beginning between pattern and src
         int j = 0;
-        for(j = patternLen - 1; j >= 0; j++)
+        for(j = patternLen - 1; j >= 0; j--)
         {
             if(pPattern[j] == pSrc[i + j])
                 continue;
@@ -417,11 +432,12 @@ int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen,
         //The last charactor donot match, just bad charactor table can be used
         if(j == patternLen - 1)
         {
-            next = pBct[j];
+            next = pBct[pSrc[i + j]];
         }
+        //Donot the last charctor of pattern, good suffix table being used.
         else
         {
-            next = (pBct[j] > pGst[j + 1]) ? pBct[j] : pGst[j + 1];
+            next = pGst[j + 1];
         }
         moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
             "next = %d\n", next);
@@ -432,8 +448,6 @@ int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen,
     //Free all resources being malloced
     free(pGst);
     pGst = NULL;
-    free(pBct);
-    pBct = NULL;
 
     //Return the pos being find 
     if(isSearchOk)
