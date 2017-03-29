@@ -160,6 +160,13 @@ int moUtils_File_getFilepathSameState(const char *pSrcFilepath, const char *pDst
 #define MOUTILS_SEARCH_ERR_MALLOCFAILED               (0 - 12003)    //malloc failed!
 #define MOUTILS_SEARCH_ERR_INVALIDLEN                 (0 - 12004)    //pattern should has len == 0, or we cannot search for anything.
 
+
+/*
+    In BM algo., we need a bad charactor table, this table has size 256, defined here.
+*/
+#define MOUTILS_SEARCH_BM_BCT_LEN   256
+
+
 /*
     In input char array @pSrc, search @pPattern exist or not;
     Use Brute Force Algorithm to do search;
@@ -195,7 +202,6 @@ int moUtils_Search_KMP(const unsigned char * pSrc, const unsigned int srcLen,
     In BM algo., bad charactor table being used, this will generated it.
     @pBct mut not be NULL, must have valid memory with size equal with patternLen or larger.
 */
-#define MOUTILS_SEARCH_BM_BCT_LEN   256
 int moUtils_Search_BM_GenBCT(unsigned char *pBct,
     const unsigned char * pPattern, const unsigned int patternLen);
 /*
