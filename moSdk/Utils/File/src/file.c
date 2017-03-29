@@ -19,7 +19,7 @@ static int isFile(const char *path)
 {
     if(NULL == path)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return 0;
     }
 
@@ -28,26 +28,26 @@ static int isFile(const char *path)
     int ret = lstat(path, &curStat);
     if(ret != 0)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
-            "stat failed! path is [%s], errno = %d, desc = [%s]\n", path, errno, strerror(errno));
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
+            "stat failed! path is [%s], errno = %d, desc = [%s]\n", 
+            path, errno, strerror(errno));
         return 0;
     }
 
     if(S_ISREG(curStat.st_mode))
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
             "path [%s] is a regular file.\n", path);
         return 1;
     }
     if(S_ISLNK(curStat.st_mode))
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
-            "path [%s] is a linked file.\n", path);
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, "path [%s] is a linked file.\n", path);
         return 1;
     }
     else
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
             "path [%s] is not a linked file or regular file.\n", path);
         return 0;
     }
@@ -57,7 +57,7 @@ static int isDir(const char *path)
 {
     if(NULL == path)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,"Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return 0;
     }
 
@@ -66,20 +66,19 @@ static int isDir(const char *path)
     int ret = stat(path, &curStat);
     if(ret != 0)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
             "stat failed! path is [%s], errno = %d, desc = [%s]\n", path, errno, strerror(errno));
         return 0;
     }
 
     if(S_ISDIR(curStat.st_mode))
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
-            "path [%s] is a directory.\n", path);
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, "path [%s] is a directory.\n", path);
         return 1;
     }
     else
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
             "path [%s] is not a directory.\n", path);
         return 0;
     }
@@ -94,7 +93,7 @@ int moUtils_File_getSize(const char *pFilepath)
 {
     if(NULL == pFilepath)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,"Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return MOUTILS_FILE_ERR_INPUTPARAMNULL;
     }
 
@@ -105,12 +104,12 @@ int moUtils_File_getSize(const char *pFilepath)
         int ret = lstat(pFilepath, &curStat);
         if(ret != 0)
         {
-            moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+            moLoggerError(MOUTILS_LOGGER_MODULE_NAME, 
                 "lstat failed! pFilepath = [%s], errno = %d, desc = [%s]\n",
                 pFilepath, errno, strerror(errno));
             return MOUTILS_FILE_ERR_STATFAILED;
         }
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, "lstat succeed, size = %ld\n", curStat.st_size);
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, "lstat succeed, size = %ld\n", curStat.st_size);
         return curStat.st_size;
     }
     else
@@ -128,7 +127,7 @@ char * moUtils_File_getAbsFilePath(const char *pFilepath)
 {
     if(NULL == pFilepath)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,"Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return NULL;
     }
 
@@ -138,12 +137,12 @@ char * moUtils_File_getAbsFilePath(const char *pFilepath)
     int ret = moUtils_File_getDirAndFilename(pFilepath, &info);
     if(ret != 0)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
             "moUtils_File_getDirAndName failed! ret = %d, filepath = [%s]\n",
             ret, pFilepath);
         return NULL;
     }
-    moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+    moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
         "filepath = [%s], dirpath = [%s], filename = [%s]\n",
         pFilepath, info.pDirpath, info.pFilename);
 
@@ -151,14 +150,14 @@ char * moUtils_File_getAbsFilePath(const char *pFilepath)
     char *pAbsDirpath = moUtils_File_getAbsDirPath(info.pDirpath);
     if(NULL == pAbsDirpath)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,"moUtils_File_getAbsDirPath failed!\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "moUtils_File_getAbsDirPath failed!\n");
         free(info.pDirpath);
         info.pDirpath = NULL;
         free(info.pFilename);
         info.pFilename = NULL;
         return NULL;
     }
-    moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+    moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
         "pDirpath = [%s], pAbsDirpath = [%s]\n", info.pDirpath, pAbsDirpath);
 
     //set abstract filepath
@@ -167,7 +166,7 @@ char * moUtils_File_getAbsFilePath(const char *pFilepath)
     pAbsFilepath = (char *)malloc(sizeof(char) * len);
     if(NULL == pAbsFilepath)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, 
             "malloc for pAbsFilepath failed! len = %d, errno = %d, desc = [%s]\n",
             len, errno, strerror(errno));
         free(info.pDirpath);
@@ -180,7 +179,7 @@ char * moUtils_File_getAbsFilePath(const char *pFilepath)
     }
     memset(pAbsFilepath, 0x00, len);
     sprintf(pAbsFilepath, "%s/%s", pAbsDirpath, info.pFilename);
-    moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+    moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
         "pAbsDirpath = [%s], info.pFilename = [%s], pAbsFilepath = [%s]\n",
         pAbsDirpath, info.pFilename, pAbsFilepath);
 
@@ -202,13 +201,13 @@ char * moUtils_File_getAbsDirPath(const char * pDirpath)
 {
     if(NULL == pDirpath)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,"Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return NULL;
     }
 
     if(!(isDir(pDirpath)))
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,"Input path [%s] is not a directory.\n", pDirpath);
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input path [%s] is not a directory.\n", pDirpath);
         return NULL;
     }
 
@@ -218,21 +217,21 @@ char * moUtils_File_getAbsDirPath(const char * pDirpath)
     pCmd = (char *)malloc(sizeof(char) * cmdLen);
     if(NULL == pCmd)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
             "malloc for cmd failed! cmdLen = %d, errno = %d, desc = [%s]\n",
             cmdLen, errno, strerror(errno));
         return NULL;
     }
     memset(pCmd, 0x00, cmdLen);
     sprintf(pCmd, "cd %s;pwd", pDirpath);
-    moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+    moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
         "pDirpath = [%s], cmdLen = %d, cmd = [%s]\n", pDirpath, cmdLen, pCmd);
 
     FILE * fp = NULL;
     fp = popen(pCmd, "r");
     if(fp == NULL)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, 
             "popen failed! cmd is [%s], errno = %d, desc = [%s]\n", 
             pCmd, errno, strerror(errno));
         free(pCmd);
@@ -250,7 +249,7 @@ char * moUtils_File_getAbsDirPath(const char * pDirpath)
         pBlk = (char *)malloc(sizeof(char) * blkSize);
         if(NULL == pBlk)
         {
-            moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+            moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
                 "malloc for pBlk failed! length = %d, errno = %d, desc = [%s]\n",
                 blkSize, errno, strerror(errno));
             free(pCmd);
@@ -261,7 +260,7 @@ char * moUtils_File_getAbsDirPath(const char * pDirpath)
         int readSize = 0;
         if((readSize = fread(pBlk, 1, blkSize, fp)) == blkSize)
         {
-            moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+            moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME,  
                 "i = %d, readSize = %d, blkSize = %d\n", i, readSize, blkSize);
             free(pBlk);
             pBlk = NULL;
@@ -271,24 +270,24 @@ char * moUtils_File_getAbsDirPath(const char * pDirpath)
         {
             //Use \0 to replace CR
             pBlk[readSize - 1] = 0x00;
-            moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+            moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
                 "i = %d, readSize = %d, blkSize = %d, pBlk == [%s]\n", 
                 i, readSize, blkSize, pBlk);
             char * pAbsDirpath = NULL;
             pAbsDirpath = (char *)malloc(sizeof(char) * (strlen(pBlk) + 1));
             if(NULL == pAbsDirpath)
             {
-                moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+                moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
                     "malloc for pAbsDirpath failed! length = %d, errno = %d, desc = [%s]\n",
                     strlen(pBlk) + 1, errno, strerror(errno));
                 //In this case, we will return pBlk directly, this will waste some memory, but will not interrupt user calling.
-                moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+                moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
                     "pAbsDirpath is [%s]\n", pBlk);
                 return pBlk;
             }
             memset(pAbsDirpath, 0x00, strlen(pBlk) + 1);
             strcpy(pAbsDirpath, pBlk);
-            moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, "pAbsDirpath is [%s]\n", pAbsDirpath);
+            moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, "pAbsDirpath is [%s]\n", pAbsDirpath);
 
             free(pBlk);
             pBlk = NULL;
@@ -311,13 +310,13 @@ int moUtils_File_getDirAndFilename(const char *pFilepath, MOUTILS_FILE_DIR_FILEN
 {
     if(NULL == pFilepath || NULL == pInfo)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,"Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return MOUTILS_FILE_ERR_INPUTPARAMNULL;
     }
 
     if(NULL != pInfo->pDirpath && NULL != pInfo->pFilename)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, 
             "pInfo->pDirpath and pInfo->pFilename must be NULL, or memory leak will occur!\n");
         return MOUTILS_FILE_ERR_INPUTPARAMNULL;
     }
@@ -326,7 +325,7 @@ int moUtils_File_getDirAndFilename(const char *pFilepath, MOUTILS_FILE_DIR_FILEN
     char *pLastSymbPos = strrchr(pFilepath, '/');
     if(NULL == pLastSymbPos)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
             "pFilepath = [%s], donot find \'/\' in it. this means its directory is current directory.\n",
             pFilepath);
         
@@ -334,7 +333,7 @@ int moUtils_File_getDirAndFilename(const char *pFilepath, MOUTILS_FILE_DIR_FILEN
         pInfo->pDirpath = (char *)malloc(sizeof(char) * dirLen);
         if(NULL == pInfo->pDirpath)
         {
-            moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+            moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
                 "malloc for pDirpath failed! errno = %d, desc = [%s]\n",
                 errno, strerror(errno));
             return MOUTILS_FILE_ERR_MALLOCFAILED;
@@ -346,7 +345,7 @@ int moUtils_File_getDirAndFilename(const char *pFilepath, MOUTILS_FILE_DIR_FILEN
         pInfo->pFilename = (char *)malloc(sizeof(char) * filenameLen);
         if(pInfo->pFilename == NULL)
         {
-            moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+            moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
                 "malloc for pInfo->pFilename failed! len = %d, errno = %d, desc = [%s]\n",
                 filenameLen, errno, strerror(errno));
             free(pInfo->pDirpath);
@@ -356,7 +355,7 @@ int moUtils_File_getDirAndFilename(const char *pFilepath, MOUTILS_FILE_DIR_FILEN
         memset(pInfo->pFilename, 0x00, filenameLen);
         strcpy(pInfo->pFilename, pFilepath);
 
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
             "pFilepath = [%s], pInfo->pDirpath = [%s], pInfo->pFilename = [%s]\n",
             pFilepath, pInfo->pDirpath, pInfo->pFilename);
         return MOUTILS_FILE_ERR_OK;
@@ -367,7 +366,7 @@ int moUtils_File_getDirAndFilename(const char *pFilepath, MOUTILS_FILE_DIR_FILEN
         pInfo->pDirpath = (char *)malloc(sizeof(char) * dirLen);
         if(NULL == pInfo->pDirpath)
         {
-            moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+            moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
                 "malloc for pDirpath failed! dirLen = %d, errno = %d, desc = [%s]\n",
                 dirLen, errno, strerror(errno));
             return MOUTILS_FILE_ERR_MALLOCFAILED;
@@ -375,14 +374,14 @@ int moUtils_File_getDirAndFilename(const char *pFilepath, MOUTILS_FILE_DIR_FILEN
         memset(pInfo->pDirpath, 0x00, dirLen);
         strncpy(pInfo->pDirpath, pFilepath, dirLen - 1);
         pInfo->pDirpath[dirLen - 1] = 0x00;
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
             "pFilepath = [%s], pInfo->pDirpath = [%s]\n", pFilepath, pInfo->pDirpath);
 
         int filenameLen = strlen(pFilepath) - (pLastSymbPos - pFilepath);
         pInfo->pFilename = (char *)malloc(sizeof(char) * filenameLen);
         if(pInfo->pFilename == NULL)
         {
-            moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+            moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
                 "malloc for pInfo->pFilename failed! len = %d, errno = %d, desc = [%s]\n",
                 filenameLen, errno, strerror(errno));
             free(pInfo->pDirpath);
@@ -392,7 +391,7 @@ int moUtils_File_getDirAndFilename(const char *pFilepath, MOUTILS_FILE_DIR_FILEN
         memset(pInfo->pFilename, 0x00, filenameLen);
         strncpy(pInfo->pFilename, pLastSymbPos + 1, filenameLen - 1);
         pInfo->pFilename[filenameLen - 1] = 0x00;
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
             "pFilepath = [%s], pInfo->pFilename = [%s]\n", pFilepath, pInfo->pFilename);        
 
         return MOUTILS_FILE_ERR_OK;
@@ -404,7 +403,7 @@ int moUtils_File_getFilepathSameState(const char *pSrcFilepath, const char *pDst
 {
     if(NULL == pSrcFilepath || NULL == pDstFilepath || NULL == pState)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,"Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         *pState = MOUTILS_FILE_ABSPATH_STATE_ERR;
         return MOUTILS_FILE_ERR_INPUTPARAMNULL;
     }
@@ -412,7 +411,7 @@ int moUtils_File_getFilepathSameState(const char *pSrcFilepath, const char *pDst
     //If they have same value, of course they are same path.
     if(0 == strcmp(pSrcFilepath, pDstFilepath))
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
             "pSrcFilepath exactly same with pDstFilepath! they are the same path.\n");
         *pState = MOUTILS_FILE_ABSPATH_STATE_SAME;
         return MOUTILS_FILE_ERR_OK;
@@ -423,7 +422,7 @@ int moUtils_File_getFilepathSameState(const char *pSrcFilepath, const char *pDst
     pSrcAbsFilepath = moUtils_File_getAbsFilePath(pSrcFilepath);
     if(NULL == pSrcAbsFilepath)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
             "moUtils_File_getAbsFilePath failed! pSrcFilepath = [%s]\n",
             pSrcFilepath);
         *pState = MOUTILS_FILE_ABSPATH_STATE_ERR;
@@ -435,7 +434,7 @@ int moUtils_File_getFilepathSameState(const char *pSrcFilepath, const char *pDst
     pDstAbsFilepath = moUtils_File_getAbsFilePath(pDstFilepath);
     if(NULL == pDstAbsFilepath)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
             "moUtils_File_getAbsFilePath failed! pAbsFilepath = [%s]\n",
             pDstFilepath);
         *pState = MOUTILS_FILE_ABSPATH_STATE_ERR;
@@ -445,7 +444,7 @@ int moUtils_File_getFilepathSameState(const char *pSrcFilepath, const char *pDst
     //Compare the abstract filepath
     if(0 == strcmp(pSrcAbsFilepath, pDstAbsFilepath))
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
             "pSrcFilepath = [%s], pSrcAbstractFilepath=[%s], pDstFilepath = [%s], pDstAbstractFilepath=[%s]," \
             "The abstract filepath is same.\n", pSrcFilepath, pSrcAbsFilepath, pDstFilepath, pDstAbsFilepath);
 
@@ -459,7 +458,7 @@ int moUtils_File_getFilepathSameState(const char *pSrcFilepath, const char *pDst
     }
     else
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
             "pSrcFilepath = [%s], pSrcAbstractFilepath=[%s], pDstFilepath = [%s], pDstAbstractFilepath=[%s]," \
             "The abstract filepath is different.\n", pSrcFilepath, pSrcAbsFilepath, pDstFilepath, pDstAbsFilepath);
 

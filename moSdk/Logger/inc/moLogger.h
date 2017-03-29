@@ -1,8 +1,3 @@
-/* Wujl
- * Create at 2016-11-28
- * V1.0.0, support print logs to stdout and local file;
- * */
-
 #ifndef __MO_LOGGER_H__
 #define __MO_LOGGER_H__
 
@@ -32,15 +27,32 @@ int moLoggerInit(const char *fileDir);
  * Append on moduleName, moLogger will find the config file, get the level and
  * output destination info, then log out;
  * */
-void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *fmt, ...) \
-		__attribute__((format(printf, 3, 4)));
+void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *filename, \
+    const char *funcname, const unsigned int lineNo, const char *fmt, ...) \
+		__attribute__((format(printf, 6, 7)));
 
 /* API to caller;
  * */
-#define moLogger(moduleName, level, fmt, args...) \
-	do \
-	{logger(moduleName, level, fmt, ##args);} \
-	while(0)
+#define moLoggerDebug(moduleName, fmt, args...) \
+    do \
+    {logger(moduleName, moLoggerLevelDebug, __FILE__, __FUNCTION__, __LINE__, fmt, ##args);} \
+    while(0)
+#define moLoggerInfo(moduleName, fmt, args...) \
+    do \
+    {logger(moduleName, moLoggerLevelInfo, __FILE__, __FUNCTION__, __LINE__, fmt, ##args);} \
+    while(0)
+#define moLoggerWarn(moduleName, fmt, args...) \
+    do \
+    {logger(moduleName, moLoggerLevelWarn, __FILE__, __FUNCTION__, __LINE__, fmt, ##args);} \
+    while(0)
+#define moLoggerError(moduleName, fmt, args...) \
+    do \
+    {logger(moduleName, moLoggerLevelError, __FILE__, __FUNCTION__, __LINE__, fmt, ##args);} \
+    while(0)
+#define moLoggerFatal(moduleName, fmt, args...) \
+    do \
+    {logger(moduleName, moLoggerLevelFatal, __FILE__, __FUNCTION__, __LINE__, fmt, ##args);} \
+    while(0)
 
 /* Do uninit for moLogger;
  * Free the memory being malloced when init;

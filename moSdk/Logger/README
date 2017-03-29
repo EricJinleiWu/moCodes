@@ -22,3 +22,8 @@ V1.0.2:
     
     Feature needed : to loginfo, should include __FILE__, __FUNCTION__, __LINE__, this can help us to debug.
 	
+V1.0.3:
+    EricWu, 20170329
+    From this version, I changed the API of moLogger from "moLogger(moduleName, level, ...)" to "moLoggerDebug(moduleName, ...) && moLoggerWarn... and so on";
+    And after this version, all logs can contain __FILE__ && __FUNCTION__ && __LINE__, this can help us when debug.
+

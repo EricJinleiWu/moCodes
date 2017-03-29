@@ -10,14 +10,14 @@ int taskQueueInit(TASKDQUEUE * pQueue)
 {
     if(NULL == pQueue)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return MOUTILS_TP_ERR_INPUTPARAMNULL;
     }
     
     int ret = pthread_mutex_init(&(pQueue->mutex), NULL);
     if(ret != 0)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, 
             "pthread_mutex_init failed! ret = %d, errno = %d, desc = [%s]\n",
             ret, errno, strerror(errno));
         return MOUTILS_TP_ERR_MUTEXINITFAILED;
@@ -26,7 +26,7 @@ int taskQueueInit(TASKDQUEUE * pQueue)
     ret = sem_init(&(pQueue->sem), 0, 0);
     if(ret != 0)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, 
             "sem_init failed! ret = %d, errno = %d, desc = [%s]\n",
             ret, errno, strerror(errno));
         return MOUTILS_TP_ERR_SEMINITFAILED;
@@ -67,7 +67,7 @@ int taskQueueAddTask(TASKDQUEUE * pQueue, const MOUTILS_TP_TASKINFO taskInfo)
 {
     if(NULL == pQueue)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return MOUTILS_TP_ERR_INPUTPARAMNULL;
     }
 
@@ -75,7 +75,7 @@ int taskQueueAddTask(TASKDQUEUE * pQueue, const MOUTILS_TP_TASKINFO taskInfo)
     pNewNode = (TASKNODE *)malloc(sizeof(TASKNODE) * 1);
     if(NULL == pNewNode)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, 
             "malloc for new task node failed! errno = %d, desc = [%s]\n",
             errno, strerror(errno));
         return MOUTILS_TP_ERR_MALLOCFAILED;
@@ -117,7 +117,7 @@ TASKNODE* taskQueueGetTask(TASKDQUEUE * pQueue)
 {
     if(NULL == pQueue)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return NULL;
     }
 
@@ -128,7 +128,7 @@ TASKNODE* taskQueueGetTask(TASKDQUEUE * pQueue)
     pLastNode = pQueue->tail;
     if(pLastNode == NULL)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, 
             "When get task node, no task nodes being find, this is not in our logical range! check for reason!\n");
     }
     else

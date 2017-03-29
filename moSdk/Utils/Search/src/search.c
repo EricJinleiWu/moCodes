@@ -29,14 +29,14 @@ int moUtils_Search_BF(const unsigned char * pSrc, const unsigned int srcLen,
 {
     if(NULL == pSrc || NULL == pPattern)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
     }
 
     //If srcLen less than patternLen, sub cannot be found surely.
     if(srcLen < patternLen)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelWarn, 
+        moLoggerWarn(MOUTILS_LOGGER_MODULE_NAME, 
             "srcLen=%d, patternLen=%d, subString cannot be found in dstString surely.\n", 
             srcLen, patternLen);
         return MOUTILS_SEARCH_ERR_PATLENLARGER;
@@ -44,7 +44,7 @@ int moUtils_Search_BF(const unsigned char * pSrc, const unsigned int srcLen,
 
     if(0 == patternLen || 0 == srcLen)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
             "patternLen = %d, srcLen = %d, they all cannot be 0!\n",
             patternLen, srcLen);
         return MOUTILS_SEARCH_ERR_INVALIDLEN;
@@ -64,7 +64,7 @@ int moUtils_Search_BF(const unsigned char * pSrc, const unsigned int srcLen,
         }
         if(i >= patternLen)
         {
-            moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+            moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, 
                 "Find subString! offset = %d.\n", offset);
             isExist = 1;
             break;
@@ -111,8 +111,7 @@ static void genPMT(unsigned char * pmt, const unsigned char * pPattern, const un
         *(pmt + i) = pmValue;
 
         //Dump the pmt value
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
-            "i = %d, pmValue = %d\n", i, pmValue);
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, "i = %d, pmValue = %d\n", i, pmValue);
     }
 }
 
@@ -127,7 +126,7 @@ static void genKmpNext(unsigned char *pNext, const unsigned char *pmt, const uns
         //Start from 1, so use (i + 1), not (i)
         *(pNext + i) = (i + 1) - (*(pmt + i));
         //Dump the value of pNext
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME,
             "i = %d, pmt[i] = %d, pNext[i] = %d\n", i, *(pmt + i), *(pNext + i));
     }
 }
@@ -136,8 +135,7 @@ int moUtils_Search_KMP_GenNextArray(unsigned char * pNext,const unsigned char * 
 {
     if(NULL == pNext || NULL == pPattern)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
-            "Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
     }
 
@@ -145,7 +143,7 @@ int moUtils_Search_KMP_GenNextArray(unsigned char * pNext,const unsigned char * 
     pPmt = (unsigned char *)malloc(sizeof(unsigned char) * patternLen);
     if(NULL == pPmt)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
             "Malloc for PMT failed! size = %d, errno = %d, desc = [%s]\n",
             patternLen, errno, strerror(errno));
         return MOUTILS_SEARCH_ERR_MALLOCFAILED;
@@ -172,13 +170,13 @@ int moUtils_Search_KMP(const unsigned char * pSrc, const unsigned int srcLen,
 {
     if(NULL == pSrc || NULL == pPattern || NULL == pNext)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
     }
 
     if(patternLen > srcLen)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, 
             "Input patternLen=%d, srcLen=%d, will not be searched surely.\n",
             patternLen, srcLen);
         return MOUTILS_SEARCH_ERR_PATLENLARGER;
@@ -186,7 +184,7 @@ int moUtils_Search_KMP(const unsigned char * pSrc, const unsigned int srcLen,
 
     if(0 == patternLen || 0 == srcLen)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, 
             "patternLen = %d, srcLen = %d, they all cannot be 0!\n",
             patternLen, srcLen);
         return MOUTILS_SEARCH_ERR_INVALIDLEN;
@@ -209,7 +207,7 @@ int moUtils_Search_KMP(const unsigned char * pSrc, const unsigned int srcLen,
         //Find this pattern
         if(j >= patternLen)
         {
-            moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
+            moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME,
                 "pattern being find! offset of src is %d\n", i);
             isExist = 1;
             break;
@@ -236,8 +234,7 @@ int moUtils_Search_BM_GenBCT(unsigned char * pBct,const unsigned char * pPattern
 {
     if(NULL == pBct || NULL == pPattern)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
-            "Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
     }
     
@@ -264,8 +261,7 @@ int moUtils_Search_BM_GenGST(unsigned char *pGst, const unsigned char * pPattern
 {
     if(NULL == pGst || NULL == pPattern)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
-            "Input param is NULL.\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
     }
     
@@ -360,14 +356,13 @@ int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen,
 {
     if(NULL == pSrc || NULL == pPattern || NULL == pBct || NULL == pGst)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
-            "Input param is NULL!\n");
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL!\n");
         return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
     }
 
     if(srcLen < patternLen)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
             "Input srcLen = %d, patternLen = %d, cannot find pattern surely.\n",
             srcLen, patternLen);
         return MOUTILS_SEARCH_ERR_PATLENLARGER;
@@ -375,7 +370,7 @@ int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen,
 
     if(0 == patternLen || 0 == srcLen)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelError,
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
             "patternLen = %d, srcLen = %d, they all cannot be 0!\n",
             patternLen, srcLen);
         return MOUTILS_SEARCH_ERR_INVALIDLEN;
@@ -428,14 +423,12 @@ int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen,
     //Return the pos being find 
     if(isSearchOk)
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
-            "BM algo find pattern in %d pos.\n", i);
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, "BM algo find pattern in %d pos.\n", i);
         return i;
     }
     else
     {
-        moLogger(MOUTILS_LOGGER_MODULE_NAME, moLoggerLevelDebug,
-            "BM algo donot find pattern.\n");
+        moLoggerWarn(MOUTILS_LOGGER_MODULE_NAME, "BM algo donot find pattern.\n");
         return MOUTILS_SEARCH_ERR_PATNOTEXIST;
     }
 }

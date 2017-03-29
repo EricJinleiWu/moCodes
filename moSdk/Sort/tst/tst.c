@@ -6,6 +6,7 @@
 #include <sys/time.h>
 
 #include "moSort.h"
+#include "moLogger.h"
 
 #define MAX_ARRAY_VALUE				(0xffff)
 
@@ -49,6 +50,13 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+    int ret = moLoggerInit("./");
+    if(0 != ret)
+    {
+        printf("Init moLogger failed! ret = %d\n", ret);
+        return -2;
+    }
+
 	int arrayLength = atoi(argv[1]);
 	printf("The array length = [%d], will sort this array.\n", arrayLength);
 
@@ -57,14 +65,16 @@ int main(int argc, char **argv)
 	if(NULL == pArray)
 	{
 		printf("Malloc for array failed!\n");
+        moLoggerUnInit();
 		return -2;
 	}
 
-	int ret = GenIntArray(pArray, arrayLength);
+	ret = GenIntArray(pArray, arrayLength);
 	if(0 != ret)
 	{
 		printf("Generate array failed! ret = %d\n", ret);
 		free(pArray);
+        moLoggerUnInit();
 		return -3;
 	}
 
@@ -75,12 +85,15 @@ int main(int argc, char **argv)
 	{
 		printf("Do direct insert sort failed, ret = %d\n", ret);
 		free(pArray);
+        moLoggerUnInit();
 		return -4;
 	}
 
 	DumpArray(pArray, arrayLength);
 
 	printf("Do direct insert sort over.\n");
+    
+    moLoggerUnInit();
 
 	return 0;
 }

@@ -59,13 +59,13 @@ int moSort_directInsertSort(int *pArray, const unsigned int arrayLength,  const 
 {
 	if(NULL == pArray)
 	{
-		moLogger(MOSORT_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL!\n");
+		moLoggerError(MOSORT_LOGGER_MODULE_NAME, "Input param is NULL!\n");
 		return -1;
 	}
 
     if(arrayLength <= 1)
     {
-        moLogger(MOSORT_LOGGER_MODULE_NAME, moLoggerLevelDebug, "Input length of array is %d, its a sorted array!\n",
+        moLoggerDebug(MOSORT_LOGGER_MODULE_NAME, "Input length of array is %d, its a sorted array!\n",
             arrayLength);
         return 0;
     }
@@ -82,8 +82,7 @@ int moSort_directInsertSort(int *pArray, const unsigned int arrayLength,  const 
             break;
 
         default:
-            moLogger(MOSORT_LOGGER_MODULE_NAME, moLoggerLevelError, 
-                "Input seq = %d, cannot parse it.\n", seq);
+            moLoggerError(MOSORT_LOGGER_MODULE_NAME, "Input seq = %d, cannot parse it.\n", seq);
             ret = -2;
             break;
     }

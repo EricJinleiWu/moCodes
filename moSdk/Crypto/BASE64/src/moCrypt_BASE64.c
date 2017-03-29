@@ -65,7 +65,7 @@ static unsigned char * encryptChars(const unsigned char *src, const unsigned int
 {
     if(NULL == src || NULL == pDstLen)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return NULL;
     }
     
@@ -80,8 +80,9 @@ static unsigned char * encryptChars(const unsigned char *src, const unsigned int
     pDst = (unsigned char *)malloc(sizeof(unsigned char) * allBlockNum * DECRYPT_BLOCK_SIZE);
     if(NULL == pDst)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
-            "Malloc for cipher text failed! dst length = %d\n", allBlockNum * DECRYPT_BLOCK_SIZE);
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
+            "Malloc for cipher text failed! dst length = %d\n", 
+            allBlockNum * DECRYPT_BLOCK_SIZE);
         return NULL;
     }
 
@@ -163,7 +164,7 @@ static unsigned char * decryptChars(const unsigned char *src, const unsigned int
 {
     if(NULL == src || NULL == pDstLen)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return NULL;
     }
 
@@ -177,7 +178,7 @@ static unsigned char * decryptChars(const unsigned char *src, const unsigned int
         else
             break;
     }
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, "padSymbNum = %d\n", padSymbNum);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "padSymbNum = %d\n", padSymbNum);
 
     //calc the pDstLen append on padSymbNum
     int blockNum = srcLen / DECRYPT_BLOCK_SIZE;
@@ -196,27 +197,29 @@ static unsigned char * decryptChars(const unsigned char *src, const unsigned int
         default:
             break;
     }
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
-        "completeBlockNum = %d, lastBlockBytes = %d\n", completeBlockNum, lastBlockBytes);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
+        "completeBlockNum = %d, lastBlockBytes = %d\n", 
+        completeBlockNum, lastBlockBytes);
 
     //get memory for pDst
     unsigned char *pDst = NULL;
     pDst = (unsigned char *)malloc(sizeof(unsigned char ) * (completeBlockNum * ENCRYPT_BLOCK_SIZE + lastBlockBytes));
     if(NULL == pDst)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
-            "malloc failed! errno = %d, desc = [%s], size = [%d]\n", errno, strerror(errno), 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
+            "malloc failed! errno = %d, desc = [%s], size = [%d]\n", 
+            errno, strerror(errno), 
             completeBlockNum * ENCRYPT_BLOCK_SIZE + lastBlockBytes);
         return NULL;
     }
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
-        "The size of dst txt is %d\n", completeBlockNum * ENCRYPT_BLOCK_SIZE + lastBlockBytes);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "The size of dst txt is %d\n", 
+        completeBlockNum * ENCRYPT_BLOCK_SIZE + lastBlockBytes);
 
     //complete block being done firstly
     int blkCnt = 0;
     for(blkCnt = 0; blkCnt < completeBlockNum; blkCnt++)
     {
-    	moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, "blkCnt = %d\n", blkCnt);
+    	moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "blkCnt = %d\n", blkCnt);
 
     	//Convert all cipher char to pos in MAP
     	unsigned char var0 =
@@ -283,13 +286,13 @@ unsigned char * moCrypt_BASE64_Chars(const BASE64_CRYPT_METHOD method,
 {
     if(NULL == src || NULL == pDstLen)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return NULL;
     }
 
     if(0 == srcLen)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "Input length is 0, will do nothing.\n");
         return NULL;
     }
@@ -305,8 +308,7 @@ unsigned char * moCrypt_BASE64_Chars(const BASE64_CRYPT_METHOD method,
             pDst = decryptChars(src, srcLen, pDstLen);
             break;
         default:
-            moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
-                "Input method is %d, invalid!\n", method);
+            moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input method is %d, invalid!\n", method);
             break;
     }
     
@@ -331,7 +333,7 @@ static char * getTmpFilepath(const char * pSrcFilepath)
 {
     if(NULL == pSrcFilepath)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return NULL;
     }
 
@@ -340,7 +342,7 @@ static char * getTmpFilepath(const char * pSrcFilepath)
     int ret = moUtils_File_getDirAndFilename(pSrcFilepath, &info);
     if(ret != MOUTILS_FILE_ERR_OK)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "moUtils_File_getDirAndFilename failed! ret = %x, srcFilepath = [%s]\n",
             ret, pSrcFilepath);
         return NULL;
@@ -351,14 +353,14 @@ static char * getTmpFilepath(const char * pSrcFilepath)
     pTmpFilepath = (char *)malloc(sizeof(char) * len);
     if(NULL == pTmpFilepath)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "Malloc failed! length = %d, errno = %d, desc = [%s]\n", 
             len, errno, strerror(errno));
         goto OUT;
     }
     memset(pTmpFilepath, 0x00, len);
     sprintf(pTmpFilepath, "%s/%s%s", info.pDirpath, TEMP_FILE_PREFIX, info.pFilename);
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, "pTmpFilepath is [%s]\n", pTmpFilepath);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "pTmpFilepath is [%s]\n", pTmpFilepath);
     
 OUT:
     free(info.pDirpath);
@@ -382,7 +384,7 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
 {
     if(NULL == pSrcFilepath)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return MOCRYPTBASE64_ERR_INPUTNULL;
     }
 
@@ -390,17 +392,18 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
     char * pTmpFilepath = getTmpFilepath(pSrcFilepath);
     if(NULL == pTmpFilepath)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "getTmpFilepath failed!\n");
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "getTmpFilepath failed!\n");
         return MOCRYPTBASE64_ERR_MALLOCFAILED;
     }
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
-        "Step 1 : get tmp file path has been over, it is [%s]\n", pTmpFilepath);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
+        "Step 1 : get tmp file path has been over, it is [%s]\n", 
+        pTmpFilepath);
     
     //2.Open src file for reading, open tmp for writing
     FILE * fpSrc = fopen(pSrcFilepath, "rb");
     if(NULL == fpSrc)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME,  
             "Open src file [%s] for reading failed! errno = %d, desc = [%s]\n", 
             pSrcFilepath, errno, strerror(errno));
         free(pTmpFilepath);
@@ -410,7 +413,7 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
     FILE * fpTmp = fopen(pTmpFilepath, "wb");
     if(NULL == fpTmp)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "Open tmp file [%s] for writing failed! errno = %d, desc = [%s]\n", 
             pTmpFilepath, errno, strerror(errno));
         free(pTmpFilepath);
@@ -419,15 +422,14 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
         fpSrc = NULL;
         return MOCRYPTBASE64_ERR_FILEOPENFAIL;
     }
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
-        "Step 2 : open src for read, open tmp for write has been over.\n");
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Step 2 : open src for read, open tmp for write has been over.\n");
     
     //3.Do crypt 
     int readNum = 0;
     unsigned char buf[CRYPT_FILE_BLOCKSIZE] = {0x00};
     while((readNum = fread(buf, 1, CRYPT_FILE_BLOCKSIZE, fpSrc)) > 0)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+        moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
             "In this loop, readNum = %d, CRYPT_FILE_BLOCKSIZE = %d\n", 
             readNum, CRYPT_FILE_BLOCKSIZE);
         
@@ -437,7 +439,7 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
             unsigned char * pCipherTxt = encryptChars(buf, readNum, &cipherLen);
             if(NULL == pCipherTxt)
             {
-                moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "encryptChars failed!\n");
+                moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "encryptChars failed!\n");
                 free(pTmpFilepath);
                 pTmpFilepath = NULL;
                 fclose(fpSrc);
@@ -458,7 +460,7 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
             unsigned char * pPlainTxt = decryptChars(buf, readNum, &plainLen);
             if(NULL == pPlainTxt)
             {
-                moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "decryptChars failed!\n");
+                moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "decryptChars failed!\n");
                 free(pTmpFilepath);
                 pTmpFilepath = NULL;
                 fclose(fpSrc);
@@ -476,7 +478,7 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
 
         memset(buf, 0x00, CRYPT_FILE_BLOCKSIZE);
     }
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "Step 3 : do crypt from src to tmp has been over.\n");
 
     //4.close files
@@ -484,14 +486,14 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
     fpSrc = NULL;
     fclose(fpTmp);
     fpTmp = NULL;
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "Step 4 : Close src file and tmp file temply has been over.\n");
 
     //5.open src file for writing, open tmp for reading
     fpSrc = fopen(pSrcFilepath, "wb");
     if(fpSrc == NULL)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "Open src file [%s] for writing failed! errno = %d, desc = [%s]\n",
             pSrcFilepath, errno, strerror(errno));
         free(pTmpFilepath);
@@ -501,7 +503,7 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
     fpTmp = fopen(pTmpFilepath, "rb");
     if(fpTmp == NULL)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "Open tmp file [%s] for reading failed! errno = %d, desc = [%s]\n",
             pTmpFilepath, errno, strerror(errno));
         fclose(fpSrc);
@@ -510,7 +512,7 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
         pTmpFilepath = NULL;
         return MOCRYPTBASE64_ERR_FILEOPENFAIL;
     }
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "Step 5 : open src for write, open tmp for read has been over.\n");
 
     //6.Copy contents from tmp to src
@@ -520,7 +522,7 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
         fflush(fpSrc);
         memset(buf, 0x00, CRYPT_FILE_BLOCKSIZE);
     }
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "Step 6 : copy from tmp to src has been over.\n");
 
     //7.close them
@@ -528,15 +530,14 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
     fpSrc = NULL;
     fclose(fpTmp);
     fpTmp = NULL;
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "Step 7 : Close src file and tmp file finally has been over.\n");
 
     //8.delete tmp file, free memory
     unlink(pTmpFilepath);
     free(pTmpFilepath);
     pTmpFilepath = NULL;
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
-        "Step 8 : crypt being done!\n");
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Step 8 : crypt being done!\n");
     
     return MOCRYPTBASE64_ERR_OK;
 }
@@ -551,7 +552,7 @@ static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFil
 {
     if(NULL == pSrcFilepath || NULL == pDstFilepath)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return MOCRYPTBASE64_ERR_INPUTNULL;
     }
 
@@ -560,7 +561,7 @@ static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFil
     fpSrc = fopen(pSrcFilepath, "rb");
     if(NULL == fpSrc)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "Open src file [%s] for reading failed! errno = %d, desc = [%s]\n",
             pSrcFilepath, errno, strerror(errno));
         return MOCRYPTBASE64_ERR_FILEOPENFAIL;
@@ -569,7 +570,7 @@ static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFil
     fpDst = fopen(pDstFilepath, "wb");
     if(NULL == fpDst)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "Open dst file [%s] for writing failed! errno = %d, desc = [%s]\n",
             pDstFilepath, errno, strerror(errno));
 
@@ -585,7 +586,7 @@ static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFil
     unsigned char buf[CRYPT_FILE_BLOCKSIZE] = {0x00};
     while((readNum = fread(buf, 1, CRYPT_FILE_BLOCKSIZE, fpSrc)) > 0)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+        moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
             "In this loop, readNum = %d, CRYPT_FILE_BLOCKSIZE = %d\n", 
             readNum, CRYPT_FILE_BLOCKSIZE);
         
@@ -595,7 +596,7 @@ static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFil
             unsigned char * pCipherTxt = encryptChars(buf, readNum, &cipherLen);
             if(NULL == pCipherTxt)
             {
-                moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "encryptChars failed!\n");
+                moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "encryptChars failed!\n");
                 ret = MOCRYPTBASE64_ERR_MALLOCFAILED;
                 goto OUT;
             }
@@ -611,7 +612,7 @@ static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFil
             unsigned char * pPlainTxt = decryptChars(buf, readNum, &plainLen);
             if(NULL == pPlainTxt)
             {
-                moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "decryptChars failed!\n");
+                moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "decryptChars failed!\n");
                 ret = MOCRYPTBASE64_ERR_MALLOCFAILED;
                 goto OUT;
             }
@@ -639,7 +640,7 @@ int moCrypt_BASE64_File(const BASE64_CRYPT_METHOD method,const char * pSrcFilepa
 {
     if(NULL == pSrcFilepath || NULL == pDstFilepath)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL.\n");
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
         return MOCRYPTBASE64_ERR_INPUTNULL;
     }
     
@@ -647,7 +648,7 @@ int moCrypt_BASE64_File(const BASE64_CRYPT_METHOD method,const char * pSrcFilepa
     int ret = moUtils_File_getFilepathSameState(pSrcFilepath, pDstFilepath, &sameState);
     if(ret != 0)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "moUtils_File_getFilepathSameState failed! ret = %d(0x%x)\n", ret, ret);
         return MOCRYPTBASE64_ERR_OTHER;
     }

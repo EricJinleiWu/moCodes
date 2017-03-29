@@ -41,27 +41,27 @@ static void tst_basicFunc(void)
         printf("wjl_test : moLoggerInit succeed.\n");
 
         printf("\nStart a test......\n");
-        logger(MODULE_EXIST_0, moLoggerLevelDebug, "A log just for test, moduleName=[%s], Level=%d\n", 
+        moLoggerDebug(MODULE_EXIST_0, "A log just for test, moduleName=[%s], Level=%d\n", 
             MODULE_EXIST_0, moLoggerLevelDebug);
         printf("end a test......\n");
         
         printf("\nStart a test......\n");
-        logger(MODULE_EXIST_0, moLoggerLevelInfo, "A log just for test, moduleName=[%s], Level=%d\n", 
+        moLoggerInfo(MODULE_EXIST_0, "A log just for test, moduleName=[%s], Level=%d\n", 
             MODULE_EXIST_0, moLoggerLevelInfo);
         printf("end a test......\n");
         
         printf("\nStart a test......\n");
-        logger(MODULE_EXIST_0, moLoggerLevelWarn, "A log just for test, moduleName=[%s], Level=%d\n", 
+        moLoggerWarn(MODULE_EXIST_0, "A log just for test, moduleName=[%s], Level=%d\n", 
             MODULE_EXIST_0, moLoggerLevelWarn);
         printf("end a test......\n");
         
         printf("\nStart a test......\n");
-        logger(MODULE_EXIST_0, moLoggerLevelError, "A log just for test, moduleName=[%s], Level=%d\n", 
+        moLoggerError(MODULE_EXIST_0, "A log just for test, moduleName=[%s], Level=%d\n", 
             MODULE_EXIST_0, moLoggerLevelError);
         printf("end a test......\n");
         
         printf("\nStart a test......\n");
-        logger(MODULE_EXIST_0, moLoggerLevelFatal, "A log just for test, moduleName=[%s], Level=%d\n", 
+        moLoggerFatal(MODULE_EXIST_0, "A log just for test, moduleName=[%s], Level=%d\n", 
             MODULE_EXIST_0, moLoggerLevelFatal);
         printf("end a test......\n");
 
@@ -74,7 +74,7 @@ static void threadFunc0(void * args)
 {
     while(1)
     {
-        logger(MODULE_EXIST_0, moLoggerLevelError, "A log from thread 0. moduleName = [%s], level = %d\n", 
+        moLoggerError(MODULE_EXIST_0, "A log from thread 0. moduleName = [%s], level = %d\n", 
             MODULE_EXIST_0, moLoggerLevelError);
         int interval = rand() % 1000 + 1000;
         usleep(interval);
@@ -85,7 +85,7 @@ static void threadFunc1(void * args)
 {
     while(1)
     {
-        logger(MODULE_EXIST_0, moLoggerLevelFatal, "A log from thread 1. moduleName = [%s], level = %d\n", 
+        moLoggerFatal(MODULE_EXIST_0, "A log from thread 1. moduleName = [%s], level = %d\n", 
             MODULE_EXIST_0, moLoggerLevelFatal);
         int interval = rand() % 1000 + 1000;
         usleep(interval);
@@ -124,9 +124,9 @@ int main(int argc, char **argv)
     
 //	printf("Hello world.\n");
 
-    tst_basicFunc();
+//    tst_basicFunc();
 
-    //tst_multiThreads();
+    tst_multiThreads();
 
 
 	return 0;

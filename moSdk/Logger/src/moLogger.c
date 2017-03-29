@@ -130,7 +130,8 @@ int moLoggerInit(const char *fileDir)
  * 3.generate info;
  * 4.if configLocalFile valid, output to file; else, output to stdout;
  * */
-void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *fmt, ...)
+void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *filename,
+    const char *funcname, const unsigned int line, const char *fmt, ...)
 {
 	if(NULL == moduleName)
 	{
@@ -193,7 +194,8 @@ void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *fmt
         va_list args;
         va_start(args, fmt);
 
-        snprintf(fmtbuf, sizeof(fmtbuf), "%s[%s] %s", curTimeStr, strLevel[level], fmt);
+        snprintf(fmtbuf, sizeof(fmtbuf), "%s[%s]:%s, %s, %d  %s", curTimeStr, strLevel[level], 
+            filename, funcname, line, fmt);
         vsnprintf(curLoginfo, sizeof(curLoginfo), fmtbuf, args);
         
         va_end(args);

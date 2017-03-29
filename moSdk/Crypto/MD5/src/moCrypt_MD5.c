@@ -207,7 +207,7 @@ static int appendCont2Str(const unsigned char *pCont, STR_INFO *pInfo)
 {
     if(NULL == pCont || NULL == pInfo)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL!\n");
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL!\n");
         return MOCRYPTMD5_ERR_INPUTNULL;
     }
 
@@ -216,13 +216,13 @@ static int appendCont2Str(const unsigned char *pCont, STR_INFO *pInfo)
     pInfo->orgBitsNum = (orgStrLen << 3);    //convert from bytes to bits
     pInfo->orgUnitsNum = orgStrLen / UNIT_LEN_BYTES;  //The last bytes in the last unit will be set to appendUnits
     pInfo->pOrgUnit = (unsigned char *)pCont;
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "pCont = [%s], orgStrLen = %d, pInfo->orgBitsNum = %lld, pInfo->orgUnitsNum = %lld\n",
         pCont, orgStrLen, pInfo->orgBitsNum, pInfo->orgUnitsNum);
 
     //Appending
     unsigned int remainderBytesNum = orgStrLen % UNIT_LEN_BYTES;
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, "remainderBytesNum = %d\n", remainderBytesNum);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "remainderBytesNum = %d\n", remainderBytesNum);
     if(remainderBytesNum < MOD_LEN_BYTES)
     {
         //Just need append to 1 unit, 0x8000... and the length will be set in this unit together.
@@ -233,13 +233,13 @@ static int appendCont2Str(const unsigned char *pCont, STR_INFO *pInfo)
         //Need append to 2 units
         pInfo->appendUnitsNum = 2;
     }
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, "pInfo->appendUnitsNum = %d\n", pInfo->appendUnitsNum);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "pInfo->appendUnitsNum = %d\n", pInfo->appendUnitsNum);
 
     //Malloc for append unit    
     pInfo->pAppendUnit = (unsigned char *)malloc((sizeof(char)) * (pInfo->appendUnitsNum * UNIT_LEN_BYTES));
     if(NULL == pInfo->pAppendUnit)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "malloc failed! errno = %d, desc = [%s]\n", errno, strerror(errno));
         return MOCRYPTMD5_ERR_MALLOCFAIL;
     }
@@ -247,7 +247,7 @@ static int appendCont2Str(const unsigned char *pCont, STR_INFO *pInfo)
 
     //Copy the last units data to this unit firstly
     int orgLastUnitDataBytes = orgStrLen % UNIT_LEN_BYTES;
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "orgLastUnitDataBytes = %d\n", orgLastUnitDataBytes);
     memcpy(pInfo->pAppendUnit, pCont + (pInfo->orgUnitsNum * UNIT_LEN_BYTES),
         orgLastUnitDataBytes);
@@ -297,7 +297,7 @@ int moCrypt_MD5_String(const unsigned char *pCont, MO_MD5_VALUE *pValue)
 {
     if(NULL == pCont || NULL == pValue)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL!\n");
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL!\n");
         return MOCRYPTMD5_ERR_INPUTNULL;
     }
 
@@ -311,7 +311,7 @@ int moCrypt_MD5_String(const unsigned char *pCont, MO_MD5_VALUE *pValue)
     int ret = appendCont2Str(pCont, &info);
     if(ret != 0)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "Append content failed! ret = %d.\n", ret);
         return ret;
     }
@@ -352,7 +352,7 @@ static int checkFile(const char * pFilepath)
 {
     if(NULL == pFilepath)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL!\n");
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL!\n");
         return MOCRYPTMD5_ERR_INPUTNULL;
     }
 
@@ -361,19 +361,19 @@ static int checkFile(const char * pFilepath)
     int ret = stat(pFilepath, &curStat);
     if(ret != 0)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "File [%s] donot exist!\n", pFilepath);
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "File [%s] donot exist!\n", pFilepath);
         return MOCRYPTMD5_ERR_FILENOTEXIST;
     }
 
     if(!S_ISREG(curStat.st_mode) && !S_ISLNK(curStat.st_mode))
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "File [%s] donot a regular file or a link file, cannot being deal with currently.\n",
             pFilepath);
         return MOCRYPTMD5_ERR_WRONGFILEMODE;
     }
 
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "File [%s] is valid, can do md5 now.\n", pFilepath);
     return MOCRYPTMD5_ERR_OK;
 }
@@ -382,7 +382,7 @@ static int initFileInfo(const char *pFilepath, FILE_INFO * pInfo)
 {
     if(NULL == pFilepath || NULL == pInfo)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, "Input param is NULL!\n");
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL!\n");
         return MOCRYPTMD5_ERR_INPUTNULL;
     }
 
@@ -399,7 +399,7 @@ static int initFileInfo(const char *pFilepath, FILE_INFO * pInfo)
     pInfo->pFd = fopen(pFilepath, "rb+");
     if(NULL == pInfo->pFd)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "Open file [%s] for read failed! errno = %d, desc = [%s]\n",
             pFilepath, errno, strerror(errno));
         return MOCRYPTMD5_ERR_OPENFILEFAIL;
@@ -450,14 +450,15 @@ static int updateFileStates(FILE_INFO *pInfo)
     {
         appendUnitNum = 1;
     }
-    moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelDebug, 
-        "pInfo->lastUnitBytesNum = %d, appendUnitNum = %d\n", pInfo->lastUnitBytesNum, appendUnitNum);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
+        "pInfo->lastUnitBytesNum = %d, appendUnitNum = %d\n", 
+        pInfo->lastUnitBytesNum, appendUnitNum);
 
     //get memory 
     pInfo->pAppendUnits = (unsigned char *)malloc(sizeof(unsigned char ) * (appendUnitNum * UNIT_LEN_BYTES));
     if(NULL == pInfo->pAppendUnits)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "malloc failed! errno = %d, desc = [%s]\n", errno, strerror(errno));
         return MOCRYPTMD5_ERR_MALLOCFAIL;
     }
@@ -495,7 +496,7 @@ int moCrypt_MD5_File(const char *pSrcFilepath, MO_MD5_VALUE *pValue)
     int ret = checkFile(pSrcFilepath);
     if(ret != MOCRYPTMD5_ERR_OK)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "checkFile failed! ret = 0x%x, srcfilepath = [%s]\n", ret, pSrcFilepath);
         return ret;
     }
@@ -506,7 +507,7 @@ int moCrypt_MD5_File(const char *pSrcFilepath, MO_MD5_VALUE *pValue)
     ret = initFileInfo(pSrcFilepath, &info);
     if(ret != MOCRYPTMD5_ERR_OK)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "initFileInfo failed! ret = 0x%x, srcFilepath = [%s]\n", ret, pSrcFilepath);
         unInitFileInfo(&info);
         return ret;
@@ -516,7 +517,7 @@ int moCrypt_MD5_File(const char *pSrcFilepath, MO_MD5_VALUE *pValue)
     ret = updateFileStates(&info);
     if(ret != MOCRYPTMD5_ERR_OK)
     {
-        moLogger(MOCRYPT_LOGGER_MODULE_NAME, moLoggerLevelError, 
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "updateFileStates failed! ret = 0x%x\n", ret);
         unInitFileInfo(&info);
         return ret;
