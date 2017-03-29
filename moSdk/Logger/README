@@ -13,5 +13,12 @@ V1.0.1:
     EricWu, 20170303
     Canbe used in multi processes, but just allow one config file!
     If one process has been init succeed, the other process call init, then if they have same config file, it will return OK, and can be used;
-    	
+
+V1.0.2:
+    EricWu, 20170329
+    From this version, the config file : moLoggerConf.ini will change a point:
+        In last versions, attr "level" for a module is set to 0 -- 5, but this is not directly enough, I change it from "debug" to "fatal" in this version;
+        Support five levels : debug, info, warn, error, fatal;
+    
+    Feature needed : to loginfo, should include __FILE__, __FUNCTION__, __LINE__, this can help us to debug.
 	

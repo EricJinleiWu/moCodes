@@ -124,9 +124,9 @@ int main(int argc, char **argv)
     
 //	printf("Hello world.\n");
 
-//    tst_basicFunc();
+    tst_basicFunc();
 
-    tst_multiThreads();
+    //tst_multiThreads();
 
 
 	return 0;

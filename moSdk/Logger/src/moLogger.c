@@ -19,7 +19,7 @@ static SECTION_INFO_NODE *gpSecHeadNode = NULL;
 static char gFileDir[MO_LOGGER_MAX_DIRPATH_LEN] = {0x00};
 static unsigned int gInitCnt = 0;
 
-static const char strLevel[5][8] = {
+static const char strLevel[5][6] = {
     "debug", "info", "warn", "error", "fatal"
     };
 
@@ -160,12 +160,12 @@ void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *fmt
             ret, moduleName, ATTR_LEVEL);
         return ;
     }
-    if(!isValidLevelValue(value))
+    int configLevel = getLevelFromValue(value);
+    if(configLevel < 0)
     {
-        moLoggerOwnInfo("Level = [%s], donot valid!\n", value);
+        moLoggerOwnInfo("getLevelFromValue failed! value = [%s], donot valid!\n", value);
         return ;
     }
-    unsigned int configLevel = atoi(value);
 
     if(level >= configLevel)    //Need output this log
     {        

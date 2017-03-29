@@ -9,6 +9,15 @@
 #include "moLoggerUtils.h"
 #include "moLogger.h"
 
+/*
+    All levels being support;
+*/
+#define MO_LEVEL_NUM    5   //5 levels being supported
+static const char gStrValue[MO_LEVEL_NUM][6] = {
+    "debug", "info", "warn", "error", "fatal"
+    };
+
+
 /* 	moLoggerLevelDebug = 0,
 	moLoggerLevelInfo = 1,
 	moLoggerLevelWarn = 2,
@@ -35,24 +44,28 @@ void getCurTime(char *t)
 			pLocalTime->tm_sec);
 }
 
-MO_LOGGER_BOOL isValidLevelValue(const char *str)
+/*
+    @pLevel is a string of level, must be in ["debug", "info", "warn", "error", "fatal"]
+    valid value has been defind in @gStrValue;
+    level id will be returned if @pLevel is valid, or return 0-;
+*/
+int getLevelFromValue(const char *pLevel)
 {
-    if(NULL == str)
-        return MO_LOGGER_FALSE;
+    if(NULL == pLevel)
+        return -1;
 
-    int i = moLoggerLevelDebug;
-    for(; i <= moLoggerLevelFatal; i++)
+    int ret = -2;
+    int i = 0;
+    for(; i < MO_LEVEL_NUM; i++)
     {
-        char temp[4] = {0x00};
-        sprintf(temp, "%d", i);
-        if(0 == strcmp(str, temp))
+        if(0 == strcmp(pLevel, gStrValue[i]))
         {
-            //valid one
-            return MO_LOGGER_TRUE;
+            ret = i;
+            break;
         }
     }
 
-    return MO_LOGGER_FALSE;
+    return ret;
 }
 
 MO_LOGGER_BOOL isConfFileExist(const char *dir)
