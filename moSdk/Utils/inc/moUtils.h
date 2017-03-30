@@ -166,6 +166,11 @@ int moUtils_File_getFilepathSameState(const char *pSrcFilepath, const char *pDst
 */
 #define MOUTILS_SEARCH_BM_BCT_LEN   256
 
+/*
+    In Sunday algo., we need a next table, this table has size 256 always.
+*/
+#define MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN 256
+
 
 /*
     In input char array @pSrc, search @pPattern exist or not;
@@ -200,7 +205,7 @@ int moUtils_Search_KMP(const unsigned char * pSrc, const unsigned int srcLen,
 
 /*
     In BM algo., bad charactor table being used, this will generated it.
-    @pBct mut not be NULL, must have valid memory with size equal with patternLen or larger.
+    @pBct mut not be NULL, must have valid memory with size equal with MOUTILS_SEARCH_BM_BCT_LEN.
 */
 int moUtils_Search_BM_GenBCT(unsigned char *pBct,
     const unsigned char * pPattern, const unsigned int patternLen);
@@ -222,6 +227,24 @@ int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen,
     const unsigned char * pPattern, const unsigned int patternLen, 
     const unsigned char * pBct, const unsigned char * pGst);
 
+
+/*
+    In Sunday algo., next table being used, this will generated it.
+    @pNext mut not be NULL, must have valid memory with size equal with MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN.
+*/
+int moUtils_Search_Sunday_GenNextTable(unsigned char *pNext,
+    const unsigned char * pPattern, const unsigned int patternLen);
+/*
+    In input char array @pSrc, search @pPattern exist or not;
+    Use Sunday Algorithm to do search;
+
+    return : 
+        0+: @pPattern exist, and the result is the pos in @pSrc, start from 0;
+        0-: @pPattern donot exist, or param is not allowed, or any other error;    
+*/
+int moUtils_Search_Sunday(const unsigned char * pSrc, const unsigned int srcLen, 
+    const unsigned char * pPattern, const unsigned int patternLen, 
+    const unsigned char * pNext);
 
 #ifdef __cplusplus
 }

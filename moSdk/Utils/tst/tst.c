@@ -120,9 +120,9 @@ static void tst_moUtils_Search_Basic()
     unsigned char kmpNext[8] = {0x00};
     unsigned char bmBct[MOUTILS_SEARCH_BM_BCT_LEN] = {0x00};
     unsigned char bmGst[8] = {0x00};
+    unsigned char sundayNext[MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN] = {0X00};
     
 #if 0
-
     //src and pattern has same length
     unsigned int patLen = rand() % 8;
     memset(pattern, 0x00, 8);
@@ -130,6 +130,7 @@ static void tst_moUtils_Search_Basic()
     memset(kmpNext, 0x00, 8);
     memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
     memset(bmGst, 0x00, 8);
+    memset(sundayNext, 0x00, MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN);
     int i = 0;
     for(i = 0; i < patLen; i++)
     {
@@ -145,12 +146,14 @@ static void tst_moUtils_Search_Basic()
     moUtils_Search_BM_GenBCT(bmBct, pattern, patLen);
     moUtils_Search_BM_GenGST(bmGst, pattern, patLen);
     int retBm = moUtils_Search_BM(src, patLen, pattern, patLen, bmBct, bmGst);
+    moUtils_Search_Sunday_GenNextTable(sundayNext, pattern, patLen);
+    int retSunday = moUtils_Search_Sunday(src, patLen, pattern, patLen, sundayNext);
     printf("src info : \n");
     DumpArray(src, patLen);
     printf("pattern info : \n");
     DumpArray(pattern, patLen);
-    printf("After search, retBF=%d, retKmp=%d, retBm=%d\n",
-            retBF, retKmp, retBm);
+    printf("After search, retBF=%d, retKmp=%d, retBm=%d, retSunday = %d\n",
+            retBF, retKmp, retBm, retSunday);
 #endif
 
 #if 0
@@ -161,6 +164,7 @@ static void tst_moUtils_Search_Basic()
     memset(kmpNext, 0x00, 8);
     memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
     memset(bmGst, 0x00, 8);
+    memset(sundayNext, 0x00, MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN);
     int i = 0;
     for(i = 0; i < patLen; i++)
     {        
@@ -183,12 +187,14 @@ static void tst_moUtils_Search_Basic()
     moUtils_Search_BM_GenBCT(bmBct, pattern, patLen);
     moUtils_Search_BM_GenGST(bmGst, pattern, patLen);
     int retBm = moUtils_Search_BM(src, patLen + 8, pattern, patLen, bmBct, bmGst);
+    moUtils_Search_Sunday_GenNextTable(sundayNext, pattern, patLen);
+    int retSunday = moUtils_Search_Sunday(src, patLen + 8, pattern, patLen, sundayNext);
     printf("src info : \n");
     DumpArray(src, 8 + patLen);
     printf("pattern info : \n");
     DumpArray(pattern, patLen);
-    printf("After search, retBF=%d, retKmp=%d, retBm=%d\n",
-            retBF, retKmp, retBm);
+    printf("After search, retBF=%d, retKmp=%d, retBm=%d, retSunday = %d\n",
+            retBF, retKmp, retBm, retSunday);
 #endif
 
 #if 0
@@ -198,6 +204,7 @@ static void tst_moUtils_Search_Basic()
     memset(kmpNext, 0x00, 8);
     memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
     memset(bmGst, 0x00, 8);
+    memset(sundayNext, 0x00, MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN);
     strcpy(pattern, "abdab");
     strcpy(src, "defdabdabce"); //good suffix is "ab", and exist in pattern
     int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
@@ -206,8 +213,10 @@ static void tst_moUtils_Search_Basic()
     moUtils_Search_BM_GenBCT(bmBct, pattern, strlen(pattern));
     moUtils_Search_BM_GenGST(bmGst, pattern, strlen(pattern));
     int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern), bmBct, bmGst);
-    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
-            src, pattern, retBF, retKmp, retBm);
+    moUtils_Search_Sunday_GenNextTable(sundayNext, pattern, strlen(pattern));
+    int retSunday = moUtils_Search_Sunday(src, strlen(src), pattern, strlen(pattern), sundayNext);
+    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d, retSunday=%d\n",
+            src, pattern, retBF, retKmp, retBm, retSunday);
 #endif
 
 #if 0
@@ -216,6 +225,7 @@ static void tst_moUtils_Search_Basic()
     memset(kmpNext, 0x00, 8);
     memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
     memset(bmGst, 0x00, 8);
+    memset(sundayNext, 0x00, MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN);
     strcpy(pattern, "bdab");
     strcpy(src, "xyzmbdxbce"); //good suffix is "b", and exist in pattern
     int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
@@ -224,8 +234,10 @@ static void tst_moUtils_Search_Basic()
     moUtils_Search_BM_GenBCT(bmBct, pattern, strlen(pattern));
     moUtils_Search_BM_GenGST(bmGst, pattern, strlen(pattern));
     int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern), bmBct, bmGst);
-    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
-            src, pattern, retBF, retKmp, retBm);
+    moUtils_Search_Sunday_GenNextTable(sundayNext, pattern, strlen(pattern));
+    int retSunday = moUtils_Search_Sunday(src, strlen(src), pattern, strlen(pattern), sundayNext);
+    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d, retSunday=%d\n",
+            src, pattern, retBF, retKmp, retBm, retSunday);
 #endif
 
 #if 0
@@ -234,6 +246,7 @@ static void tst_moUtils_Search_Basic()
     memset(kmpNext, 0x00, 8);
     memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
     memset(bmGst, 0x00, 8);
+    memset(sundayNext, 0x00, MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN);
     strcpy(pattern, "bdab");
     strcpy(src, "xyzmbdxbdabc"); //good suffix is "b", and exist in pattern
     int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
@@ -242,8 +255,10 @@ static void tst_moUtils_Search_Basic()
     moUtils_Search_BM_GenBCT(bmBct, pattern, strlen(pattern));
     moUtils_Search_BM_GenGST(bmGst, pattern, strlen(pattern));
     int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern), bmBct, bmGst);
-    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
-            src, pattern, retBF, retKmp, retBm);
+    moUtils_Search_Sunday_GenNextTable(sundayNext, pattern, strlen(pattern));
+    int retSunday = moUtils_Search_Sunday(src, strlen(src), pattern, strlen(pattern), sundayNext);
+    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d, retSunday=%d\n",
+            src, pattern, retBF, retKmp, retBm, retSunday);
 #endif
 
 #if 0
@@ -252,6 +267,7 @@ static void tst_moUtils_Search_Basic()
     memset(kmpNext, 0x00, 8);
     memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
     memset(bmGst, 0x00, 8);
+    memset(sundayNext, 0x00, MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN);
     strcpy(pattern, "cadab");
     strcpy(src, "defdabdabce"); //good suffix is "ab", donot exist in pattern
     int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
@@ -260,8 +276,10 @@ static void tst_moUtils_Search_Basic()
     moUtils_Search_BM_GenBCT(bmBct, pattern, strlen(pattern));
     moUtils_Search_BM_GenGST(bmGst, pattern, strlen(pattern));
     int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern), bmBct, bmGst);
-    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
-            src, pattern, retBF, retKmp, retBm);
+    moUtils_Search_Sunday_GenNextTable(sundayNext, pattern, strlen(pattern));
+    int retSunday = moUtils_Search_Sunday(src, strlen(src), pattern, strlen(pattern), sundayNext);
+    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d, retSunday=%d\n",
+            src, pattern, retBF, retKmp, retBm, retSunday);
 #endif 
 
 #if 1
@@ -270,16 +288,19 @@ static void tst_moUtils_Search_Basic()
     memset(kmpNext, 0x00, 8);
     memset(bmBct, 0x00, MOUTILS_SEARCH_BM_BCT_LEN);
     memset(bmGst, 0x00, 8);
+    memset(sundayNext, 0x00, MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN);
     strcpy(pattern, "cbab");
-    strcpy(src, "xyzmbdxbce"); //good suffix is "b", donot exist in pattern
+    strcpy(src, "xyzmbdxbcecba"); //good suffix is "b", donot exist in pattern
     int retBF = moUtils_Search_BF(src, strlen(src), pattern, strlen(pattern));
     moUtils_Search_KMP_GenNextArray(kmpNext, pattern, strlen(pattern));
     int retKmp = moUtils_Search_KMP(src, strlen(src), pattern, strlen(pattern), kmpNext);
     moUtils_Search_BM_GenBCT(bmBct, pattern, strlen(pattern));
     moUtils_Search_BM_GenGST(bmGst, pattern, strlen(pattern));
     int retBm = moUtils_Search_BM(src, strlen(src), pattern, strlen(pattern), bmBct, bmGst);
-    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d\n",
-            src, pattern, retBF, retKmp, retBm);
+    moUtils_Search_Sunday_GenNextTable(sundayNext, pattern, strlen(pattern));
+    int retSunday = moUtils_Search_Sunday(src, strlen(src), pattern, strlen(pattern), sundayNext);
+    printf("After search, src = [%s], pattern = [%s], retBF=%d, retKmp=%d, retBm=%d, retSunday=%d\n",
+            src, pattern, retBF, retKmp, retBm, retSunday);
 #endif
 }
 
@@ -314,16 +335,21 @@ static void tst_moUtils_Search_Rand(void)
         unsigned char kmpNext[PAT_LEN] = {0x00};
         moUtils_Search_KMP_GenNextArray(kmpNext, pat, PAT_LEN - 1);
         int retKMP = moUtils_Search_KMP(src, SRC_LEN - 1, pat, PAT_LEN - 1, kmpNext);
-        //use BM lastly
+        //use BM thirdly
         unsigned char bmBct[MOUTILS_SEARCH_BM_BCT_LEN] = {0x00};
         moUtils_Search_BM_GenBCT(bmBct, pat, PAT_LEN - 1);
         unsigned char bmGst[PAT_LEN] = {0x00};
         moUtils_Search_BM_GenGST(bmGst, pat, PAT_LEN - 1);
         int retBM = moUtils_Search_BM(src, SRC_LEN - 1, pat, PAT_LEN - 1, bmBct, bmGst);
+        //use Sunday lastly
+        unsigned char sundayNext[MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN] = {0x00};
+        moUtils_Search_Sunday_GenNextTable(sundayNext, pat, PAT_LEN - 1);
+        int retSunday = moUtils_Search_Sunday(src, SRC_LEN - 1, pat, PAT_LEN - 1, sundayNext);
         //Cmp result
-        if(retBF != retKMP || retBF != retBM)
+        if(retBF != retKMP || retBF != retBM || retBF != retSunday)
         {
-            printf("cnt = %d, retBF = %d, retKMP = %d, retBM = %d\n", cnt, retBF, retKMP, retBM);
+            printf("cnt = %d, retBF = %d, retKMP = %d, retBM = %d, retSunday = %d\n", 
+                cnt, retBF, retKMP, retBM, retSunday);
             
             printf("src info : \n");
             DumpArray(src, SRC_LEN - 1);
@@ -398,7 +424,7 @@ static void tst_moUtils_Search_Effencicy(void)
     moUtils_Search_BM_GenGST(bmGst, pat, PAT_LEN - 1);
     for(cnt = 0; cnt < timeMaxTimes; cnt++)
     {
-        //use BM lastly
+        //use BM thirdly
         ret = moUtils_Search_BM(src, SRC_LEN - 1, pat, PAT_LEN - 1, bmBct, bmGst);
     }
     gettimeofday(&afterTime, NULL);
@@ -407,6 +433,22 @@ static void tst_moUtils_Search_Effencicy(void)
         ((afterTime.tv_sec - beforeTime.tv_sec) * 1000 + (afterTime.tv_usec - beforeTime.tv_usec) / 1000) : 
         ((afterTime.tv_sec - beforeTime.tv_sec) * 1000 - 1 + (afterTime.tv_usec + 1000 - beforeTime.tv_usec) / 1000);
     printf("BM algo, %d times, ret = %d, difftime = %f\n", timeMaxTimes, ret, difftime);
+    
+    //Sunday algo. fourthly
+    gettimeofday(&beforeTime, NULL);
+    unsigned char sundayNext[MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN] = {0x00};
+    moUtils_Search_Sunday_GenNextTable(sundayNext, pat, PAT_LEN - 1);
+    for(cnt = 0; cnt < timeMaxTimes; cnt++)
+    {
+        //use sunday lastly
+        ret = moUtils_Search_Sunday(src, SRC_LEN - 1, pat, PAT_LEN - 1, sundayNext);
+    }
+    gettimeofday(&afterTime, NULL);
+    //calc the difftime
+    difftime = (afterTime.tv_usec >= beforeTime.tv_usec) ? 
+        ((afterTime.tv_sec - beforeTime.tv_sec) * 1000 + (afterTime.tv_usec - beforeTime.tv_usec) / 1000) : 
+        ((afterTime.tv_sec - beforeTime.tv_sec) * 1000 - 1 + (afterTime.tv_usec + 1000 - beforeTime.tv_usec) / 1000);
+    printf("Sunday algo, %d times, ret = %d, difftime = %f\n", timeMaxTimes, ret, difftime);
 }
 
 int main(int argc, char **argv)

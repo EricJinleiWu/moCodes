@@ -433,3 +433,115 @@ int moUtils_Search_BM(const unsigned char * pSrc, const unsigned int srcLen,
     }
 }
 
+
+/*
+    In sunday algo., next pos has rules like : 
+        If exist in @pPattern, moveBytes = @patternLen - rightPosOfThisChar;
+        else, moveBytes = @patternLen + 1;
+*/
+int moUtils_Search_Sunday_GenNextTable(unsigned char *pNext,
+    const unsigned char * pPattern, const unsigned int patternLen)
+{
+    if(NULL == pNext || NULL == pPattern)
+    {
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
+    }
+    unsigned int i = 0;
+    for(; i < MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN; i++)
+    {
+        *(pNext + i) = patternLen + 1;
+    }
+
+    for(i = 0; i < patternLen; i++)
+    {
+        *(pNext + pPattern[i]) = patternLen - i;
+    }
+
+#if DEBUG_MODE
+    //Dump Next table value
+    dumpArrayInfo("nextTable4SundayAlgo", pNext, MOUTILS_SEARCH_SUNDAY_NEXTTABLE_LEN);
+#endif
+
+    return MOUTILS_SEARCH_ERR_OK;
+}
+
+
+int moUtils_Search_Sunday(const unsigned char * pSrc, const unsigned int srcLen, 
+    const unsigned char * pPattern, const unsigned int patternLen, 
+    const unsigned char * pNext)
+{
+    if(NULL == pSrc || NULL == pPattern || NULL == pNext)
+    {
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME, "Input param is NULL!\n");
+        return MOUTILS_SEARCH_ERR_INPUTPARAMNULL;
+    }
+
+    if(srcLen < patternLen)
+    {
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
+            "Input srcLen = %d, patternLen = %d, cannot find pattern surely.\n",
+            srcLen, patternLen);
+        return MOUTILS_SEARCH_ERR_PATLENLARGER;
+    }
+
+    if(0 == patternLen || 0 == srcLen)
+    {
+        moLoggerError(MOUTILS_LOGGER_MODULE_NAME,
+            "patternLen = %d, srcLen = %d, they all cannot be 0!\n",
+            patternLen, srcLen);
+        return MOUTILS_SEARCH_ERR_INVALIDLEN;
+    }
+    
+#if DEBUG_MODE
+    //Dump the pattern firstly
+    dumpArrayInfo("pattern", pPattern, patternLen);
+#endif
+
+    //Start matching
+    unsigned char isPatFind = 0;
+    unsigned int i = 0;
+    for(i = 0; i <= srcLen - patternLen; )
+    {
+        unsigned char isMatched = 1;
+        unsigned int j = 0;
+        for(j = 0; j < patternLen; j++)
+        {
+            //pattern donot matched
+            if(pSrc[i + j] != pPattern[j])
+            {
+                isMatched = 0;
+                //Should jump several bytes, append on @pNext
+                if(i + patternLen < srcLen) //Must cmp with @srcLen!
+                {
+                    i += pNext[pSrc[i + patternLen]];
+                    break;
+                }
+                //To the end of @pSrc, donot find @pPattern yet
+                else
+                {
+                    //This increase is meaningless, just can break forLoop to i
+                    i++;
+                }
+            }
+        }
+        //If we matched pattern, break is OK
+        if(isMatched)
+        {
+            isPatFind = 1;
+            break;
+        }
+    }
+
+    if(isPatFind)
+    {
+        moLoggerDebug(MOUTILS_LOGGER_MODULE_NAME, "Pattern being find! offset = %d\n", i);
+        return i;
+    }
+    else
+    {
+        moLoggerWarn(MOUTILS_LOGGER_MODULE_NAME, "Pattern donot being find!\n");
+        return MOUTILS_SEARCH_ERR_PATNOTEXIST;
+    }
+}
+

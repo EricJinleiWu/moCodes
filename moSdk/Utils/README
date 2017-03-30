@@ -37,3 +37,9 @@ V1.1.6
     EricWu, 20170328
         After effencicy test, To same string, use time : BF > KMP > BM;
         I change API, add gen tables for KMP and BM, this can help user to generate them firstly, then if needed, use them without generating each time, this can save time, too.
+
+V1.1.7
+    EricWu, 20170330
+        To "Search", add a new algo. named Sunday-algo.;
+        This algo. has effcicency better than KMP, some times better than BM, too!
+        And this algo. is simple in rules;
