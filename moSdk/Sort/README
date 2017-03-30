@@ -2,3 +2,6 @@ V1.0.0
     EricWu, 20170314
         create the first sort algo. : direct insert sort;
         
+V1.0.1
+    EricWu, 20170330
+        Modify structure of this directory, all sort algorithms being executed in a directory; So I delete directory "DirectInsert", add directory "src".

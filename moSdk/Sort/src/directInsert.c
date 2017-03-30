@@ -3,9 +3,8 @@
 
 #include "moLogger.h"
 #include "moSort.h"
-#include "directInsert.h"
 
-static int sortL2B(int *pArray, const unsigned int arrayLength)
+static int directInsertSortL2B(int *pArray, const unsigned int arrayLength)
 {
 	unsigned int i = 0;
 	for(i = 0; i < arrayLength - 1; i++)
@@ -29,7 +28,7 @@ static int sortL2B(int *pArray, const unsigned int arrayLength)
     return 0;
 }
 
-static int sortB2L(int *pArray, const unsigned int arrayLength)
+static int directInsertSortB2L(int *pArray, const unsigned int arrayLength)
 {
 	unsigned int i = 0;
 	for(; i < arrayLength - 1; i++)
@@ -74,11 +73,11 @@ int moSort_directInsertSort(int *pArray, const unsigned int arrayLength,  const 
     switch(seq)
     {
         case MOSORT_DST_SEQUENCE_B2L:
-            ret = sortB2L(pArray, arrayLength);
+            ret = directInsertSortB2L(pArray, arrayLength);
             break;
             
         case MOSORT_DST_SEQUENCE_L2B:
-            ret = sortL2B(pArray, arrayLength);
+            ret = directInsertSortL2B(pArray, arrayLength);
             break;
 
         default:

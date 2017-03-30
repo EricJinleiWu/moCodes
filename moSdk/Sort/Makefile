@@ -11,15 +11,12 @@ MO_SDK_RELEASE_DIR = ../release
 MOLOGGER_DIR = ../Logger
 MOLOGGER_INCDIR = $(MOLOGGER_DIR)/inc
 
-#src dir, When add a new algorithm, add its dir here.
-DIRECTINSERT_DIR = ./DirectInsertSort
-DIRECTINSERT_INC = $(DIRECTINSERT_DIR)/inc
-DIRECTINSERT_SRC = $(DIRECTINSERT_DIR)/src
+#src dir
+SORT_SRC = ./src
 
 # INC DIRS. All algorithm should set header file in this directory.
 INCDIRS = -I./inc \
-		  -I$(MOLOGGER_INCDIR) \
-	      -I$(DIRECTINSERT_INC)
+		  -I$(MOLOGGER_INCDIR)
 
 # System lib path
 #LDFLAGS =	-lpthread -lrt -ldl
@@ -31,7 +28,7 @@ CFLAGS	= -g -ggdb -MMD -Wall -W
 PROGRAM_OBJ_DIR = ./obj
 
 # source file obj
-MAIN_OBJS = $(patsubst $(DIRECTINSERT_SRC)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(DIRECTINSERT_SRC)/*.c))
+MAIN_OBJS = $(patsubst $(SORT_SRC)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(SORT_SRC)/*.c))
 
 #target is a lib
 TARGET_DIR = ./lib
@@ -52,7 +49,7 @@ DEPENDS:
 	@mkdir -p $(MO_SDK_RELEASE_DIR)
 
 # src --> obj.
-$(PROGRAM_OBJ_DIR)/%.o: $(DIRECTINSERT_SRC)/%.c
+$(PROGRAM_OBJ_DIR)/%.o: $(SORT_SRC)/%.c
 	@echo ">>> compiling $< ..."
 	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
 	
