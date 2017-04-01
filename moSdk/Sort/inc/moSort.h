@@ -29,6 +29,15 @@ typedef enum
 */
 int moSort_directInsertSort(int *pArray, const unsigned int arrayLength, const MOSORT_DST_SEQUENCE seq);
 
+/*
+    Do sort with select-sorting;
+*/
+int moSort_selectSort(int *pArray, const unsigned int arrayLength, const MOSORT_DST_SEQUENCE seq);
+
+/*
+    Do sort with bubble-sorting;
+*/
+int moSort_bubbleSort(int *pArray, const unsigned int arrayLength, const MOSORT_DST_SEQUENCE seq);
 
 #ifdef __cplusplus
 }

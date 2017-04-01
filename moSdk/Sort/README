@@ -5,3 +5,7 @@ V1.0.0
 V1.0.1
     EricWu, 20170330
         Modify structure of this directory, all sort algorithms being executed in a directory; So I delete directory "DirectInsert", add directory "src".
+
+V1.0.2
+    EricWu, 20170401
+        Add two sort methods: selectSort and bubbleSort;
