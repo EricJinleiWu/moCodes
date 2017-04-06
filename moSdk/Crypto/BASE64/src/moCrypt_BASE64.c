@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "moCrypt.h"
 #include "moUtils.h"
@@ -15,6 +16,25 @@
 //768 = 256 * 3 = 192 * 4
 #define CRYPT_FILE_BLOCKSIZE  768
 
+
+#define PROGRESS_SATRT                  0   //Start to crypt
+#define PROGRESS_CHECKFILEDIFFSTATE     5   //parse src filepath over
+#define PROGRESS_OPENFILE               10  //Open srcfile and dstfile/tmpfile over
+#define PROGRESS_CRYPTRANGE             80  //80% crypt blockes to src file, from 10%--90%
+//After crypt, progress to 90(PROGRESS_OPENFILE + PROGRESS_CRYPTRANGE), if tmp file being used, should copy contents to dst
+//when copy over, set progress to PROGRESS_TMP2DST;
+#define PROGRESS_TMP2DST                95
+#define PROGRESS_CRYPTOVER              100
+
+
+typedef struct
+{
+    MOCRYPT_METHOD method;
+    char pSrcFilename[MOCRYPT_FILEPATH_LEN];
+    char pDstFilename[MOCRYPT_FILEPATH_LEN];
+    pProgBarCallbackFunc pFunc;
+}BASE64_CRYPTFILE_INFO;
+
 static const unsigned char gMap[64] = {
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 
     'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 
@@ -25,6 +45,18 @@ static const unsigned char gMap[64] = {
     'w', 'x', 'y', 'z', '0', '1', '2', '3', 
     '4', '5', '6', '7', '8', '9', '+', '/' 
 };
+
+
+/*
+    Set progress by callback function;
+*/
+static void setProgress(const pProgBarCallbackFunc pFunc, const int prog)
+{
+    if(NULL != pFunc)
+    {
+        pFunc(prog);
+    }
+}
 
 /*
     convert from number to base64 symbol using gMap;
@@ -281,7 +313,7 @@ static unsigned char * decryptChars(const unsigned char *src, const unsigned int
 /*
     Do crypt to @src;
 */
-unsigned char * moCrypt_BASE64_Chars(const BASE64_CRYPT_METHOD method, 
+unsigned char * moCrypt_BASE64_Chars(const MOCRYPT_METHOD method, 
     const unsigned char *src, const unsigned int srcLen, unsigned int *pDstLen)
 {
     if(NULL == src || NULL == pDstLen)
@@ -301,10 +333,10 @@ unsigned char * moCrypt_BASE64_Chars(const BASE64_CRYPT_METHOD method,
 
     switch(method)
     {
-        case BASE64_CRYPT_METHOD_ENCRYPT:
+        case MOCRYPT_METHOD_ENCRYPT:
             pDst = encryptChars(src, srcLen, pDstLen);
             break;
-        case BASE64_CRYPT_METHOD_DECRYPT:
+        case MOCRYPT_METHOD_DECRYPT:
             pDst = decryptChars(src, srcLen, pDstLen);
             break;
         default:
@@ -380,12 +412,13 @@ OUT:
     7.close src and tmp;
     8.delete tmp;
 */
-static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFilepath)
+static int cryptFileToSame(const MOCRYPT_METHOD method, const char * pSrcFilepath, pProgBarCallbackFunc pFunc)
 {
     if(NULL == pSrcFilepath)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
-        return MOCRYPTBASE64_ERR_INPUTNULL;
+        setProgress(pFunc, MOCRYPT_BASE64_ERR_INPUTNULL);
+        return MOCRYPT_BASE64_ERR_INPUTNULL;
     }
 
     //1.Get the tmp file path
@@ -393,7 +426,8 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
     if(NULL == pTmpFilepath)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "getTmpFilepath failed!\n");
-        return MOCRYPTBASE64_ERR_MALLOCFAILED;
+        setProgress(pFunc, MOCRYPT_BASE64_ERR_MALLOCFAILED);
+        return MOCRYPT_BASE64_ERR_MALLOCFAILED;
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "Step 1 : get tmp file path has been over, it is [%s]\n", 
@@ -408,7 +442,8 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
             pSrcFilepath, errno, strerror(errno));
         free(pTmpFilepath);
         pTmpFilepath = NULL;
-        return MOCRYPTBASE64_ERR_FILEOPENFAIL;
+        setProgress(pFunc, MOCRYPT_BASE64_ERR_FILEOPENFAIL);
+        return MOCRYPT_BASE64_ERR_FILEOPENFAIL;
     }
     FILE * fpTmp = fopen(pTmpFilepath, "wb");
     if(NULL == fpTmp)
@@ -420,11 +455,20 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
         pTmpFilepath = NULL;
         fclose(fpSrc);
         fpSrc = NULL;
-        return MOCRYPTBASE64_ERR_FILEOPENFAIL;
+        setProgress(pFunc, MOCRYPT_BASE64_ERR_FILEOPENFAIL);
+        return MOCRYPT_BASE64_ERR_FILEOPENFAIL;
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Step 2 : open src for read, open tmp for write has been over.\n");
+
+    setProgress(pFunc, PROGRESS_OPENFILE);
     
     //3.Do crypt 
+    int filesize = moUtils_File_getSize(pSrcFilepath);
+    int loopCnt = (filesize % CRYPT_FILE_BLOCKSIZE == 0) ? (filesize / CRYPT_FILE_BLOCKSIZE) : (filesize / CRYPT_FILE_BLOCKSIZE + 1);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "filesize=%d, loopCnt=%d\n",
+        filesize, loopCnt);
+    int curCnt = 0;
+    
     int readNum = 0;
     unsigned char buf[CRYPT_FILE_BLOCKSIZE] = {0x00};
     while((readNum = fread(buf, 1, CRYPT_FILE_BLOCKSIZE, fpSrc)) > 0)
@@ -433,7 +477,7 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
             "In this loop, readNum = %d, CRYPT_FILE_BLOCKSIZE = %d\n", 
             readNum, CRYPT_FILE_BLOCKSIZE);
         
-        if(method == BASE64_CRYPT_METHOD_ENCRYPT)
+        if(method == MOCRYPT_METHOD_ENCRYPT)
         {
             unsigned int cipherLen = 0;
             unsigned char * pCipherTxt = encryptChars(buf, readNum, &cipherLen);
@@ -446,7 +490,8 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
                 fpSrc = NULL;
                 fclose(fpTmp);
                 fpTmp = NULL;
-                return MOCRYPTBASE64_ERR_MALLOCFAILED;
+                setProgress(pFunc, MOCRYPT_BASE64_ERR_MALLOCFAILED);
+                return MOCRYPT_BASE64_ERR_MALLOCFAILED;
             }
             //Write to dst file
             fwrite(pCipherTxt, 1, cipherLen, fpTmp);
@@ -467,7 +512,8 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
                 fpSrc = NULL;
                 fclose(fpTmp);
                 fpTmp = NULL;
-                return MOCRYPTBASE64_ERR_MALLOCFAILED;
+                setProgress(pFunc, MOCRYPT_BASE64_ERR_MALLOCFAILED);
+                return MOCRYPT_BASE64_ERR_MALLOCFAILED;
             }
             //Write to dst file
             fwrite(pPlainTxt, 1, plainLen, fpTmp);
@@ -476,10 +522,18 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
             pPlainTxt = NULL;
         }
 
+        curCnt++;
+        float percent = (float)curCnt / loopCnt;
+        percent *= PROGRESS_CRYPTRANGE;
+        percent += PROGRESS_OPENFILE;
+        moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "percent=%f\n", percent);
+        setProgress(pFunc, (int)percent);
+
         memset(buf, 0x00, CRYPT_FILE_BLOCKSIZE);
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "Step 3 : do crypt from src to tmp has been over.\n");
+    setProgress(pFunc, PROGRESS_OPENFILE + PROGRESS_CRYPTRANGE);
 
     //4.close files
     fclose(fpSrc);
@@ -498,7 +552,8 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
             pSrcFilepath, errno, strerror(errno));
         free(pTmpFilepath);
         pTmpFilepath = NULL;
-        return MOCRYPTBASE64_ERR_FILEOPENFAIL;
+        setProgress(pFunc, MOCRYPT_BASE64_ERR_FILEOPENFAIL);
+        return MOCRYPT_BASE64_ERR_FILEOPENFAIL;
     }
     fpTmp = fopen(pTmpFilepath, "rb");
     if(fpTmp == NULL)
@@ -510,7 +565,8 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
         fpSrc = NULL;
         free(pTmpFilepath);
         pTmpFilepath = NULL;
-        return MOCRYPTBASE64_ERR_FILEOPENFAIL;
+        setProgress(pFunc, MOCRYPT_BASE64_ERR_FILEOPENFAIL);
+        return MOCRYPT_BASE64_ERR_FILEOPENFAIL;
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "Step 5 : open src for write, open tmp for read has been over.\n");
@@ -524,6 +580,7 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "Step 6 : copy from tmp to src has been over.\n");
+    setProgress(pFunc, PROGRESS_TMP2DST);
 
     //7.close them
     fclose(fpSrc);
@@ -538,8 +595,8 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
     free(pTmpFilepath);
     pTmpFilepath = NULL;
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Step 8 : crypt being done!\n");
-    
-    return MOCRYPTBASE64_ERR_OK;
+
+    return MOCRYPT_BASE64_ERR_OK;
 }
 
 
@@ -548,12 +605,14 @@ static int cryptFileToSame(const BASE64_CRYPT_METHOD method, const char * pSrcFi
     2.do crypt from src to dst;
     3.close src and dst;
 */
-static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFilepath,const char * pDstFilepath)
-{
+static int cryptFileToDiff(const MOCRYPT_METHOD method,const char * pSrcFilepath,const char * pDstFilepath,
+    pProgBarCallbackFunc pFunc)
+{   
     if(NULL == pSrcFilepath || NULL == pDstFilepath)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
-        return MOCRYPTBASE64_ERR_INPUTNULL;
+        setProgress(pFunc, MOCRYPT_BASE64_ERR_INPUTNULL);
+        return MOCRYPT_BASE64_ERR_INPUTNULL;
     }
 
     //1.Open them
@@ -564,7 +623,8 @@ static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFil
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "Open src file [%s] for reading failed! errno = %d, desc = [%s]\n",
             pSrcFilepath, errno, strerror(errno));
-        return MOCRYPTBASE64_ERR_FILEOPENFAIL;
+        setProgress(pFunc, MOCRYPT_BASE64_ERR_FILEOPENFAIL);
+        return MOCRYPT_BASE64_ERR_FILEOPENFAIL;
     }
     FILE * fpDst = NULL;
     fpDst = fopen(pDstFilepath, "wb");
@@ -577,11 +637,20 @@ static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFil
         fclose(fpSrc);
         fpSrc = NULL;
         
-        return MOCRYPTBASE64_ERR_FILEOPENFAIL;
+        setProgress(pFunc, MOCRYPT_BASE64_ERR_FILEOPENFAIL);
+        return MOCRYPT_BASE64_ERR_FILEOPENFAIL;
     }
+    
+    setProgress(pFunc, PROGRESS_OPENFILE);
 
     //2.Do crypt 
-    int ret = MOCRYPTBASE64_ERR_OK;
+    int filesize = moUtils_File_getSize(pSrcFilepath);
+    int loopCnt = (filesize % CRYPT_FILE_BLOCKSIZE == 0) ? (filesize / CRYPT_FILE_BLOCKSIZE) : (filesize / CRYPT_FILE_BLOCKSIZE + 1);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "filesize=%d, loopCnt=%d\n",
+        filesize, loopCnt);
+    int curCnt = 0;
+    
+    int ret = MOCRYPT_BASE64_ERR_OK;
     int readNum = 0;
     unsigned char buf[CRYPT_FILE_BLOCKSIZE] = {0x00};
     while((readNum = fread(buf, 1, CRYPT_FILE_BLOCKSIZE, fpSrc)) > 0)
@@ -590,14 +659,14 @@ static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFil
             "In this loop, readNum = %d, CRYPT_FILE_BLOCKSIZE = %d\n", 
             readNum, CRYPT_FILE_BLOCKSIZE);
         
-        if(method == BASE64_CRYPT_METHOD_ENCRYPT)
+        if(method == MOCRYPT_METHOD_ENCRYPT)
         {
             unsigned int cipherLen = 0;
             unsigned char * pCipherTxt = encryptChars(buf, readNum, &cipherLen);
             if(NULL == pCipherTxt)
             {
                 moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "encryptChars failed!\n");
-                ret = MOCRYPTBASE64_ERR_MALLOCFAILED;
+                ret = MOCRYPT_BASE64_ERR_MALLOCFAILED;
                 goto OUT;
             }
             //Write to dst file
@@ -613,7 +682,7 @@ static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFil
             if(NULL == pPlainTxt)
             {
                 moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "decryptChars failed!\n");
-                ret = MOCRYPTBASE64_ERR_MALLOCFAILED;
+                ret = MOCRYPT_BASE64_ERR_MALLOCFAILED;
                 goto OUT;
             }
             //Write to dst file
@@ -622,51 +691,145 @@ static int cryptFileToDiff(const BASE64_CRYPT_METHOD method,const char * pSrcFil
             free(pPlainTxt);
             pPlainTxt = NULL;
         }
+
+        curCnt++;
+        float percent = (float)curCnt / loopCnt;
+        percent *= PROGRESS_CRYPTRANGE;
+        percent += PROGRESS_OPENFILE;
+        moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "percent=%f\n", percent);
+        setProgress(pFunc, (int)percent);
+
+        memset(buf, 0x00, CRYPT_FILE_BLOCKSIZE);
     }
+    
+    setProgress(pFunc, PROGRESS_OPENFILE + PROGRESS_CRYPTRANGE);
     
 OUT:
     fclose(fpSrc);
     fpSrc = NULL;
     fclose(fpDst);
     fpDst = NULL;
+    
+    if(ret != MOCRYPT_BASE64_ERR_OK)
+        setProgress(pFunc, ret);
+    else
+        setProgress(pFunc, PROGRESS_TMP2DST);
+    
     return ret;
 }
 
-/*
-    1.srcFilepath is the same with dstFilepath or not;
-    2.read src file with block, do crypt looply, write to dst file;
-*/
-int moCrypt_BASE64_File(const BASE64_CRYPT_METHOD method,const char * pSrcFilepath,const char * pDstFilepath)
+
+static int cryptFile(const MOCRYPT_METHOD method,const char * pSrcFilepath,const char * pDstFilepath,
+    pProgBarCallbackFunc pFunc)
 {
-    if(NULL == pSrcFilepath || NULL == pDstFilepath)
-    {
-        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
-        return MOCRYPTBASE64_ERR_INPUTNULL;
-    }
+    setProgress(pFunc, PROGRESS_SATRT);
     
     MOUTILS_FILE_ABSPATH_STATE sameState;
     int ret = moUtils_File_getFilepathSameState(pSrcFilepath, pDstFilepath, &sameState);
     if(ret != 0)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
-            "moUtils_File_getFilepathSameState failed! ret = %d(0x%x)\n", ret, ret);
-        return MOCRYPTBASE64_ERR_OTHER;
+            "moUtils_File_getFilepathSameState failed! ret = %d\n", ret);
+        return MOCRYPT_BASE64_ERR_GETFILEDIFFSTATEFAIL;
     }
+    
+    setProgress(pFunc, PROGRESS_CHECKFILEDIFFSTATE);
 
     switch(sameState)
     {
         case MOUTILS_FILE_ABSPATH_STATE_SAME:
-            ret = cryptFileToSame(method, pSrcFilepath);
+            ret = cryptFileToSame(method, pSrcFilepath, pFunc);
             break;
         case MOUTILS_FILE_ABSPATH_STATE_DIFF:
-            ret = cryptFileToDiff(method, pSrcFilepath, pDstFilepath);
+            ret = cryptFileToDiff(method, pSrcFilepath, pDstFilepath, pFunc);
             break;
         default:
-            ret = MOCRYPTBASE64_ERR_OTHER;
+            ret = MOCRYPT_BASE64_ERR_OTHER;
             break;
     }
+
+    if(MOCRYPT_BASE64_ERR_OK == ret)
+        setProgress(pFunc, PROGRESS_CRYPTOVER);
     
     return ret;
+}
+
+static void * cryptFileAsync(void *args)
+{
+    if(args != NULL)
+    {
+        BASE64_CRYPTFILE_INFO info;
+        memset(&info, 0x00, sizeof(BASE64_CRYPTFILE_INFO));
+        memcpy(&info, args, sizeof(BASE64_CRYPTFILE_INFO));
+        free(args);
+        args = NULL;
+
+        printf("wjl_test : info.pSrcFilename=[%s], info.pDstFilename=[%s]\n",
+            info.pSrcFilename, info.pDstFilename);
+
+        cryptFile(info.method, info.pSrcFilename, info.pDstFilename, info.pFunc);
+    }
+    else
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+    }
+
+    return NULL;
+}
+
+/*
+    1.srcFilepath is the same with dstFilepath or not;
+    2.read src file with block, do crypt looply, write to dst file;
+*/
+int moCrypt_BASE64_File(const MOCRYPT_METHOD method,const char * pSrcFilepath,const char * pDstFilepath,
+    pProgBarCallbackFunc pFunc)
+{
+    if(NULL == pSrcFilepath || NULL == pDstFilepath)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_BASE64_ERR_INPUTNULL;
+    }
+
+    if(NULL == pFunc)
+    {
+        moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Donot care about progress, do BASE64 directly.\n");
+        return cryptFile(method, pSrcFilepath, pDstFilepath, NULL);
+    }
+    else
+    {
+        moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Care about progress, will start a thread to do BASE64.\n");
+
+        BASE64_CRYPTFILE_INFO *pInfo = NULL;
+        pInfo = (BASE64_CRYPTFILE_INFO *)malloc(sizeof(BASE64_CRYPTFILE_INFO));
+        if(NULL == pInfo)
+        {
+            moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Malloc failed! size=%d, errno=%d, desc = [%s]\n",
+                sizeof(BASE64_CRYPTFILE_INFO), errno, strerror(errno));
+            return MOCRYPT_BASE64_ERR_MALLOCFAILED;
+        }
+        memset(pInfo, 0x00, sizeof(BASE64_CRYPTFILE_INFO));
+        pInfo->method = method;
+        strcpy(pInfo->pSrcFilename, pSrcFilepath);
+        strcpy(pInfo->pDstFilename, pDstFilepath);
+        pInfo->pFunc = pFunc;
+        
+        pthread_t thID;
+        if(0 != pthread_create(&thID, NULL, cryptFileAsync, (void *)pInfo))
+        {
+            moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Create thread cryptFileAsync failed!\n");
+            if(pInfo != NULL)
+            {
+                free(pInfo);
+                pInfo = NULL;
+            }
+            return MOCRYPT_BASE64_ERR_CREATETHREADFAIL;
+        }
+        else
+        {
+            moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Create thread cryptFileAsync succeed.\n");
+            return MOCRYPT_BASE64_ERR_OK;
+        }
+    }
 }
 
 void moCrypt_BASE64_free(unsigned char * pChars)

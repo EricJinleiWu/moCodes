@@ -18,6 +18,18 @@ typedef void (*pProgBarCallbackFunc)(int);
 
 #define MOCRYPT_FILEPATH_LEN    256
 
+typedef enum
+{
+    MOCRYPT_METHOD_ENCRYPT,
+    MOCRYPT_METHOD_DECRYPT
+}MOCRYPT_METHOD;
+
+
+
+/****************************************************************************************************/
+/************************************ RC4 algorithm to do crypt *************************************/
+/****************************************************************************************************/
+
 #define MOCRYPT_RC4_KEY_MAX_LEN		256		//The max key length, cannot larger than this value
 #define MOCRYPT_RC4_KEY_MIN_LEN		1		//The min key length, cannot less than this value
 
@@ -81,6 +93,12 @@ int moCrypt_RC4_cryptString(const unsigned char *key, const unsigned int keylen,
 int moCrypt_RC4_cryptFile(const MOCRYPT_RC4_FILEINFO *pCryptInfo);
 
 
+
+
+/****************************************************************************************************/
+/************************************ MD5 algorithm to do hash **************************************/
+/****************************************************************************************************/
+
 typedef struct
 {
     unsigned char md5[16];   //md5 value is 128bits
@@ -88,12 +106,12 @@ typedef struct
 
 
 //Error when MD5
-#define MOCRYPTMD5_ERR_OK           (0)             //No error
-#define MOCRYPTMD5_ERR_INPUTNULL    (0x00001000)    //Input pointer is NULL
-#define MOCRYPTMD5_ERR_MALLOCFAIL   (0x00001001)    //Input pointer is NULL
-#define MOCRYPTMD5_ERR_FILENOTEXIST (0x00001002)    //Input a filepath to get its md5 value, but this filepath donot a valid path!
-#define MOCRYPTMD5_ERR_WRONGFILEMODE (0x00001003)   //input filepath donot a file, is a directory or any other things.
-#define MOCRYPTMD5_ERR_OPENFILEFAIL (0x00001004)    //fopen failed!
+#define MOCRYPT_MD5_ERR_OK           (0)             //No error
+#define MOCRYPT_MD5_ERR_INPUTNULL    (0 - 21000)    //Input pointer is NULL
+#define MOCRYPT_MD5_ERR_MALLOCFAIL   (0 - 21001)    //malloc failed
+#define MOCRYPT_MD5_ERR_FILENOTEXIST (0 - 21002)    //Input a filepath to get its md5 value, but this filepath donot a valid path!
+#define MOCRYPT_MD5_ERR_WRONGFILEMODE (0 - 21003)   //input filepath donot a file, is a directory or any other things.
+#define MOCRYPT_MD5_ERR_OPENFILEFAIL (0 - 21004)    //fopen failed!
 
 /*
     Dump the md5 value in hex mode;
@@ -118,7 +136,7 @@ int moCrypt_MD5_String(const unsigned char *txt, MO_MD5_VALUE *pValue);
     
     @param:
     	pSrcFilepath : The filepath will do md5;
-        pValue: The md5 value will be set to this param;
+        pValue : The md5 value will be set to this param;
 
     @return:
         0+ : The md5 vlaue get succeed, can be get from @value;
@@ -127,17 +145,18 @@ int moCrypt_MD5_String(const unsigned char *txt, MO_MD5_VALUE *pValue);
 int moCrypt_MD5_File(const char *pSrcFilepath, MO_MD5_VALUE *pValue);
 
 
-typedef enum
-{
-    BASE64_CRYPT_METHOD_ENCRYPT,
-    BASE64_CRYPT_METHOD_DECRYPT
-}BASE64_CRYPT_METHOD;
 
-#define MOCRYPTBASE64_ERR_OK                (0x00000000)
-#define MOCRYPTBASE64_ERR_INPUTNULL         (0x00002000)
-#define MOCRYPTBASE64_ERR_FILEOPENFAIL      (0x00002001)
-#define MOCRYPTBASE64_ERR_MALLOCFAILED      (0x00002003)
-#define MOCRYPTBASE64_ERR_OTHER             (0x00002004)
+/****************************************************************************************************/
+/************************************ BASE64 algorithm to do crypt **********************************/
+/****************************************************************************************************/
+
+#define MOCRYPT_BASE64_ERR_OK                (0)
+#define MOCRYPT_BASE64_ERR_INPUTNULL         (0 - 22000)
+#define MOCRYPT_BASE64_ERR_FILEOPENFAIL      (0 - 22001)
+#define MOCRYPT_BASE64_ERR_MALLOCFAILED      (0 - 22002)
+#define MOCRYPT_BASE64_ERR_CREATETHREADFAIL  (0 - 22003)
+#define MOCRYPT_BASE64_ERR_GETFILEDIFFSTATEFAIL (0 - 22004)
+#define MOCRYPT_BASE64_ERR_OTHER             (0 - 22005)
 
 /*
     Do encrypt or decrypt to input string @src;
@@ -153,7 +172,7 @@ typedef enum
     Be careful, after use this function, return value is a pointer being malloced, 
     you must free it by moCrypt_BASE64_free()!!
 */
-unsigned char * moCrypt_BASE64_Chars(const BASE64_CRYPT_METHOD method, 
+unsigned char * moCrypt_BASE64_Chars(const MOCRYPT_METHOD method, 
     const unsigned char *src, const unsigned int srcLen, unsigned int *dstLen);
 
 /*
@@ -174,6 +193,8 @@ void moCrypt_BASE64_free(unsigned char * pChars);
         method : encrypt or decrypt;
         pSrcFilepath : the pointer of charactors which should be done;
         pDstFilepath : The bytes being crypted from @src;
+        pFunc : The callback function pointer, which will get progress info, if NULL input, will do MD5 directly, else, will use this function to 
+                    set the progress.
 
     @return :
         0 : succeed;
@@ -181,8 +202,8 @@ void moCrypt_BASE64_free(unsigned char * pChars);
 
     srcFilepath and dstFilepath can be same;
 */
-int moCrypt_BASE64_File(const BASE64_CRYPT_METHOD method, 
-    const char * pSrcFilepath, const char * pDstFilepath);
+int moCrypt_BASE64_File(const MOCRYPT_METHOD method, const char * pSrcFilepath, 
+    const char * pDstFilepath, pProgBarCallbackFunc pFunc);
 
 #ifdef __cplusplus
 }

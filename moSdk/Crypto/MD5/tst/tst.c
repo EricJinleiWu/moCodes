@@ -44,7 +44,7 @@ static void tst_moCrypt_MD5_File()
     MO_MD5_VALUE value;
     memset(&value, 0x00, sizeof(MO_MD5_VALUE));
     int ret = moCrypt_MD5_File(filepath, &value);
-    if(ret != MOCRYPTMD5_ERR_OK)
+    if(ret != MOCRYPT_MD5_ERR_OK)
     {
         printf("Do md5 to file [%s] failed! ret = 0x%x\n", filepath, ret);
     }

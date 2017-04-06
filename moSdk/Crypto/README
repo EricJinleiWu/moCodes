@@ -40,3 +40,8 @@ V1.2.4
 V1.2.5
     EricWu, 20170406
     To RC4 algo., add Progress function. If you need get progress, should input a callback function, I will set progress to this function.
+
+V1.2.6
+    EricWu, 20170406
+    To BASE64 algo., add Progress function, just like RC4 algo. has been done.
+    Will not add progress to MD5 and other hash algo.s. 

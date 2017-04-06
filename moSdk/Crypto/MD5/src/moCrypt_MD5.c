@@ -208,7 +208,7 @@ static int appendCont2Str(const unsigned char *pCont, STR_INFO *pInfo)
     if(NULL == pCont || NULL == pInfo)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL!\n");
-        return MOCRYPTMD5_ERR_INPUTNULL;
+        return MOCRYPT_MD5_ERR_INPUTNULL;
     }
 
     //Init elements 
@@ -241,7 +241,7 @@ static int appendCont2Str(const unsigned char *pCont, STR_INFO *pInfo)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "malloc failed! errno = %d, desc = [%s]\n", errno, strerror(errno));
-        return MOCRYPTMD5_ERR_MALLOCFAIL;
+        return MOCRYPT_MD5_ERR_MALLOCFAIL;
     }
     memset(pInfo->pAppendUnit, 0x00, pInfo->appendUnitsNum * UNIT_LEN_BYTES);
 
@@ -270,7 +270,7 @@ static int appendCont2Str(const unsigned char *pCont, STR_INFO *pInfo)
     printf("i = %d\n", i);
 #endif
 
-    return MOCRYPTMD5_ERR_OK;
+    return MOCRYPT_MD5_ERR_OK;
 }
 
 /*
@@ -298,7 +298,7 @@ int moCrypt_MD5_String(const unsigned char *pCont, MO_MD5_VALUE *pValue)
     if(NULL == pCont || NULL == pValue)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL!\n");
-        return MOCRYPTMD5_ERR_INPUTNULL;
+        return MOCRYPT_MD5_ERR_INPUTNULL;
     }
 
     //Init the info which we will used below.
@@ -325,7 +325,7 @@ int moCrypt_MD5_String(const unsigned char *pCont, MO_MD5_VALUE *pValue)
     //Do uninit is necessary, because we have pAppendUnit is malloced.
     unInitStrInfo(&info);
 
-    return MOCRYPTMD5_ERR_OK;
+    return MOCRYPT_MD5_ERR_OK;
 }
 
 typedef struct
@@ -353,7 +353,7 @@ static int checkFile(const char * pFilepath)
     if(NULL == pFilepath)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL!\n");
-        return MOCRYPTMD5_ERR_INPUTNULL;
+        return MOCRYPT_MD5_ERR_INPUTNULL;
     }
 
     struct stat curStat;
@@ -362,7 +362,7 @@ static int checkFile(const char * pFilepath)
     if(ret != 0)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "File [%s] donot exist!\n", pFilepath);
-        return MOCRYPTMD5_ERR_FILENOTEXIST;
+        return MOCRYPT_MD5_ERR_FILENOTEXIST;
     }
 
     if(!S_ISREG(curStat.st_mode) && !S_ISLNK(curStat.st_mode))
@@ -370,12 +370,12 @@ static int checkFile(const char * pFilepath)
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "File [%s] donot a regular file or a link file, cannot being deal with currently.\n",
             pFilepath);
-        return MOCRYPTMD5_ERR_WRONGFILEMODE;
+        return MOCRYPT_MD5_ERR_WRONGFILEMODE;
     }
 
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, 
         "File [%s] is valid, can do md5 now.\n", pFilepath);
-    return MOCRYPTMD5_ERR_OK;
+    return MOCRYPT_MD5_ERR_OK;
 }
 
 static int initFileInfo(const char *pFilepath, FILE_INFO * pInfo)
@@ -383,7 +383,7 @@ static int initFileInfo(const char *pFilepath, FILE_INFO * pInfo)
     if(NULL == pFilepath || NULL == pInfo)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL!\n");
-        return MOCRYPTMD5_ERR_INPUTNULL;
+        return MOCRYPT_MD5_ERR_INPUTNULL;
     }
 
     memset(pInfo->curUnitData, 0x00, UNIT_LEN_BYTES);
@@ -402,10 +402,10 @@ static int initFileInfo(const char *pFilepath, FILE_INFO * pInfo)
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "Open file [%s] for read failed! errno = %d, desc = [%s]\n",
             pFilepath, errno, strerror(errno));
-        return MOCRYPTMD5_ERR_OPENFILEFAIL;
+        return MOCRYPT_MD5_ERR_OPENFILEFAIL;
     }
     
-    return MOCRYPTMD5_ERR_OK;
+    return MOCRYPT_MD5_ERR_OK;
 }
 
 static void unInitFileInfo(FILE_INFO * pInfo)
@@ -460,7 +460,7 @@ static int updateFileStates(FILE_INFO *pInfo)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
             "malloc failed! errno = %d, desc = [%s]\n", errno, strerror(errno));
-        return MOCRYPTMD5_ERR_MALLOCFAIL;
+        return MOCRYPT_MD5_ERR_MALLOCFAIL;
     }
     memset(pInfo->pAppendUnits, 0x00, appendUnitNum * UNIT_LEN_BYTES);
 
@@ -481,7 +481,7 @@ static int updateFileStates(FILE_INFO *pInfo)
         updateUnitStates(pInfo->pAppendUnits + i * UNIT_LEN_BYTES, &(pInfo->states));
     }
 
-    return MOCRYPTMD5_ERR_OK;
+    return MOCRYPT_MD5_ERR_OK;
 }
 
 /*
@@ -493,11 +493,17 @@ static int updateFileStates(FILE_INFO *pInfo)
 */
 int moCrypt_MD5_File(const char *pSrcFilepath, MO_MD5_VALUE *pValue)
 {
+    if(NULL == pSrcFilepath || NULL == pValue)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_MD5_ERR_INPUTNULL;
+    }
+    
     int ret = checkFile(pSrcFilepath);
-    if(ret != MOCRYPTMD5_ERR_OK)
+    if(ret != MOCRYPT_MD5_ERR_OK)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
-            "checkFile failed! ret = 0x%x, srcfilepath = [%s]\n", ret, pSrcFilepath);
+            "checkFile failed! ret = %d, srcfilepath = [%s]\n", ret, pSrcFilepath);
         return ret;
     }
 
@@ -505,20 +511,20 @@ int moCrypt_MD5_File(const char *pSrcFilepath, MO_MD5_VALUE *pValue)
     FILE_INFO info;
     memset(&info, 0x00, sizeof(FILE_INFO));
     ret = initFileInfo(pSrcFilepath, &info);
-    if(ret != MOCRYPTMD5_ERR_OK)
+    if(ret != MOCRYPT_MD5_ERR_OK)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
-            "initFileInfo failed! ret = 0x%x, srcFilepath = [%s]\n", ret, pSrcFilepath);
+            "initFileInfo failed! ret = %d, srcFilepath = [%s]\n", ret, pSrcFilepath);
         unInitFileInfo(&info);
         return ret;
     }
 
     //Update states info, looply read unit from file, and update looply
     ret = updateFileStates(&info);
-    if(ret != MOCRYPTMD5_ERR_OK)
+    if(ret != MOCRYPT_MD5_ERR_OK)
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, 
-            "updateFileStates failed! ret = 0x%x\n", ret);
+            "updateFileStates failed! ret = %d\n", ret);
         unInitFileInfo(&info);
         return ret;
     }
@@ -529,7 +535,7 @@ int moCrypt_MD5_File(const char *pSrcFilepath, MO_MD5_VALUE *pValue)
     //free memory and other uninit operations
     unInitFileInfo(&info);
     
-    return 0;
+    return MOCRYPT_MD5_ERR_OK;
 }
 
 void moCrypt_MD5_dump(const MO_MD5_VALUE *pValue)
