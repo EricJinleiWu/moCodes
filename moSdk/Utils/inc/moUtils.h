@@ -246,6 +246,7 @@ int moUtils_Search_Sunday(const unsigned char * pSrc, const unsigned int srcLen,
     const unsigned char * pPattern, const unsigned int patternLen, 
     const unsigned char * pNext);
 
+
 #ifdef __cplusplus
 }
 #endif

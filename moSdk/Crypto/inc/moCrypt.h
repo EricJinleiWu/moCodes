@@ -10,6 +10,41 @@ extern "C" {
 #define MOCRYPT_LOGGER_MODULE_NAME  "MOCRYPT"
 
 /*
+    Define a function pointer here.
+    this is a callback function, will be used to set progress to caller.
+    If care about the progress of crypting, this function should be used.
+*/
+typedef void (*pProgBarCallbackFunc)(int);
+
+#define MOCRYPT_FILEPATH_LEN    256
+
+#define MOCRYPT_RC4_KEY_MAX_LEN		256		//The max key length, cannot larger than this value
+#define MOCRYPT_RC4_KEY_MIN_LEN		1		//The min key length, cannot less than this value
+
+typedef struct
+{
+    char pSrcFilepath[MOCRYPT_FILEPATH_LEN];
+    char pDstFilepath[MOCRYPT_FILEPATH_LEN];
+    unsigned char pKey[MOCRYPT_RC4_KEY_MAX_LEN];
+    unsigned int keyLen;
+    pProgBarCallbackFunc pCallback;
+}MOCRYPT_RC4_FILEINFO;
+
+/*
+    The errno in RC4
+*/
+#define MOCRYPT_RC4_ERR_OK      0
+#define MOCRYPT_RC4_ERR_INPUTPARAMNULL  (0 - 20000) //Input param is NULL
+#define MOCRYPT_RC4_ERR_FILENOTEXIST    (0 - 20001) //Input filepath donot point to a valid file
+#define MOCRYPT_RC4_ERR_MALLOCFAILED    (0 - 20002) //malloc failed
+#define MOCRYPT_RC4_ERR_INVALIDKEY      (0 - 20003) //The key to do crypt is invalid, for example, length too large;
+#define MOCRYPT_RC4_ERR_CREATETHREADFAIL    (0 - 20004) //pthread_create failed!
+#define MOCRYPT_RC4_ERR_GETFILEDIFFSTATEFAIL    (0 - 20005) //Check srcfilepath and dstfilepath same or diff failed!
+#define MOCRYPT_RC4_ERR_GENTMPFILE      (0 - 20006) //When srcfilepath same with dstfilepath, we have to gen a tmp file, this error occurred when gen tmp file failed.
+#define MOCRYPT_RC4_ERR_OPENFILEFAILED  (0 - 20007) //fopen a file failed
+#define MOCRYPT_RC4_ERR_WRITEFILEFAIL   (0 - 20008) //fwrite failed!
+
+/*
     Do crypt with RC4 algorithm, include encrypt and decrypt;
 
     @param:
@@ -28,15 +63,22 @@ int moCrypt_RC4_cryptString(const unsigned char *key, const unsigned int keylen,
     The src file can be the same with dst file;
 
     @param:
-    	key : The private key of RC4;
-    	txt : If do encrypt, the plain text being contained in this var, and the cipher txt being set to it, too.
-    			Decrypt will convert from cipher text to plain text;
+        pCryptInfo : The info of crypting;
+        Must be careful of a param in @pCryptInfo: pProBarFunc;
+            pCryptInfo->pProBarFunc : The callback function which save the progress.
+                If this param is NULL, crypt will be sync, and progress cannot be get util crypt end;
+                else, crypt will be async, crypt result will be get append on @pCryptInfo->pProBarFunc, when progress to 100, crypt ok;
+                    if progress to a 0-, crypt failed;
 
     @return:
-    	0 : crypt OK, cipher txt being find in @txt;
-    	0- : crypt failed;
+    	0 : 
+    	    If NULL == @pCryptInfo->pProBarFunc, crypt OK;
+    	    else, crypt will be done, and crypt result must be get from @pProBarFunc;
+    	0-: 
+    	    If NULL == @pCryptInfo->pProBarFunc, crypt failed;
+    	    else, crypt will not be done!
 */
-int moCrypt_RC4_cryptFile(const char *srcFilepath, const char *dstFilepath, const unsigned char *key, const unsigned int keylen);
+int moCrypt_RC4_cryptFile(const MOCRYPT_RC4_FILEINFO *pCryptInfo);
 
 
 typedef struct

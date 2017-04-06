@@ -56,101 +56,55 @@ static void tstBasicCryptString(void)
 #endif
 }
 
-/* getFileNameDirFromPath is a static function, if do test, should modify src files; */
-//static void tst_getFileNameDirFromPath(void)
-//{
-//	char filepath[128] = "/home/wujinlei/test/test.file";
-//	char filename[128] = {0x00};
-//	char filedir[128] = {0x00};
+static int progressOk = 0;
 
-//	int ret = getFileNameDirFromPath(filepath, filename, filedir);
-//	printf("filepath=[%s], filename = [%s], filedir = [%s], ret=[%d]\n", 
-//		filepath, filename, filedir, ret);
-
-//	strcpy(filepath, "justFileTest");
-//	memset(filename, 0x00, 128);
-//	memset(filedir, 0x00, 128);
-//	ret = getFileNameDirFromPath(filepath, filename, filedir);
-//	printf("filepath=[%s], filename = [%s], filedir = [%s], ret=[%d]\n", 
-//		filepath, filename, filedir, ret);
-
-//	strcpy(filepath, "");
-//	memset(filename, 0x00, 128);
-//	memset(filedir, 0x00, 128);
-//	ret = getFileNameDirFromPath(filepath, filename, filedir);
-//	printf("filepath=[%s], filename = [%s], filedir = [%s], ret=[%d]\n", 
-//		filepath, filename, filedir, ret);
-//	
-//}
-
-//static void tst_genTempDstFilepath(void)
-//{
-//	char *tempPath = NULL;
-//	char srcFilepath[] = "/home/wujinlei/test/test.file";
-//	tempPath = genTempDstFilepath(srcFilepath);
-//	printf("Srcfilepath=[%s], tempFilepath=[%s]\n", srcFilepath, tempPath);
-//	freeTempDstFilepath(tempPath);
-
-//	strcpy(srcFilepath, "justForTest");
-//	tempPath = genTempDstFilepath(srcFilepath);
-//	printf("Srcfilepath=[%s], tempFilepath=[%s]\n", srcFilepath, tempPath);
-//	freeTempDstFilepath(tempPath);
-//}
+static void progressFunc(int prog)
+{
+    printf("wjl_test : prog is %d\n", prog);
+    if(prog >= 100)
+        progressOk = 1;
+}
 
 static void tst_CryptoAlgoRc4_cryptFile(void)
 {
-	char srcFilepath[128] = "./srcFile";
-	char cipherFilepath[128] = "./cipherFile";
-	char key[16] = "12345678912345";
-	int keylen = 16;
-	int ret = moCrypt_RC4_cryptFile(srcFilepath, cipherFilepath, key, keylen);
-	printf("Do encrypt from [%s] to [%s] return [%d]\n", srcFilepath, cipherFilepath, ret);
+    MOCRYPT_RC4_FILEINFO info;
+    memset(&info, 0x00, sizeof(MOCRYPT_RC4_FILEINFO));
+    strcpy(info.pSrcFilepath, "./srcFile");
+    strcpy(info.pDstFilepath, "./cipherFile");
+    strcpy(info.pKey, "12345678912345");
+    info.keyLen = 16;
+    info.pCallback = NULL;
+    
+	int ret = moCrypt_RC4_cryptFile(&info);
+	printf("Do encrypt from [%s] to [%s] return [%d]\n", info.pSrcFilepath, info.pDstFilepath, ret);
 
-	char plainFilepath[128] = "./plainFile";
-    ret = moCrypt_RC4_cryptFile(cipherFilepath, plainFilepath, key, keylen);
-    printf("Do decrypt from [%s] to [%s] return [%d]\n", cipherFilepath, plainFilepath, ret);
-}
-
-static void tst_isSrcSameWithDstFilepath(void)
-{
-    char src0[] = "abc.txt";
-    char dst0[] = "abc.txt";
-    printf("src0 = [%s], dst0 = [%s], ret = %d\n", src0, dst0, isSrcSameWithDstFilepath(src0, dst0));
-    
-    char src1[] = "/home/wujl/abc.txt";
-    char dst1[] = "/home/wujl/abc.txt";
-    printf("src1 = [%s], dst1 = [%s], ret = %d\n", src1, dst1, isSrcSameWithDstFilepath(src1, dst1));
-    
-    char src2[] = "/home/wujl/abc.txt";
-    char dst2[] = "/home/wujl/test/abc.txt";
-    printf("src2 = [%s], dst2 = [%s], ret = %d\n", src2, dst2, isSrcSameWithDstFilepath(src2, dst2));
-    
-    char src3[] = "/home/wujl/abc.txt";
-    char dst3[] = "abc.txt";
-    printf("src3 = [%s], dst3 = [%s], ret = %d\n", src3, dst3, isSrcSameWithDstFilepath(src3, dst3));
-    
-    char src4[] = "abc.txt";
-    char dst4[] = "/home/wujl/abc.txt";
-    printf("src4 = [%s], dst4 = [%s], ret = %d\n", src4, dst4, isSrcSameWithDstFilepath(src4, dst4));
-    
-    char src5[] = "abc.txtx";
-    char dst5[] = "/home/wujl/abc.txt";
-    printf("src5 = [%s], dst5 = [%s], ret = %d\n", src5, dst5, isSrcSameWithDstFilepath(src5, dst5));
+    memset(info.pSrcFilepath, 0x00, sizeof(info.pSrcFilepath));
+    strcpy(info.pSrcFilepath, "./cipherFile");
+    memset(info.pDstFilepath, 0x00, sizeof(info.pDstFilepath));
+    strcpy(info.pDstFilepath, "./plainFile");
+    info.pCallback = progressFunc;
+    ret = moCrypt_RC4_cryptFile(&info);
+    printf("Do decrypt from [%s] to [%s] return [%d]\n", info.pSrcFilepath, info.pDstFilepath, ret);
 }
 
 int main(int argc, char **argv)
 {
+    moLoggerInit("./");
 	
 //	tstBasicCryptString();
 
-//	tst_getFileNameDirFromPath();
+	tst_CryptoAlgoRc4_cryptFile();
 
-//	tst_genTempDstFilepath();
+    while(1)
+    {
+        if(progressOk)
+        {
+            break;
+        }
+        usleep(5000);
+    }
 
-//	tst_CryptoAlgoRc4_cryptFile();
-
-    tst_isSrcSameWithDstFilepath();
-
+    moLoggerUnInit();
 
 	return 0;
 }

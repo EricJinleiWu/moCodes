@@ -17,12 +17,21 @@
 #define BRACKET_RIGHT_SYMBOL	93	//]
 #define EQUAL_SYMBOL			61	//=
 
+#if 0
 #define trace(format, ...) printf("[%s, %d] : "format"\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define debug(format, ...) printf("[%s, %d] : "format"\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define info(format, ...) printf("[%s, %d] : "format"\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define warn(format, ...) printf("[%s, %d] : "format"\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define error(format, ...) printf("[%s, %d] : "format"\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define fatal(format, ...) printf("[%s, %d] : "format"\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#else
+#define trace(format, ...) 
+#define debug(format, ...) 
+#define info(format, ...) 
+#define warn(format, ...) 
+#define error(format, ...) 
+#define fatal(format, ...) 
+#endif
 
 typedef enum
 {

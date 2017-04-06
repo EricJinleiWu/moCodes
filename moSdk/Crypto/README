@@ -36,3 +36,7 @@ V1.2.3
 V1.2.4
     EricWu, 20170314
     Modify some warnings being found when make;
+
+V1.2.5
+    EricWu, 20170406
+    To RC4 algo., add Progress function. If you need get progress, should input a callback function, I will set progress to this function.
