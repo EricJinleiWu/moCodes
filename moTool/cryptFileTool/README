@@ -1,0 +1,6 @@
+V1.0.0
+    EricWu, 20170407
+    A tool to do crypt to file;
+    In this version, use terminal to be a ui, Three parts being inited: ui, connectProtocol, taskManager;
+    Feature needed: ui to qt, protocol support socket and pipe;
+    In the future, can support all crypt algorithms I have done.
