@@ -5,6 +5,8 @@ using namespace std;
 
 #include <list>
 
+#include <semaphore.h>
+
 #include "conProtocol.h"
 
 typedef enum
@@ -27,6 +29,14 @@ public:
     virtual int addListener(UI *ui);
     virtual int removeListener(UI *ui);
 
+public:
+    /*
+        In CpSocketClient, we need a thread, this thread should receive the events sent from cpClient;
+    */
+    friend void * recvEventTh(void * pObj);
+
+    int run();
+
 private:
     RESP_TYPE getRespType(const MOCFT_RESPMSG & respMsg);
 
@@ -34,29 +44,19 @@ private:
     int mSockId;
 };
 
-
 typedef enum
 {
     CPSERV_SOCK_STATE_IDLE,
     CPSERV_SOCK_STATE_CRYPTING
 }CPSERV_SOCK_STATE;
 
-class CpServerSocket : public cpServer
-{
-public:
-    CpServerSocket();
-    CpServerSocket(const CpServerSocket & other);
-    ~CpServerSocket();
+int cpServerInit();
 
-public:
-    virtual int recvReq();
-    virtual int setProg(const int prog);
-    virtual int sendEvent(const int prog);
+void cpServerRun();
 
-private:
-    int mSockId;
-    list<int> mCliSockIdList;
-};
+void cpServerSetProg(const int prog);
+
+int cpServerUnInit();
 
 
 #endif

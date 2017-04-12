@@ -2,12 +2,12 @@
 #define __TASK_MGR_H__
 
 #include "utils.h"
+#include "cpSocket.h"
 
 class TaskMgr
 {
 public:
     TaskMgr();
-    TaskMgr(void * pFunc);
     TaskMgr(const TaskMgr & other);
     ~TaskMgr();
 
@@ -16,12 +16,19 @@ public:
         start do crypt;
     */
     virtual int doCrypt(const MOCFT_TASKINFO & info);
-
-private:
-    /*
-        The function pointer which will be used to set progress;
-    */
-    void * mProgCallbackFunc;
 };
+
+//class TaskMgrSingleton
+//{
+//public:
+//    ~TaskMgrSingleton();
+//    TaskMgrSingleton(CpServerSocket  * pServ, pSetProgCallbackFunc pFunc);
+//    static TaskMgr * GetInstance();
+//    
+//private:
+//    TaskMgrSingleton();
+
+//    static TaskMgr * instance;
+//};
 
 #endif

@@ -11,10 +11,20 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 #include "cpSocket.h"
+#include "taskMgr.h"
 
 using namespace std;
+
+
+void * recvEventTh(void * pObj)
+{
+    CpClientSocket * pCpCli = (CpClientSocket *)pObj;
+    pCpCli->recvEvent();
+    return NULL;
+}
 
 CpClientSocket::CpClientSocket() : cpClient()
 {
@@ -40,7 +50,7 @@ CpClientSocket::CpClientSocket() : cpClient()
             moLoggerError(MOCFT_LOGGER_MODULE_NAME, "Connect to cpServer failed!" \
                 "ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
             close(mSockId);
-            mSockId = -1;
+            mSockId = MOCFT_INVALID_SOCKID;
         }
         else
         {
@@ -252,6 +262,276 @@ int CpClientSocket::removeListener(UI * ui)
         return -2;
     }
 }
+
+int CpClientSocket::run()
+{
+    pthread_t thId = 0;
+    int ret = pthread_create(&thId, NULL, recvEventTh, this);
+    if(ret < 0)
+    {
+        moLoggerError(MOCFT_LOGGER_MODULE_NAME, "Create thread recvEventTh failed! " \
+            "ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
+        return -1;
+    }
+    else
+    {
+        moLoggerDebug(MOCFT_LOGGER_MODULE_NAME, "Create thread recvEventTh succeeded.\n");
+        return 0;
+    }
+}
+
+static int cpServerSockId = MOCFT_INVALID_SOCKID;
+static int cpServerCliSockId = MOCFT_INVALID_SOCKID;
+static CPSERV_SOCK_STATE cpServerState = CPSERV_SOCK_STATE_IDLE;
+static int cpServerProgress = 0;
+static sem_t cpServerSem;
+
+int cpServerInit()
+{
+    cpServerProgress = 0;
+    cpServerSockId = MOCFT_INVALID_SOCKID;
+    cpServerCliSockId= MOCFT_INVALID_SOCKID;
+    cpServerState = CPSERV_SOCK_STATE_IDLE;
+
+    //init socket
+    cpServerSockId = socket(AF_UNIX, SOCK_STREAM, 0);
+    if(cpServerSockId < 0)
+    {
+        moLoggerError(MOCFT_LOGGER_MODULE_NAME, "Create socket failed! mSockId = %d, " \
+            "errno = %d, desc = [%s]\n", cpServerSockId, errno, strerror(errno));
+        cpServerSockId = MOCFT_INVALID_SOCKID;
+    }
+    else
+    {
+        //Should delete the file if exist
+        unlink(MOCFT_CP_SOCKET_FILE);
+    
+        //bind to local file
+        struct sockaddr_un addr;
+        memset(&addr, 0x00, sizeof(struct sockaddr_un));
+        addr.sun_family = AF_UNIX;
+        strcpy(addr.sun_path, MOCFT_CP_SOCKET_FILE);
+        int addrLen = sizeof(struct sockaddr_un);
+        int ret = bind(cpServerSockId, (struct sockaddr *)&addr, addrLen);
+        if(ret < 0)
+        {
+            moLoggerError(MOCFT_LOGGER_MODULE_NAME, "Bind failed!" \
+                "ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
+            close(cpServerSockId);
+            cpServerSockId = MOCFT_INVALID_SOCKID;
+        }
+        else
+        {
+            //start listen for request
+            listen(cpServerSockId, MOCFT_CP_SOCKET_SERV_MAXLISTENNUM);
+        }
+    }
+
+    sem_init(&cpServerSem, 0, 0);
+}
+
+int cpServerUnInit()
+{
+    //socket must be free, or handle leak
+    if(cpServerSockId != MOCFT_INVALID_SOCKID)
+    {
+        close(cpServerSockId);
+        cpServerSockId = MOCFT_INVALID_SOCKID;
+    }
+
+    sem_destroy(&cpServerSem);
+}
+
+static int setFds(fd_set &rFd)
+{
+    FD_ZERO(&rFd);
+
+    if(cpServerSockId != MOCFT_INVALID_SOCKID)
+        FD_SET(cpServerSockId, &rFd);
+    if(cpServerCliSockId != MOCFT_INVALID_SOCKID)
+        FD_SET(cpServerCliSockId, &rFd);
+    
+    int maxFd = (cpServerSockId > cpServerCliSockId) ? cpServerSockId : cpServerCliSockId;
+    return maxFd;
+}
+
+static bool isTaskOver()
+{
+    return (cpServerProgress >= 100 || cpServerProgress < 0) ? true : false;
+}
+
+static void * cpServerRecvReq(void * param)
+{
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+
+    fd_set rFd;
+
+    while(1)
+    {
+        //Should refresh fds
+        int maxFd = setFds(rFd);
+        moLoggerDebug(MOCFT_LOGGER_MODULE_NAME, "maxFd = %d\n", maxFd);
+        
+        //recv a request
+        int ret = select(maxFd + 1, &rFd, NULL, NULL, &tv);
+        if(ret < 0)
+        {
+            moLoggerError(MOCFT_LOGGER_MODULE_NAME, "select failed! ret = %d, errno = %d, desc = [%s]\n",
+                ret, errno, strerror(errno));
+            break;
+        }
+        else if(ret == 0)
+        {
+            //timeout, do nothing
+            ;
+        }
+        else
+        {
+            if(FD_ISSET(cpServerSockId, &rFd))
+            {
+                if(cpServerCliSockId > 0)
+                {
+                    moLoggerError(MOCFT_LOGGER_MODULE_NAME, "mCliSockId = %d, should not recv another connect requst!\n",
+                        cpServerCliSockId);
+                    break;
+                }
+                struct sockaddr_un cliAddr;
+                memset(&cliAddr, 0x00, sizeof(struct sockaddr_un));
+                socklen_t cliAddrLen = 0;
+                cpServerCliSockId = accept(cpServerSockId, (struct sockaddr *)&cliAddr, &cliAddrLen);
+                if(cpServerCliSockId < 0)
+                {
+                    moLoggerError(MOCFT_LOGGER_MODULE_NAME, "accept from client failed! " \
+                        "ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
+                    cpServerCliSockId = MOCFT_INVALID_SOCKID;
+                    continue;
+                }
+                else
+                {
+                    moLoggerDebug(MOCFT_LOGGER_MODULE_NAME, "accept a client. mCliSockId = %d\n", cpServerCliSockId);
+                }
+            }
+            else if(FD_ISSET(cpServerCliSockId, &rFd))
+            {
+                MOCFT_REQMSG reqMsg;
+                memset(&reqMsg, 0x00, sizeof(MOCFT_REQMSG));
+                int len = recv(cpServerCliSockId, (char *)&reqMsg, sizeof(MOCFT_REQMSG), 0);
+                if(len != sizeof(MOCFT_REQMSG))
+                {
+                    moLoggerError(MOCFT_LOGGER_MODULE_NAME, "recv a request failed! len = %d, " \
+                        "sizeof(MOCFT_REQMSG) = %d, errno = %d, desc = [%s]\n",
+                        len, sizeof(MOCFT_REQMSG), errno, strerror(errno));
+                    moLoggerError(MOCFT_LOGGER_MODULE_NAME, "will do nothing to this request.\n");
+                    continue;
+                }
+                else
+                {
+                    if(cpServerState == CPSERV_SOCK_STATE_IDLE)
+                    {
+                        cpServerState = CPSERV_SOCK_STATE_CRYPTING;
+                        //do it
+                        TaskMgr taskMgr;
+                        ret = taskMgr.doCrypt(reqMsg.task);
+                        if(ret != 0)
+                        {
+                            cpServerProgress = ret;
+                            //send a semphore to threadSendProgress, this thread will send this progress to cpClient
+                            sem_post(&cpServerSem);
+
+                            cpServerState = CPSERV_SOCK_STATE_IDLE;
+                        }
+                    }
+                    else
+                    {
+                        //currently, just one task can be done at one moment
+                        moLoggerError(MOCFT_LOGGER_MODULE_NAME, "A task being done now, cannot do another task!\n");
+                        continue;
+                    }
+                }
+            }
+        }
+    }
+
+    return NULL;
+}
+
+void cpServerSetProg(const int prog)
+{
+    cpServerProgress = prog;
+    //send a semphore to thread sendProg
+    sem_post(&cpServerSem);
+}
+
+static void * cpServerSendProg(void * param)
+{
+    while(1)
+    {
+        sem_wait(&cpServerSem);
+
+        moLoggerDebug(MOCFT_LOGGER_MODULE_NAME, "recv a semaphore, mProgress now is %d\n", cpServerProgress);
+        if(cpServerState == CPSERV_SOCK_STATE_IDLE)
+        {
+            moLoggerDebug(MOCFT_LOGGER_MODULE_NAME, "mState == CPSERV_SOCK_STATE_IDLE! will do nothing!\n");
+            continue;
+        }
+        else
+        {
+            //Send progress to cpClient firstly
+            MOCFT_RESPMSG respMsg;
+            memset(&respMsg, 0x00, sizeof(MOCFT_RESPMSG));
+            strcpy(respMsg.mark, MOCFT_MARK);
+            strcpy(respMsg.prefix, MOCFT_NOTIFYMSG_PREFIX);
+            respMsg.value = cpServerProgress;
+            int ret = send(cpServerCliSockId, (char *)&respMsg, sizeof(MOCFT_RESPMSG), 0);
+            if(ret != sizeof(MOCFT_RESPMSG))
+            {
+                moLoggerError(MOCFT_LOGGER_MODULE_NAME, "send failed! ret = %d, " \
+                    "sizeof(MOCFT_RESPMSG) = %d, errno = %d, desc = [%s]\n",
+                    ret, sizeof(MOCFT_RESPMSG), errno, strerror(errno));
+            }
+            else
+            {
+                //do nothing
+            }
+
+            //If task has been done, reset state to idle
+            if(isTaskOver())
+            {
+                moLoggerDebug(MOCFT_LOGGER_MODULE_NAME, "task over!\n");
+                cpServerState = CPSERV_SOCK_STATE_IDLE;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+/*
+    Running CpServer, start threads here.
+*/
+void cpServerRun()
+{
+    pthread_t thRecvReqId = 0, thSendProgId = 0;
+    
+    int ret = pthread_create(&thRecvReqId, NULL, cpServerRecvReq, NULL);
+    if(ret < 0)
+    {
+        moLoggerError(MOCFT_LOGGER_MODULE_NAME, "create thread recvReqTh failed! " \
+            "ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
+        return;
+    }
+    
+    ret = pthread_create(&thSendProgId, NULL, cpServerSendProg, NULL);
+    if(ret < 0)
+    {
+        moLoggerError(MOCFT_LOGGER_MODULE_NAME, "create thread sendProgTh failed! " \
+            "ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
+        return;
+    }
+}
+
 
 
 

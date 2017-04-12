@@ -764,9 +764,6 @@ static void * cryptFileAsync(void *args)
         free(args);
         args = NULL;
 
-        printf("wjl_test : info.pSrcFilename=[%s], info.pDstFilename=[%s]\n",
-            info.pSrcFilename, info.pDstFilename);
-
         cryptFile(info.method, info.pSrcFilename, info.pDstFilename, info.pFunc);
     }
     else

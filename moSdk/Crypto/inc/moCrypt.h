@@ -17,6 +17,7 @@ extern "C" {
 typedef void (*pProgBarCallbackFunc)(int);
 
 #define MOCRYPT_FILEPATH_LEN    256
+#define MOCRYPT_KEY_MAXLEN      1024    //The maxlen of a key, currently limit to 1024, 2048 is better in future to do RSA algo.
 
 typedef enum
 {

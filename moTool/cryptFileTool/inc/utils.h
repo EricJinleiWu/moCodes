@@ -23,10 +23,13 @@ typedef struct
     MOCFT_ALGO algo;
     char srcfilepath[MOCRYPT_FILEPATH_LEN];
     char dstfilepath[MOCRYPT_FILEPATH_LEN];
+    char key[MOCRYPT_KEY_MAXLEN];
+    unsigned int keyLen;
 }MOCFT_TASKINFO;
 
 #define MOCFT_INVALID_SOCKID    -1
 #define MOCFT_CP_SOCKET_FILE    "/tmp/mocftSockFile"
+#define MOCFT_CP_SOCKET_SERV_MAXLISTENNUM   4
 
 #define MOCFT_MARK    "mocft"
 #define MOCFT_MARKLEN   6   //strlen(MOCFT_MARK) + 1

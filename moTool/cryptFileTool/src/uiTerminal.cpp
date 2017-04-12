@@ -15,6 +15,9 @@ UiTerminal::UiTerminal() : UI()
     memset(&mTaskInfo, 0x00, sizeof(MOCFT_TASKINFO));
     mpCpClient = new CpClientSocket();
     mpCpClient->addListener(this);
+    
+    //start its thread
+    dynamic_cast<CpClientSocket *>(mpCpClient)->run();
 }
 
 UiTerminal::UiTerminal(const UiTerminal & other)
@@ -36,7 +39,7 @@ UiTerminal::~UiTerminal()
 void UiTerminal::showBasicInfo()
 {
     printf("Name : MoCryptFileTool\nAuthor : EricWu\nVersion : %s\nDescription : " \
-        "A tool to do crypt operation to a file.", MOCFT_VERSION);
+        "A tool to do crypt operation to a file.\n", MOCFT_VERSION);
 }
 
 int UiTerminal::getRequest()
@@ -75,6 +78,17 @@ int UiTerminal::getRequest()
     {
         printf("Input value [%s] donot valid! just support [\"RC4\", \"BASE64\"]", tmp);
         return -2;
+    }
+
+    //In RC4, we need a key to do crypt, other algos, like AES, DES, and so on, all need key
+    if(mTaskInfo.algo == MOCFT_ALGO_RC4)
+    {
+        printf("Key : ");
+        memset(tmp, 0x00, MOCRYPT_KEY_MAXLEN);
+        scanf("%s", tmp);
+        strcpy(mTaskInfo.key, tmp);
+
+        mTaskInfo.keyLen = strlen(mTaskInfo.key);
     }
 
     printf("Src filepath : ");
@@ -130,21 +144,27 @@ void UiTerminal::run()
         }
 
         mState = UI_CRYPT_STATE_CRYPTING;
+
+        showProgBar();
     }
 }
 
 void UiTerminal::showProgBar()
 {
-    if(mState == UI_CRYPT_STATE_CRYPTING)
+    while(mState == UI_CRYPT_STATE_CRYPTING)
     {
         //Some error occurred when crypting, should check for why
         if(mProgress < 0)
         {
             printf("\tError when crypting! progress = %d, check for why!\n", mProgress);
+            //reset mState and mProgress
+            mProgress = 0;
+            mState = UI_CRYPT_STATE_IDLE;
         }
         else
         {
-            printf("\tProgress : %d%%\n", mProgress);
+            if(0 != mProgress && 0 == mProgress % 10)
+                printf("\tProgress : %d%%\n", mProgress);
             if(mProgress >= 100)
             {
                 printf("Crypt over! srcfilepath=[%s], dstfilepath=[%s], method=[%d], algo=[%d]\n",

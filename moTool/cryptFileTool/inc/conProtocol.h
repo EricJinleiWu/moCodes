@@ -36,30 +36,4 @@ protected:
     UI *mpUI;
 };
 
-class cpServer
-{
-public:
-    cpServer() {}
-    virtual ~cpServer() {}
-
-public:
-    /*
-        recv the request sent from cpClient;
-    */
-    virtual int recvReq() = 0;
-
-    /*
-        set current progress, this function should register to taskMgr;
-    */
-    virtual int setProg(const int prog) = 0;
-
-    /*
-        The progress should send to cpClient;
-    */
-    virtual int sendEvent(const int prog) = 0;
-
-protected:
-    int mProgress;
-};
-
 #endif
