@@ -1,5 +1,6 @@
 #Compiler for linux
 CXX			:= g++
+#CC			:= arm-hisiv400-linux-gcc
 CC			:= gcc
 
 VERNUM = $(shell cat VERINFO | grep MOSDK_Logger | awk '{print $$2}' | cut -b 2-)

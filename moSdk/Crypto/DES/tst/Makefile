@@ -4,7 +4,7 @@ CXX = g++
 MOSDK_RELEASE_DIR = ../../../
 UTILS_DIR = ../../../Utils/
 
-INC_DIR = -I../../inc -I$(UTILS_DIR)/inc -I../../../Logger/inc/
+INC_DIR = -I../../inc -I$(UTILS_DIR)/inc -I../../../Logger/inc/ -I../inc
 
 SRC_DIR = ../src/
 SRC_FILES = $(SRC_DIR)moCrypt_DES.c

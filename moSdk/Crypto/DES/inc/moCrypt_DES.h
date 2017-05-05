@@ -14,6 +14,16 @@ extern "C" {
 #define KEYEX_RE_KEY_LEN    7   //the replaceKey length is 56bits
 #define KEYEX_RE_KEY_HALF_BITSLEN   28  //the replaceKey has length 56bits, half is 28bits
 
+//To DES, a part has length 8bytes, input/output/key, all 8bytes
+#define UNIT_LEN_BYTES  8
+#define UNIT_LEN_BITS  64
+#define UNIT_HALF_LEN_BYTES  4
+#define UNIT_HALF_LEN_BITS  32
+
+//Sbox, [8][64]bytes
+#define SBOX_SUBTABLE_NUM 8
+#define SBOX_SUBTABLE_LEN 64
+
 
 #ifdef __cplusplus
 }

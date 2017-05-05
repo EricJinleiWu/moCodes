@@ -25,12 +25,16 @@ MD5_INC_DIR = $(MD5_DIR)/inc
 BASE64_DIR = ./BASE64
 BASE64_SRC_DIR = $(BASE64_DIR)/src
 BASE64_INC_DIR = $(BASE64_DIR)/inc
+DES_DIR = ./DES
+DES_SRC_DIR = $(DES_DIR)/src
+DES_INC_DIR = $(DES_DIR)/inc
 
 # INC DIRS. All algorithm should set header file in this directory.
 INCDIRS = -I./inc \
 	      -I$(RC4_INC_DIR) \
 		  -I$(MD5_INC_DIR) \
 		  -I$(BASE64_INC_DIR) \
+		  -I$(DES_INC_DIR) \
 		  -I$(MOUTILS_INCDIR) \
 		  -I$(MOLOGGER_INCDIR)
 
@@ -47,6 +51,7 @@ PROGRAM_OBJ_DIR = ./obj
 MAIN_OBJS = $(patsubst $(RC4_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(RC4_SRC_DIR)/*.c))
 MAIN_OBJS += $(patsubst $(MD5_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(MD5_SRC_DIR)/*.c))
 MAIN_OBJS += $(patsubst $(BASE64_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(BASE64_SRC_DIR)/*.c))
+MAIN_OBJS += $(patsubst $(DES_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(DES_SRC_DIR)/*.c))
 
 #target is a lib
 TARGET_DIR = ./lib
@@ -74,6 +79,9 @@ $(PROGRAM_OBJ_DIR)/%.o: $(MD5_SRC_DIR)/%.c
 	@echo ">>> compiling $< ..."
 	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
 $(PROGRAM_OBJ_DIR)/%.o: $(BASE64_SRC_DIR)/%.c
+	@echo ">>> compiling $< ..."
+	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
+$(PROGRAM_OBJ_DIR)/%.o: $(DES_SRC_DIR)/%.c
 	@echo ">>> compiling $< ..."
 	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
 	

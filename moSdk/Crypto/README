@@ -45,3 +45,8 @@ V1.2.6
     EricWu, 20170406
     To BASE64 algo., add Progress function, just like RC4 algo. has been done.
     Will not add progress to MD5 and other hash algo.s. 
+
+V1.2.7
+    EricWu, 20170504
+    Add DES algo. in ECB mode;
+    To DES, just support do crypt to string, donot support file;

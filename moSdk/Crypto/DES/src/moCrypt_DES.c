@@ -12,7 +12,8 @@
 
 #define DEBUG_MODE 1
 
-static void dumpArrayInfo(const char * pArrayName,const unsigned char * pArray,const unsigned int len)
+void dumpArrayInfo(const char * pArrayName,const unsigned char * pArray,const unsigned int len)
+//static void dumpArrayInfo(const char * pArrayName,const unsigned char * pArray,const unsigned int len)
 {
 #if DEBUG_MODE
     printf("Dump array [%s] info start:\n\t", pArrayName);
@@ -25,6 +26,12 @@ static void dumpArrayInfo(const char * pArrayName,const unsigned char * pArray,c
 #endif
 }
 
+
+/***********************************************************************************************
+                                    Key expanding in DES
+                                    64bit --> [16][48bit]
+ ***********************************************************************************************/
+
 /*
     When convert user key from 8bytes to [16][48bits], should do replace firstly,
     replace will convert from 64bits to 56bits, and all bits change their positions,
@@ -32,10 +39,14 @@ static void dumpArrayInfo(const char * pArrayName,const unsigned char * pArray,c
     start from 1;
 */
 static const unsigned char gKeyExReplaceTable[KEYEX_RE_TABLE_LEN] = {
-		57,49,41,33,25,17, 9, 1,58,50,42,34,26,18,
-		10, 2,59,51,43,35,27,19,11, 3,60,52,44,36,
-		63,55,47,39,31,23,15, 7,62,54,46,38,30,22,
-		14, 6,61,53,45,37,29,21,13, 5,28,20,12, 4
+		57, 49, 41, 33, 25, 17, 9, 1,
+        58, 50, 42, 34, 26, 18, 10, 2,
+		59, 51, 43, 35, 27, 19, 11, 3,
+		60, 52, 44, 36,	
+		63, 55, 47, 39, 31, 23, 15, 7,
+		62, 54, 46, 38, 30, 22, 14, 6,
+		61, 53, 45, 37, 29, 21, 13, 5,
+		28, 20, 12, 4
 };
 
 /*
@@ -63,12 +74,12 @@ static int keyExReplace(const unsigned char * pKey, unsigned char *pReKey)
         //calc the pos in key[8] in bytes and bits, start from left to right
         int bytesPos = bitPos / 8;
         bitPos %= 8;
-        if(pKey[bytesPos] & (0x1 << (8 - bitPos)))
+        if(pKey[bytesPos] & (1U << (8 - bitPos - 1)))
         {
             //This bit is 1, should set it to replaceKey
             int reBytesPos = i / 8;
             int reBitPos = i % 8;
-            pReKey[reBytesPos] |= (0x1 << (8 - reBitPos));
+            pReKey[reBytesPos] |= (0x1 << (8 - reBitPos - 1));
         }
         else
         {
@@ -104,7 +115,7 @@ static int splitReKey(const unsigned char * pReKey, unsigned char *pLeft,
     {
         int bytesPos = i / 8;
         int bitsPos = i % 8;
-        if(pReKey[bytesPos] & (1 << (8 - bitsPos)))
+        if(pReKey[bytesPos] & (1U << (8 - bitsPos - 1)))
         {
             pLeft[i] = 1;
         }
@@ -115,7 +126,7 @@ static int splitReKey(const unsigned char * pReKey, unsigned char *pLeft,
     {
         int bytesPos = 3;
         int bitsPos = i + 4;
-        if(pReKey[bytesPos] & (1 << (8 - bitsPos)))
+        if(pReKey[bytesPos] & (1U << (8 - bitsPos - 1)))
         {
             pRight[i] = 1;
         }
@@ -126,7 +137,7 @@ static int splitReKey(const unsigned char * pReKey, unsigned char *pLeft,
     {
         int bytesPos = i / 8 + 4;
         int bitsPos = i % 8;
-        if(pReKey[bytesPos] & (1 << (8 - bitsPos)))
+        if(pReKey[bytesPos] & (1U << (8 - bitsPos - 1)))
         {
             pRight[i + 4] = 1;
         }
@@ -224,7 +235,7 @@ static int joinHalf2ReKey(const unsigned char * pLeft, const unsigned char * pRi
         {
             int bytesPos = i / 8;
             int bitsPos = i % 8;
-            pReKey[bytesPos] |= (1 << (8 - bitsPos));
+            pReKey[bytesPos] |= (1U << (8 - bitsPos - 1));
         }
     }
 
@@ -235,7 +246,7 @@ static int joinHalf2ReKey(const unsigned char * pLeft, const unsigned char * pRi
         {
             int bytesPos = 3;
             int bitsPos = i + 4;
-            pReKey[bytesPos] |= (1 << (8 - bitsPos));
+            pReKey[bytesPos] |= (1U << (8 - bitsPos - 1));
         }
     }
 
@@ -246,7 +257,7 @@ static int joinHalf2ReKey(const unsigned char * pLeft, const unsigned char * pRi
         {
             int bytesPos = i / 8 + 4;
             int bitsPos = i % 8;
-            pReKey[bytesPos] |= (1 << (8 - bitsPos));
+            pReKey[bytesPos] |= (1U << (8 - bitsPos - 1));
         }
     }
     
@@ -259,10 +270,12 @@ static int joinHalf2ReKey(const unsigned char * pLeft, const unsigned char * pRi
 */
 static const unsigned char gCompressedTable[KEYEX_ELE_LEN * 8] = 
 {
-    14,17,11,24, 1, 5, 3,28,15, 6,21,10,
-    23,19,12, 4,26, 8,16, 7,27,20,13, 2,
-    41,52,31,37,47,55,30,40,51,45,33,48,
-    44,49,39,56,34,53,46,42,50,36,29,32
+    14, 17, 11, 24, 1,  5,  3, 28, 
+    15, 6,  21, 10, 23, 19, 12, 4, 
+    26,  8, 16,  7, 27, 20, 13, 2, 
+    41, 52, 31, 37, 47, 55, 30, 40, 
+    51, 45, 33, 48, 44, 49, 39, 56,
+    34, 53, 46, 42, 50, 36, 29, 32
 };
 
 /*
@@ -288,11 +301,11 @@ static int compReKey(const unsigned char *pReKey, unsigned char * pKeyEx)
         bitsPos %= 8;
 
         //If this bit in replaceKey is 1, should set it to @pKeyEx
-        if(pReKey[bytesPos] & (1 << (8 - bitsPos)))
+        if(pReKey[bytesPos] & (1U << (8 - bitsPos - 1)))
         {
             int exBytesPos = i / 8;
             int exBitsPos = i % 8;
-            pKeyEx[exBytesPos] |= (1 << (8 - exBitsPos));
+            pKeyEx[exBytesPos] |= (1U << (8 - exBitsPos - 1));
         }
     }
     
@@ -351,9 +364,9 @@ static int keyExGetKey(const unsigned char *pLeft, const unsigned char *pRight,
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "loopCnt = %d, loopNum = %d\n", 
         loopCnt, loopNum);
     //do shift
-    loopLeftShiftArray(leftPart, KEYEX_RE_KEY_HALF_BITSLEN, loopCnt);
+    loopLeftShiftArray(leftPart, KEYEX_RE_KEY_HALF_BITSLEN, loopNum);
     dumpArrayInfo("leftPart", leftPart, KEYEX_RE_KEY_HALF_BITSLEN);
-    loopLeftShiftArray(rightPart, KEYEX_RE_KEY_HALF_BITSLEN, loopCnt);
+    loopLeftShiftArray(rightPart, KEYEX_RE_KEY_HALF_BITSLEN, loopNum);
     dumpArrayInfo("rightPart", rightPart, KEYEX_RE_KEY_HALF_BITSLEN);
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Looply left shift over.\n");
 
@@ -383,7 +396,7 @@ static int keyExGetKey(const unsigned char *pLeft, const unsigned char *pRight,
         0 : ok;
         0-: failed;
 */
-static int keyExpand(const unsigned char *pKey, unsigned char **pKeyEx)
+static int keyExpand(const unsigned char *pKey, unsigned char pKeyEx[][KEYEX_ELE_LEN])
 {
     if(NULL == pKey || NULL == pKeyEx)
     {
@@ -409,9 +422,287 @@ static int keyExpand(const unsigned char *pKey, unsigned char **pKeyEx)
     int i = 0;
     for(; i < KEYEX_ARRAY_LEN; i++)
     {
-        keyExGetKey(leftHalf, rightHalf, i, pKeyEx[i]);
+        keyExGetKey(leftHalf, rightHalf, i, &(pKeyEx[i]));
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Expand key being done.\n");
+    
+    return 0;
+}
+
+
+
+/***********************************************************************************************
+                                    A crypt round in DES
+                                    In DES, 16 rounds needed
+ ***********************************************************************************************/
+
+static const unsigned char gRoundExReplaceTable[KEYEX_ELE_LEN * 8] = {
+		32, 1,  2,  3,  4,  5,  4,  5, 
+        6,  7,  8,  9,  8,  9,  10, 11,
+        12, 13, 12, 13, 14, 15, 16, 17,
+	    16, 17, 18, 19, 20, 21, 20, 21,
+	    22, 23, 24, 25, 24, 25, 26, 27,
+	    28, 29, 28, 29, 30, 31, 32, 1
+};
+
+/*
+    Do expand replace;
+    @pOrg is the original part, length 32bits(4bytes);
+    @pEx is the expand part, length 48bits(6bytes);
+*/
+static int roundExReplace(const unsigned char *pOrg, unsigned char *pEx)
+{
+    if(NULL == pOrg || NULL == pEx)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    memset(pEx, 0x00, KEYEX_ELE_LEN);
+
+    //Do expanding with @gRoundExReplaceTable
+    int i = 0;
+    for(; i < KEYEX_ELE_LEN * 8; i++)
+    {
+        int pos = gRoundExReplaceTable[i] - 1;
+
+        int bytesPos = pos / 8;
+        int bitsPos = pos % 8;
+        if(pOrg[bytesPos] & (1U << (8 - bitsPos - 1)))
+        {
+            int exBytesPos = i / 8;
+            int exBitsPos = i % 8;
+            pEx[exBytesPos] |= (1U << (8 - exBitsPos - 1));
+        }
+    }
+    
+    return 0;
+}
+
+/*
+    @pXor = @pPart xor @pPart2;
+    xor being done in bytes;
+    @pXor, @pPart, @pPart2 must have same length : @len;
+*/
+static int roundXor(unsigned char *pXor, const unsigned char *pPart1, 
+    const unsigned char *pPart2, const unsigned int len)
+{
+    if(NULL == pXor || NULL == pPart1 || NULL == pPart2 || 0 == len)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    //Do xor to each bytes
+    int i = 0;
+    for(; i < len; i++)
+    {
+        pXor[i] = pPart1[i] ^ pPart2[i];
+    }
+    
+    return 0;
+}
+
+/*
+    Sbox table;
+*/
+static const unsigned char gRoundSboxTable[SBOX_SUBTABLE_NUM][SBOX_SUBTABLE_LEN] = 
+{
+	{//S1
+    	14, 4,13, 1, 2,15,11, 8, 3,10, 6,12, 5, 9, 0, 7,
+    	 0,15, 7, 4,14, 2,13, 1,10, 6,12,11, 9, 5, 3, 8,
+    	 4, 1,14, 8,13, 6, 2,11,15,12, 9, 7, 3,10, 5, 0,
+    	15,12, 8, 2, 4, 9, 1, 7, 5,11, 3,14,10, 0, 6,13
+	},
+	{//S2
+		15, 1, 8,14, 6,11, 3, 4, 9, 7, 2,13,12, 0, 5,10,
+		 3,13, 4, 7,15, 2, 8,14,12, 0, 1,10, 6, 9,11, 5,
+		 0,14, 7,11,10, 4,13, 1, 5, 8,12, 6, 9, 3, 2,15,
+		13, 8,10, 1, 3,15, 4, 2,11, 6, 7,12, 0, 5,14, 9
+	},
+	{//S3
+		10, 0, 9,14, 6, 3,15, 5, 1,13,12, 7,11, 4, 2, 8,
+		13, 7, 0, 9, 3, 4, 6,10, 2, 8, 5,14,12,11,15, 1,
+		13, 6, 4, 9, 8,15, 3, 0,11, 1, 2,12, 5,10,14, 7,
+		 1,10,13, 0, 6, 9, 8, 7, 4,15,14, 3,11, 5, 2,12
+	},
+	{//S4
+		 7,13,14, 3, 0, 6, 9,10, 1, 2, 8, 5,11,12, 4,15,
+		13, 8,11, 5, 6,15, 0, 3, 4, 7, 2,12, 1,10,14, 9,
+		10, 6, 9, 0,12,11, 7,13,15, 1, 3,14, 5, 2, 8, 4,
+		 3,15, 0, 6,10, 1,13, 8, 9, 4, 5,11,12, 7, 2,14
+	},
+	{//S5
+		 2,12, 4, 1, 7,10,11, 6, 8, 5, 3,15,13, 0,14, 9,
+		14,11, 2,12, 4, 7,13, 1, 5, 0,15,10, 3, 9, 8, 6,
+		 4, 2, 1,11,10,13, 7, 8,15, 9,12, 5, 6, 3, 0,14,
+		11, 8,12, 7, 1,14, 2,13, 6,15, 0, 9,10, 4, 5, 3
+	},
+	{//S6
+		12, 1,10,15, 9, 2, 6, 8, 0,13, 3, 4,14, 7, 5,11,
+		10,15, 4, 2, 7,12, 0, 5, 6, 1,13,14, 0,11, 3, 8,
+		 9,14,15, 5, 2, 8,12, 3, 7, 0, 4,10, 1,13,11, 6,
+	   	 4, 3, 2,12, 9, 5,15,10,11,14, 1, 7, 6, 0, 8,13
+	},
+	{//S7
+		 4,11, 2,14,15, 0, 8,13, 3,12, 9, 7, 5,10, 6, 1,
+		13, 0,11, 7, 4, 0, 1,10,14, 3, 5,12, 2,15, 8, 6,
+		 1, 4,11,13,12, 3, 7,14,10,15, 6, 8, 0, 5, 9, 2,
+		 6,11,13, 8, 1, 4,10, 7, 9, 5, 0,15,14, 2, 3,12
+	},
+	{//S8
+		13, 2, 8, 4, 6,15,11, 1,10, 9, 3,14, 5, 0,12, 7,
+		 1,15,13, 8,10, 3, 7, 4,12, 5, 6,11, 0,14, 9, 2,
+		 7,11, 4, 1, 9,12,14, 2, 0, 6,10,13,15, 3, 5, 8,
+		 2, 1,14, 7, 4,10, 8,13,15,12, 9, 0, 3, 5, 6,11
+	}
+};
+
+
+/*
+    Do s-box to @pOrg, result set to @pDst;
+    @pOrg in length 48bits;
+    @pDst in length 32bits;
+
+    Rules of S-box:
+        1.@pOrg, split to bits format;
+        2.6bits as a group, do 8 rounds loop:
+            2.1.To current group, get 1th bit and 6th bit, generate a integer in [0, 3], named : rowNum;
+            2.2.To current group, get 2th bit to 5th bit, generate an integer in [0, F], named : columnNum;
+            2.3.Append on groutId(range from 1 to 8), get subtable in @gRoundSboxTable;
+            2.4.Used @rowNum and @columnNum, find a value in @gRoundSboxTable;
+            2.5.This is the value we needed, set it to pDst in right position;
+*/
+static int roundSbox(const unsigned char *pOrg, unsigned char *pDst)
+{
+    if(NULL == pOrg || NULL == pDst)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    memset(pDst, 0x00, UNIT_HALF_LEN_BYTES);
+
+    //Do s-box
+    //1.split to an array in 48 bytes, which value all 0/1
+    unsigned char pOrgBits[KEYEX_ELE_LEN * 8] = {0x00};
+    memset(pOrgBits, 0x00, KEYEX_ELE_LEN * 8);
+    roundSboxSplitKey(pOrg, pOrgBits);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "S-BOX: step1, split over.\n");
+
+    //2.Do loop
+    int i = 0;
+    for(; i < SBOX_SUBTABLE_NUM; i++)
+    {
+        //2.1.Get rowNum
+        unsigned char rowNum = ((pOrgBits[0 + i * KEYEX_ELE_LEN]) << 1) | ((pOrgBits[5 + i * KEYEX_ELE_LEN]) << 0);
+        moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "0th value 0x%02x, 5th value 0x%02x, rowNum = 0x%02x\n",
+            pOrgBits[0 + i * KEYEX_ELE_LEN], pOrgBits[5 + i * KEYEX_ELE_LEN], rowNum);
+        //2.2.Get columnNum
+        unsigned char columnNum = ((pOrgBits[1 + i * KEYEX_ELE_LEN]) << 3) |
+                                    ((pOrgBits[2 + i * KEYEX_ELE_LEN]) << 2) | 
+                                    ((pOrgBits[3 + i * KEYEX_ELE_LEN]) << 1) | 
+                                    ((pOrgBits[4 + i * KEYEX_ELE_LEN]) << 0);
+        moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "1th value 0x%02x, 2th value 0x%02x, " \
+            "3th value 0x%02x, 4th value 0x%02x, columnNum = 0x%02x\n",
+            pOrgBits[1 + i * KEYEX_ELE_LEN], pOrgBits[2 + i * KEYEX_ELE_LEN],
+            pOrgBits[3 + i * KEYEX_ELE_LEN], pOrgBits[4 + i * KEYEX_ELE_LEN],
+            columnNum);
+        //2.3.Get the index of subtable in s-box table
+        moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "s-box subtable index = %d\n", i);
+        //2.4.find the value in s-box table
+        unsigned char value = gRoundSboxTable[i][rowNum * 16 + columnNum];
+        moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "corresponding value = %d\n", value);
+        //2.5.set to @pDst
+        int idx = i / 2;
+        if(i % 2 == 0)
+        {
+            //high part in an unsigned char
+            pDst[idx] |= (value << 4);
+        }
+        else
+        {
+            //low part in an unsigned char
+            pDst[idx] |= value;
+        }
+        moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "pDst[%d] = 0x%02x\n",
+            idx, pDst[idx]);
+    }
+    
+    return 0;
+}
+
+/*
+    Do P-Box to @pValue;
+    @pValue has length 32bits;
+*/
+static int roubdPbox(unsigned char *pValue)
+{
+    if(NULL == pValue)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    //Do p-box
+    
+    return 0;
+}
+
+/*
+    This function do a round of crypt in DES, rule like : 
+        L(i + 1) = Ri;
+        R(i + 1) = Li ^ f(Ri, Ki);
+    @pLeft is the left part in this round, length is 32bits(4bytes);
+    @pRight is the right part in this round, length is 32bits(4bytes);
+    After this round, result will be fresh to @pLeft and @pRight;
+    @pCurKeyEx is the key which get from keyExpand, in length 48bits(6bytes);
+
+    return : 
+        0 : ok;
+        0-: failed;
+*/
+static int cryptRound(unsigned char * pLeft, unsigned char * pRight, 
+    const unsigned char * pCurKeyEx)
+{
+    if(NULL == pLeft || NULL == pRight || NULL == pCurKeyEx)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    //save org @pLeft and @pRight to local
+    unsigned char orgLeft[UNIT_HALF_LEN_BYTES] = {0x00};
+    memcpy(orgLeft, pLeft, UNIT_HALF_LEN_BYTES);
+    unsigned char orgRight[UNIT_HALF_LEN_BYTES] = {0x00};
+    memcpy(orgRight, pRight, UNIT_HALF_LEN_BYTES);
+
+    //L(i + 1) = Ri
+    memcpy(pLeft, pRight, UNIT_HALF_LEN_BYTES);
+
+    //R(i + 1) = Li ^ f(Ri, Ki)
+    //1.expand-replace to @orgRight, from 32bits to 48bits;
+    unsigned char exOrgRight[KEYEX_ELE_LEN] = {0x00};
+    roundExReplace(orgRight, exOrgRight);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "In this round, step1, expand-replace over.\n");
+
+    //2.@orgRight = @orgRight xor @pCurKeyEx
+    unsigned char xorOrgRight[KEYEX_ELE_LEN] = {0x00};
+    roundXor(xorOrgRight, exOrgRight, pCurKeyEx, KEYEX_ELE_LEN);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "In this round, step2, exReplacePart xor Key over.\n");
+
+    //3.To @orgRight, do S-box
+    unsigned char sboxRight[UNIT_HALF_LEN_BYTES] = {0x00};
+    roundSbox(xorOrgRight, sboxRight);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "In this round, step3, S-Box over.\n");
+
+    //4.To @orgRight, do P-box
+    roubdPbox(sboxRight);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "In this round, step4, P-Box over.\n");
+    
+    //5.@pRight = orgLeft xor orgRight;
+    roundXor(pRight, sboxRight, orgLeft, UNIT_HALF_LEN_BYTES);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "In this round, finally, right part being get over.\n");
     
     return 0;
 }

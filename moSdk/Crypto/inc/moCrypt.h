@@ -206,6 +206,41 @@ void moCrypt_BASE64_free(unsigned char * pChars);
 int moCrypt_BASE64_File(const MOCRYPT_METHOD method, const char * pSrcFilepath, 
     const char * pDstFilepath, pProgBarCallbackFunc pFunc);
 
+
+
+/****************************************************************************************************/
+/************************************ BASE64 algorithm to do crypt **********************************/
+/****************************************************************************************************/
+
+/*
+    The errno in DES
+*/
+#define MOCRYPT_DES_ERR_OK      0
+#define MOCRYPT_DES_ERR_INPUTNULL   (0 - 23000) //Input param is NULL
+#define MOCRYPT_DES_ERR_MALLOCFAILED    (0 - 23001) //malloc for memory failed
+#define MOCRYPT_DES_ERR_INVALID_KEY (0 - 23002) //Key for DES must in 8bytes, other length cannot be used in this algorithm.
+
+#define MOCRYPT_DES_KEYLEN  8   //Key length, in bytes
+
+/*
+    Do crypt/decrypt to @pSrc, the result set to pDst;
+
+    params:
+        method: the crypt method, crypt or decrypt;
+        pSrc: the src string, cannot be NULL;
+        srcLen: the length of src, should not be 0;
+        pKey: the key for crypt/decrypt;
+        keyLen: the length of the key, in DES, this must be 8 bytes, if larger or less, error returned;
+        pDst: the memory to save result;
+        pDstLen: the length of @pDst;
+
+    return 0 if crypt/decrypt OK, 0- else;
+*/
+int moCrypt_DES_ECB(const MOCRYPT_METHOD method, const unsigned char * pSrc, const unsigned int srcLen, 
+    const unsigned char *pKey, const unsigned int keyLen, char unsigned * pDst, unsigned int *pDstLen);
+
+
+
 #ifdef __cplusplus
 }
 #endif
