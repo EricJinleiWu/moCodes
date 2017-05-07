@@ -24,6 +24,7 @@ extern "C" {
 #define SBOX_SUBTABLE_NUM 8
 #define SBOX_SUBTABLE_LEN 64
 
+#define UNIT_LOOP_CNT 16
 
 #ifdef __cplusplus
 }

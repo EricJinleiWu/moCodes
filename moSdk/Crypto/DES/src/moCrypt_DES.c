@@ -38,15 +38,16 @@ void dumpArrayInfo(const char * pArrayName,const unsigned char * pArray,const un
     the rule to change position is in this table.
     start from 1;
 */
-static const unsigned char gKeyExReplaceTable[KEYEX_RE_TABLE_LEN] = {
-		57, 49, 41, 33, 25, 17, 9, 1,
-        58, 50, 42, 34, 26, 18, 10, 2,
-		59, 51, 43, 35, 27, 19, 11, 3,
-		60, 52, 44, 36,	
-		63, 55, 47, 39, 31, 23, 15, 7,
-		62, 54, 46, 38, 30, 22, 14, 6,
-		61, 53, 45, 37, 29, 21, 13, 5,
-		28, 20, 12, 4
+static const unsigned char gKeyExReplaceTable[KEYEX_RE_TABLE_LEN] = 
+{
+    57, 49, 41, 33, 25, 17, 9, 1,
+    58, 50, 42, 34, 26, 18, 10, 2,
+    59, 51, 43, 35, 27, 19, 11, 3,
+    60, 52, 44, 36,
+    63, 55, 47, 39, 31, 23, 15, 7,
+    62, 54, 46, 38, 30, 22, 14, 6,
+    61, 53, 45, 37, 29, 21, 13, 5,
+    28, 20, 12, 4
 };
 
 /*
@@ -317,7 +318,7 @@ static int compReKey(const unsigned char *pReKey, unsigned char * pKeyEx)
 */
 static const unsigned char gLoopLeftShiftTable[KEYEX_ARRAY_LEN] = 
 {
-		1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1
+    1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1
 };
 
 /*
@@ -436,13 +437,14 @@ static int keyExpand(const unsigned char *pKey, unsigned char pKeyEx[][KEYEX_ELE
                                     In DES, 16 rounds needed
  ***********************************************************************************************/
 
-static const unsigned char gRoundExReplaceTable[KEYEX_ELE_LEN * 8] = {
-		32, 1,  2,  3,  4,  5,  4,  5, 
-        6,  7,  8,  9,  8,  9,  10, 11,
-        12, 13, 12, 13, 14, 15, 16, 17,
-	    16, 17, 18, 19, 20, 21, 20, 21,
-	    22, 23, 24, 25, 24, 25, 26, 27,
-	    28, 29, 28, 29, 30, 31, 32, 1
+static const unsigned char gRoundExReplaceTable[KEYEX_ELE_LEN * 8] = 
+{
+    32, 1,  2,  3,  4,  5,  4,  5, 
+    6,  7,  8,  9,  8,  9,  10, 11,
+    12, 13, 12, 13, 14, 15, 16, 17,
+    16, 17, 18, 19, 20, 21, 20, 21,
+    22, 23, 24, 25, 24, 25, 26, 27,
+    28, 29, 28, 29, 30, 31, 32, 1
 };
 
 /*
@@ -508,54 +510,54 @@ static int roundXor(unsigned char *pXor, const unsigned char *pPart1,
 */
 static const unsigned char gRoundSboxTable[SBOX_SUBTABLE_NUM][SBOX_SUBTABLE_LEN] = 
 {
-	{//S1
-    	14, 4,13, 1, 2,15,11, 8, 3,10, 6,12, 5, 9, 0, 7,
-    	 0,15, 7, 4,14, 2,13, 1,10, 6,12,11, 9, 5, 3, 8,
-    	 4, 1,14, 8,13, 6, 2,11,15,12, 9, 7, 3,10, 5, 0,
-    	15,12, 8, 2, 4, 9, 1, 7, 5,11, 3,14,10, 0, 6,13
-	},
-	{//S2
-		15, 1, 8,14, 6,11, 3, 4, 9, 7, 2,13,12, 0, 5,10,
-		 3,13, 4, 7,15, 2, 8,14,12, 0, 1,10, 6, 9,11, 5,
-		 0,14, 7,11,10, 4,13, 1, 5, 8,12, 6, 9, 3, 2,15,
-		13, 8,10, 1, 3,15, 4, 2,11, 6, 7,12, 0, 5,14, 9
-	},
-	{//S3
-		10, 0, 9,14, 6, 3,15, 5, 1,13,12, 7,11, 4, 2, 8,
-		13, 7, 0, 9, 3, 4, 6,10, 2, 8, 5,14,12,11,15, 1,
-		13, 6, 4, 9, 8,15, 3, 0,11, 1, 2,12, 5,10,14, 7,
-		 1,10,13, 0, 6, 9, 8, 7, 4,15,14, 3,11, 5, 2,12
-	},
-	{//S4
-		 7,13,14, 3, 0, 6, 9,10, 1, 2, 8, 5,11,12, 4,15,
-		13, 8,11, 5, 6,15, 0, 3, 4, 7, 2,12, 1,10,14, 9,
-		10, 6, 9, 0,12,11, 7,13,15, 1, 3,14, 5, 2, 8, 4,
-		 3,15, 0, 6,10, 1,13, 8, 9, 4, 5,11,12, 7, 2,14
-	},
-	{//S5
-		 2,12, 4, 1, 7,10,11, 6, 8, 5, 3,15,13, 0,14, 9,
-		14,11, 2,12, 4, 7,13, 1, 5, 0,15,10, 3, 9, 8, 6,
-		 4, 2, 1,11,10,13, 7, 8,15, 9,12, 5, 6, 3, 0,14,
-		11, 8,12, 7, 1,14, 2,13, 6,15, 0, 9,10, 4, 5, 3
-	},
-	{//S6
-		12, 1,10,15, 9, 2, 6, 8, 0,13, 3, 4,14, 7, 5,11,
-		10,15, 4, 2, 7,12, 0, 5, 6, 1,13,14, 0,11, 3, 8,
-		 9,14,15, 5, 2, 8,12, 3, 7, 0, 4,10, 1,13,11, 6,
-	   	 4, 3, 2,12, 9, 5,15,10,11,14, 1, 7, 6, 0, 8,13
-	},
-	{//S7
-		 4,11, 2,14,15, 0, 8,13, 3,12, 9, 7, 5,10, 6, 1,
-		13, 0,11, 7, 4, 0, 1,10,14, 3, 5,12, 2,15, 8, 6,
-		 1, 4,11,13,12, 3, 7,14,10,15, 6, 8, 0, 5, 9, 2,
-		 6,11,13, 8, 1, 4,10, 7, 9, 5, 0,15,14, 2, 3,12
-	},
-	{//S8
-		13, 2, 8, 4, 6,15,11, 1,10, 9, 3,14, 5, 0,12, 7,
-		 1,15,13, 8,10, 3, 7, 4,12, 5, 6,11, 0,14, 9, 2,
-		 7,11, 4, 1, 9,12,14, 2, 0, 6,10,13,15, 3, 5, 8,
-		 2, 1,14, 7, 4,10, 8,13,15,12, 9, 0, 3, 5, 6,11
-	}
+    {//S1
+        14, 4,13, 1, 2,15,11, 8, 3,10, 6,12, 5, 9, 0, 7,
+         0,15, 7, 4,14, 2,13, 1,10, 6,12,11, 9, 5, 3, 8,
+         4, 1,14, 8,13, 6, 2,11,15,12, 9, 7, 3,10, 5, 0,
+        15,12, 8, 2, 4, 9, 1, 7, 5,11, 3,14,10, 0, 6,13
+    },
+    {//S2
+        15, 1, 8,14, 6,11, 3, 4, 9, 7, 2,13,12, 0, 5,10,
+         3,13, 4, 7,15, 2, 8,14,12, 0, 1,10, 6, 9,11, 5,
+         0,14, 7,11,10, 4,13, 1, 5, 8,12, 6, 9, 3, 2,15,
+        13, 8,10, 1, 3,15, 4, 2,11, 6, 7,12, 0, 5,14, 9
+    },
+    {//S3
+        10, 0, 9,14, 6, 3,15, 5, 1,13,12, 7,11, 4, 2, 8,
+        13, 7, 0, 9, 3, 4, 6,10, 2, 8, 5,14,12,11,15, 1,
+        13, 6, 4, 9, 8,15, 3, 0,11, 1, 2,12, 5,10,14, 7,
+         1,10,13, 0, 6, 9, 8, 7, 4,15,14, 3,11, 5, 2,12
+    },
+    {//S4
+         7,13,14, 3, 0, 6, 9,10, 1, 2, 8, 5,11,12, 4,15,
+        13, 8,11, 5, 6,15, 0, 3, 4, 7, 2,12, 1,10,14, 9,
+        10, 6, 9, 0,12,11, 7,13,15, 1, 3,14, 5, 2, 8, 4,
+         3,15, 0, 6,10, 1,13, 8, 9, 4, 5,11,12, 7, 2,14
+    },
+    {//S5
+         2,12, 4, 1, 7,10,11, 6, 8, 5, 3,15,13, 0,14, 9,
+        14,11, 2,12, 4, 7,13, 1, 5, 0,15,10, 3, 9, 8, 6,
+         4, 2, 1,11,10,13, 7, 8,15, 9,12, 5, 6, 3, 0,14,
+        11, 8,12, 7, 1,14, 2,13, 6,15, 0, 9,10, 4, 5, 3
+    },
+    {//S6
+        12, 1,10,15, 9, 2, 6, 8, 0,13, 3, 4,14, 7, 5,11,
+        10,15, 4, 2, 7,12, 0, 5, 6, 1,13,14, 0,11, 3, 8,
+         9,14,15, 5, 2, 8,12, 3, 7, 0, 4,10, 1,13,11, 6,
+         4, 3, 2,12, 9, 5,15,10,11,14, 1, 7, 6, 0, 8,13
+    },
+    {//S7
+         4,11, 2,14,15, 0, 8,13, 3,12, 9, 7, 5,10, 6, 1,
+        13, 0,11, 7, 4, 0, 1,10,14, 3, 5,12, 2,15, 8, 6,
+         1, 4,11,13,12, 3, 7,14,10,15, 6, 8, 0, 5, 9, 2,
+         6,11,13, 8, 1, 4,10, 7, 9, 5, 0,15,14, 2, 3,12
+    },
+    {//S8
+        13, 2, 8, 4, 6,15,11, 1,10, 9, 3,14, 5, 0,12, 7,
+         1,15,13, 8,10, 3, 7, 4,12, 5, 6,11, 0,14, 9, 2,
+         7,11, 4, 1, 9,12,14, 2, 0, 6,10,13,15, 3, 5, 8,
+         2, 1,14, 7, 4,10, 8,13,15,12, 9, 0, 3, 5, 6,11
+    }
 };
 
 
@@ -633,6 +635,18 @@ static int roundSbox(const unsigned char *pOrg, unsigned char *pDst)
 }
 
 /*
+    The table being used in P-box;
+    from 32bit to 32bit, just position being changed;
+*/
+static const unsigned char gRoundPboxTable[UNIT_HALF_LEN_BITS] = 
+{
+    16, 7,20,21,29,12,28,17, 
+    1, 15,23,26, 5,18,31,10,
+    2, 8,24,14,32,27, 3, 9,
+    19,13,30, 6,22,11, 4,25
+};
+
+/*
     Do P-Box to @pValue;
     @pValue has length 32bits;
 */
@@ -644,7 +658,28 @@ static int roubdPbox(unsigned char *pValue)
         return MOCRYPT_DES_ERR_INPUTNULL;
     }
 
+    //This tmp var to save the value being changed
+    unsigned char tmp[UNIT_HALF_LEN_BYTES] = {0x00};
+    memset(tmp, 0x00, UNIT_HALF_LEN_BYTES);
+
     //Do p-box
+    int i = 0;
+    for(; i < UNIT_HALF_LEN_BITS; i++)
+    {
+        int pos = gRoundPboxTable[i] - 1;
+
+        int bytesPos = pos / 8;
+        int bitsPos = pos % 8;
+        if(pValue[bytesPos] & (1U << (8 - bitsPos - 1)))
+        {
+            int tmpBytesPos = i / 8;
+            int tmpBitsPos = i % 8;
+            tmp[tmpBytesPos] |= (1 << (8 - tmpBitsPos - 1));
+        }
+    }
+
+    //copy value to @pValue
+    memcpy(pValue, tmp, UNIT_HALF_LEN_BYTES);
     
     return 0;
 }
@@ -706,4 +741,173 @@ static int cryptRound(unsigned char * pLeft, unsigned char * pRight,
     
     return 0;
 }
+
+
+
+/***********************************************************************************************
+                                    Main Crypt in DES
+                                    IP-box, crypt rounds(16times), IP-inverse-box
+ ***********************************************************************************************/
+
+/*
+    do encrypt to a unit which has length 8bytes;
+
+    rule:
+        0.Do IP-table converse to @pSrcUnit;
+        1.split @pSrcUnit to left and right with length 32bits(4bytes);
+        2.Looply do cryptRound in 16times;
+        3.join left and right to 64bits;
+        4.Do IP-inverse-table converse;
+        5.set result to @pDstUnit;
+*/
+static int unitEncrypt(const unsigned char *pSrcUnit, const unsigned char keyEx[][KEYEX_ELE_LEN],
+    unsigned char *pDstUnit)
+{
+    if(NULL == pSrcUnit || NULL == keyEx || NULL == pDstUnit)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    //IP-table converse
+    unsigned char tmp[UNIT_LEN_BYTES] = {0x00};
+    memset(tmp, 0x00, UNIT_LEN_BYTES);
+    int ret = ipConv(pSrcUnit, tmp);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "ipConv failed! ret = %d\n", ret);
+        return ret;
+    }
+
+    //split the tmp to left and right half
+    
+
+    //Do cryptRound looply
+    int loopCnt = 0;
+    for(; loopCnt < UNIT_LOOP_CNT; loopCnt++)
+    {
+        ret = cryptRound
+    }
+    
+    return 0;
+}
+
+/*
+    Do encrypt to @pSrc;
+    @pKey has been checked, length is 8bytes;
+*/
+static int enCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
+    const unsigned char *pKey, unsigned char *pDst)
+{
+    //Do key-expanding firstly.
+    unsigned char keyEx[KEYEX_ARRAY_LEN][KEYEX_ELE_LEN];
+    memset(keyEx, 0x00, KEYEX_ARRAY_LEN * KEYEX_ELE_LEN);
+    int ret = keyExpand(pKey, keyEx);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "keyExpand failed! ret = %d\n", ret);
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "keyExpand succeed.\n");
+    
+    //Do crypt in a unit looply, a unit has length 8bytes
+    int cnt = 0;
+    while(cnt < srcLen / UNIT_LEN_BYTES)
+    {
+        //do crypt to this unit(length is 8bytes)
+        ret = unitEncrypt(pSrc + cnt * UNIT_LEN_BYTES, keyEx, pDst + cnt * UNIT_LEN_BYTES);
+        if(ret != MOCRYPT_DES_ERR_OK)
+        {
+            moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "unitEncrypt failed! cnt = %d, ret = %d\n",
+                cnt, ret);
+            break;
+        }
+
+        //to next unit
+        cnt++;
+        leftLen -= UNIT_LEN_BYTES;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "enCrypt being done, ret = %d\n", ret);
+
+    return ret;
+}
+
+/*
+    Do decrypt to @pSrc;
+    @pKey has been checked, length is 8bytes;
+*/
+static int deCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
+    const unsigned char *pKey, unsigned char *pDst)
+{
+    return 0;
+}
+
+/*
+    Do crypt to @pSrc, cipherTxt/plainTxt set to @pDst;
+    If @srcLen%8 != 0, error, cannot do DES;
+    If @keyLen != 8, error, cannot do DES;
+
+    rules:
+        1.do IP-table converse;
+        2.Looply do crypt to units which has length with 8bytes;
+        3.do IP-inverse-table converse;
+*/
+int moCrypt_DES_ECB(const MOCRYPT_METHOD method, const unsigned char * pSrc, const unsigned int srcLen, 
+     const unsigned char *pKey, const unsigned int keyLen, char unsigned char * pDst, unsigned int *pDstLen)
+{
+    if(NULL == pSrc || NULL == pKey || NULL == pDst || NULL == pDstLen)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    //Check param validition
+    if(0 == srcLen)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input srcLen is 0, cannot do crypt to it!\n");
+        return MOCRYPT_DES_ERR_INPUTERROR;
+    }
+    if(srcLen % UNIT_LEN_BYTES != 0)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input srcLen = %d, cannot divide 8bytes, in DES," \
+            "We need srcLen %% 8 == 0!\n", srcLen);
+    }
+    if(MOCRYPT_DES_KEYLEN != keyLen)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "In DES, key len must be %d! Input kenLen = %d!\n",
+            MOCRYPT_DES_KEYLEN, keyLen);
+        return MOCRYPT_DES_ERR_INPUTERROR;
+    }
+
+    //Do crypt append on crypt/decrypt method
+    int ret = 0;
+    switch(method)
+    {
+        case MOCRYPT_METHOD_ENCRYPT:
+            ret = enCrypt(pSrc, srcLen, pKey, pDst);
+            break;
+        case MOCRYPT_METHOD_DECRYPT:
+            ret = deCrypt(pSrc, srcLen, pKey, pDst);
+            break;
+        default:
+            moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input method = %d, invalid value!\n",
+                method);
+            ret = MOCRYPT_DES_ERR_INPUTERROR;
+            break;
+    }
+
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Do cyrpt in DES failed! method = %d, ret = %d\n",
+            method, ret);
+    }
+    else
+    {
+        //@pDstLen is the same with srcLen all the time in DES
+        *pDstLen = srcLen;
+    }
+
+    return ret;
+}
+
 
