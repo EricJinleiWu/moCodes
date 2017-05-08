@@ -482,7 +482,7 @@ static int roundExReplace(const unsigned char *pOrg, unsigned char *pEx)
 }
 
 /*
-    @pXor = @pPart xor @pPart2;
+    @pXor = @pPart1 xor @pPart2;
     xor being done in bytes;
     @pXor, @pPart, @pPart2 must have same length : @len;
 */
@@ -581,7 +581,7 @@ static int roundSboxSplitKey(const unsigned char *pBytes, unsigned char *pBits)
     {
         for(j = 0; j < 8; j++)
         {
-            if(pBytes[i] & (1U << (8 - j - i)))
+            if(pBytes[i] & (1U << (8 - j - 1)))
             {
                 pBits[i * 8 + j] = 1;
             }
@@ -680,7 +680,7 @@ static const unsigned char gRoundPboxTable[UNIT_HALF_LEN_BITS] =
     Do P-Box to @pValue;
     @pValue has length 32bits;
 */
-static int roubdPbox(unsigned char *pValue)
+static int roundPbox(unsigned char *pValue)
 {
     if(NULL == pValue)
     {
@@ -762,7 +762,7 @@ static int cryptRound(unsigned char * pLeft, unsigned char * pRight,
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "In this round, step3, S-Box over.\n");
 
     //4.To @orgRight, do P-box
-    roubdPbox(sboxRight);
+    roundPbox(sboxRight);
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "In this round, step4, P-Box over.\n");
     
     //5.@pRight = orgLeft xor orgRight;
@@ -789,6 +789,7 @@ static const unsigned char gIpTable[UNIT_LEN_BITS] =
 
 /*
     Do IP-table converse to @pSrc, result save in @pDst;
+    @pSrc and @pDst all have length 8bytes;
 */
 static int ipConv(const unsigned char *pSrc, unsigned char *pDst)
 {
@@ -856,7 +857,6 @@ static int ipInvConv(const unsigned char *pSrc, unsigned char *pDst)
 
     return MOCRYPT_DES_ERR_OK;
 }
-
 
 /*
     Split @pSrc to 2 parts : @pLeftHalf, @pRightHalf;
@@ -993,8 +993,10 @@ static int unitEncrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYE
     Do encrypt to @pSrc;
     @pKey has been checked, length is 8bytes;
 */
-static int enCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
+int enCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
     const unsigned char *pKey, unsigned char *pDst)
+//static int enCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
+//    const unsigned char *pKey, unsigned char *pDst)
 {
     //Do key-expanding firstly.
     unsigned char keyEx[KEYEX_ARRAY_LEN][KEYEX_ELE_LEN];
@@ -1112,8 +1114,10 @@ static int unitDecrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYE
     Do decrypt to @pSrc;
     @pKey has been checked, length is 8bytes;
 */
-static int deCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
+int deCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
     const unsigned char *pKey, unsigned char *pDst)
+//static int deCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
+//    const unsigned char *pKey, unsigned char *pDst)
 {
     //Do key-expanding firstly.
     unsigned char keyEx[KEYEX_ARRAY_LEN][KEYEX_ELE_LEN];

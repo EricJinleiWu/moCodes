@@ -157,6 +157,185 @@ static void tst_keyExpand(void)
 #endif
 }
 
+static void tst_roundExReplace(void)
+{
+#if 0
+    unsigned char org[UNIT_HALF_LEN_BYTES] = {0x00};
+    int i = 0;
+    for(i = 0; i < UNIT_HALF_LEN_BYTES; i++)
+    {
+        org[i] = rand() % 255;
+    }
+    dumpArrayInfo("Org", org, UNIT_HALF_LEN_BYTES);
+    
+    unsigned char ex[KEYEX_ELE_LEN] = {0x00};
+    roundExReplace(org, ex);
+    dumpArrayInfo("Ex", ex, KEYEX_ELE_LEN);
+#endif
+}
+
+static void tst_roundXor(void)
+{
+#if 0
+    unsigned char length = rand() % 64;
+
+    unsigned char part1[64] = {0x00};
+    int i = 0;
+    for(i = 0; i < 64; i++)
+    {
+        part1[i] = rand() % 255;
+    }
+    dumpArrayInfo("part1", part1, length);
+    
+    unsigned char part2[64] = {0x00};
+    for(i = 0; i < 64; i++)
+    {
+        part2[i] = rand() % 255;
+    }
+    dumpArrayInfo("part2", part2, length);
+    
+    unsigned char xorRet[64] = {0x00};
+    memset(xorRet, 0x00, 64);
+    roundXor(xorRet, part1, part2, length);
+    dumpArrayInfo("xorRet", xorRet, length);
+#endif
+}
+
+void tst_roundSboxSplitKey(void)
+{
+#if 0
+    unsigned char bytesArr[KEYEX_ELE_LEN] = {0x00};
+    int i = 0;
+    for(; i < KEYEX_ELE_LEN; i++)
+    {
+        bytesArr[i] = rand() % 255;
+    }
+    dumpArrayInfo("bytesArray", bytesArr, KEYEX_ELE_LEN);
+
+    unsigned char bitsArr[KEYEX_ELE_LEN * 8] = {0x00};
+    roundSboxSplitKey(bytesArr, bitsArr);
+    dumpArrayInfo("bitsArray", bitsArr, KEYEX_ELE_LEN * 8);
+#endif
+}
+
+void tst_roundSbox(void)
+{
+#if 0
+    unsigned char org[KEYEX_ELE_LEN] = {0x00};
+    int i = 0;
+    for(; i < KEYEX_ELE_LEN; i++)
+    {
+        org[i] = rand() % 255;
+    }
+    dumpArrayInfo("org", org, KEYEX_ELE_LEN);
+    
+    unsigned char dst[UNIT_HALF_LEN_BYTES] = {0x00};
+    roundSbox(org, dst);
+    dumpArrayInfo("dst", dst, UNIT_HALF_LEN_BYTES);
+#endif
+}
+
+void tst_roundPbox(void)
+{
+#if 0
+    unsigned char value[UNIT_HALF_LEN_BYTES] = {0x00};
+    int i = 0;
+    for(i = 0; i < UNIT_HALF_LEN_BYTES; i++)
+    {
+        value[i] = rand() % 255;
+    }
+    dumpArrayInfo("orgValue", value, UNIT_HALF_LEN_BYTES);
+
+    roundPbox(value);
+    dumpArrayInfo("pBoxValue", value, UNIT_HALF_LEN_BYTES);
+#endif
+}
+
+void tst_ipConv(void)
+{
+#if 0
+    unsigned char src[UNIT_LEN_BYTES] = {0x00};
+    int i = 0;
+    for(; i < UNIT_LEN_BYTES; i++)
+    {
+        src[i] = rand() % 255;
+    }
+    dumpArrayInfo("src", src, UNIT_LEN_BYTES);
+
+    unsigned char dst[UNIT_LEN_BYTES] = {0x00};
+    ipConv(src, dst);
+    dumpArrayInfo("dst", dst, UNIT_LEN_BYTES);
+#endif
+}
+
+static void tst_splitUnit2Half(void)
+{
+#if 0
+    unsigned char src[UNIT_LEN_BYTES] = {0x00};
+    int i = 0;
+    for(; i < UNIT_LEN_BYTES; i++)
+    {
+        src[i] = rand() % 255;
+    }
+    dumpArrayInfo("src", src, UNIT_LEN_BYTES);
+
+    unsigned char left[UNIT_HALF_LEN_BYTES] = {0x00};
+    unsigned char right[UNIT_HALF_LEN_BYTES] = {0x00};
+    splitUnit2Half(src, left, right);
+    dumpArrayInfo("left", left, UNIT_HALF_LEN_BYTES);
+    dumpArrayInfo("right", right, UNIT_HALF_LEN_BYTES);
+#endif
+}
+
+static void tst_joinHalf2Unit(void)
+{
+#if 0
+    unsigned char left[UNIT_HALF_LEN_BYTES] = {0x00};
+    int i = 0;
+    for(i = 0; i < UNIT_HALF_LEN_BYTES; i++)
+    {
+        left[i] = rand() % 255;
+    }
+    dumpArrayInfo("left", left, UNIT_HALF_LEN_BYTES);
+    
+    unsigned char right[UNIT_HALF_LEN_BYTES] = {0x00};
+    for(i = 0; i < UNIT_HALF_LEN_BYTES; i++)
+    {
+        right[i] = rand() % 255;
+    }
+    dumpArrayInfo("right", right, UNIT_HALF_LEN_BYTES);
+
+    unsigned char dst[UNIT_LEN_BYTES] = {0x00};
+    joinHalf2Unit(left, right, dst);
+    dumpArrayInfo("dst", dst, UNIT_LEN_BYTES);
+#endif
+}
+
+static void tst_enCrypt_deCrypt(void)
+{
+    unsigned char orgSrc[UNIT_LEN_BYTES] = {0x00};
+    int i = 0;
+    for(; i < UNIT_LEN_BYTES; i++)
+    {
+        orgSrc[i] = rand() % 255;
+    }
+    dumpArrayInfo("orgSrc", orgSrc, UNIT_LEN_BYTES);
+
+    unsigned char key[UNIT_LEN_BYTES] = {0x00};
+    for(i = 0; i < UNIT_LEN_BYTES; i++)
+    {
+        key[i] = i + 32;
+    }
+
+    unsigned char cipher[UNIT_LEN_BYTES] = {0x00};
+    enCrypt(orgSrc, UNIT_LEN_BYTES, key, cipher);
+    dumpArrayInfo("cipher", cipher, UNIT_LEN_BYTES);
+
+    unsigned char plain[UNIT_LEN_BYTES] = {0x00};
+    enCrypt(cipher, UNIT_LEN_BYTES, key, plain);
+    dumpArrayInfo("plain", plain, UNIT_LEN_BYTES);
+}
+
 int main(int argc, char **argv)
 {
     srand((unsigned int )time(NULL));
@@ -169,6 +348,15 @@ int main(int argc, char **argv)
     tst_joinHalf2ReKey();
     tst_compReKey();
     tst_keyExpand();
+    tst_roundExReplace();
+    tst_roundXor();
+    tst_roundSboxSplitKey();
+    tst_roundSbox();
+    tst_roundPbox();
+    tst_ipConv();
+    tst_splitUnit2Half();
+    tst_joinHalf2Unit();
+    tst_enCrypt_deCrypt();
 
     moLoggerUnInit();
 
