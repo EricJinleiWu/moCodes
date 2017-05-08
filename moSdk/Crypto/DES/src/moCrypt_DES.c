@@ -423,7 +423,7 @@ static int keyExpand(const unsigned char *pKey, unsigned char pKeyEx[][KEYEX_ELE
     int i = 0;
     for(; i < KEYEX_ARRAY_LEN; i++)
     {
-        keyExGetKey(leftHalf, rightHalf, i, &(pKeyEx[i]));
+        keyExGetKey(leftHalf, rightHalf, i, (unsigned char *)&(pKeyEx[i]));
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Expand key being done.\n");
     
@@ -496,7 +496,7 @@ static int roundXor(unsigned char *pXor, const unsigned char *pPart1,
     }
 
     //Do xor to each bytes
-    int i = 0;
+    unsigned int i = 0;
     for(; i < len; i++)
     {
         pXor[i] = pPart1[i] ^ pPart2[i];
@@ -560,6 +560,36 @@ static const unsigned char gRoundSboxTable[SBOX_SUBTABLE_NUM][SBOX_SUBTABLE_LEN]
     }
 };
 
+/*
+    convert @pBytes to @pBits;
+    @pBytes has length 6bytes;
+    @pBits has length 48bytes, each bytes has value 0 / 1;
+*/
+static int roundSboxSplitKey(const unsigned char *pBytes, unsigned char *pBits)
+{
+    if(NULL == pBytes || NULL == pBits)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    //init @pBits to 0
+    memset(pBits, 0x00, KEYEX_ELE_LEN * 8);
+
+    int i = 0, j = 0;
+    for(i = 0; i < KEYEX_ELE_LEN; i++)
+    {
+        for(j = 0; j < 8; j++)
+        {
+            if(pBytes[i] & (1U << (8 - j - i)))
+            {
+                pBits[i * 8 + j] = 1;
+            }
+        }
+    }
+
+    return MOCRYPT_DES_ERR_OK;
+}
 
 /*
     Do s-box to @pOrg, result set to @pDst;
@@ -749,6 +779,137 @@ static int cryptRound(unsigned char * pLeft, unsigned char * pRight,
                                     IP-box, crypt rounds(16times), IP-inverse-box
  ***********************************************************************************************/
 
+static const unsigned char gIpTable[UNIT_LEN_BITS] = 
+{
+    58,	50,	42,	34,	26,	18,	10,	2,	60,	52,	44,	36,	28,	20,	12,	4,
+    62,	54,	46,	38,	30,	22,	14,	6,	64,	56,	48,	40,	32,	24,	16,	8,
+    57,	49,	41,	33,	25,	17,	9,	1,	59,	51,	43,	35,	27,	19,	11,	3,
+    61,	53,	45,	37,	29,	21,	13,	5,	63,	55,	47,	39,	31,	23,	15,	7
+};
+
+/*
+    Do IP-table converse to @pSrc, result save in @pDst;
+*/
+static int ipConv(const unsigned char *pSrc, unsigned char *pDst)
+{
+    if(NULL == pSrc || NULL == pDst)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    memset(pDst, 0x00, UNIT_LEN_BYTES);
+
+    int i = 0;
+    for(; i < UNIT_LEN_BITS; i++)
+    {    
+        int pos = gIpTable[i] - 1;
+
+        int bytesPos = pos / 8;
+        int bitsPos = pos % 8;
+        if(pSrc[bytesPos] & (1U << (8 - bitsPos - 1)))
+        {
+            int dstBytesPos = i / 8;
+            int dstBitsPos = i % 8;
+            pDst[dstBytesPos] |= (1U << (8 - dstBitsPos - 1));
+        }
+    }
+
+    return MOCRYPT_DES_ERR_OK;
+}
+
+static const unsigned char gIpInvTable[UNIT_LEN_BITS] = 
+{    
+    40, 8,48,16,56,24,64,32,39, 7,47,15,55,23,63,31,
+    38, 6,46,14,54,22,62,30,37, 5,45,13,53,21,61,29,
+    36, 4,44,12,52,20,60,28,35, 3,43,11,51,19,59,27,
+    34, 2,42,10,50,18,58,26,33, 1,41, 9,49,17,57,25
+};
+
+/*
+    Do IP-inverse-table converse to @pSrc, result save in @pDst;
+*/
+static int ipInvConv(const unsigned char *pSrc, unsigned char *pDst)
+{
+    if(NULL == pSrc || NULL == pDst)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    memset(pDst, 0x00, UNIT_LEN_BYTES);
+
+    int i = 0;
+    for(; i < UNIT_LEN_BITS; i++)
+    {    
+        int pos = gIpInvTable[i] - 1;
+
+        int bytesPos = pos / 8;
+        int bitsPos = pos % 8;
+        if(pSrc[bytesPos] & (1U << (8 - bitsPos - 1)))
+        {
+            int dstBytesPos = i / 8;
+            int dstBitsPos = i % 8;
+            pDst[dstBytesPos] |= (1U << (8 - dstBitsPos - 1));
+        }
+    }
+
+    return MOCRYPT_DES_ERR_OK;
+}
+
+
+/*
+    Split @pSrc to 2 parts : @pLeftHalf, @pRightHalf;
+    @pSrc is a unit, has length 8bytes;
+    @pLeftHalf and @pRightHalf, has length 4bytes;
+*/
+static int splitUnit2Half(const unsigned char *pSrc, unsigned char *pLeftHalf, 
+    unsigned char *pRightHalf)
+{
+    if(NULL == pSrc || NULL == pLeftHalf || NULL == pRightHalf)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    int i = 0;
+    for(i = 0; i < UNIT_HALF_LEN_BYTES; i++)
+    {
+        pLeftHalf[i] = pSrc[i];
+    }
+    for(i = 0; i < UNIT_HALF_LEN_BYTES; i++)
+    {
+        pRightHalf[i] = pSrc[i + UNIT_HALF_LEN_BYTES];
+    }
+
+    return MOCRYPT_DES_ERR_OK;
+}
+
+/*
+    Join @pLeftHalf and @pRightHalf to @pDst;
+*/
+static int joinHalf2Unit(const unsigned char *pLeftHalf, const unsigned char *pRightHalf, 
+    unsigned char *pDst)
+{
+    if(NULL == pLeftHalf || NULL == pRightHalf || NULL == pDst)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    int i = 0;
+    for(i = 0; i < UNIT_HALF_LEN_BYTES; i++)
+    {
+        pDst[i] = pLeftHalf[i];
+    }
+    for(i = 0; i < UNIT_HALF_LEN_BYTES; i++)
+    {
+        pDst[i + UNIT_HALF_LEN_BYTES] = pRightHalf[i];
+    }
+
+    return MOCRYPT_DES_ERR_OK;
+}
+
 /*
     do encrypt to a unit which has length 8bytes;
 
@@ -760,7 +921,7 @@ static int cryptRound(unsigned char * pLeft, unsigned char * pRight,
         4.Do IP-inverse-table converse;
         5.set result to @pDstUnit;
 */
-static int unitEncrypt(const unsigned char *pSrcUnit, const unsigned char keyEx[][KEYEX_ELE_LEN],
+static int unitEncrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYEX_ELE_LEN],
     unsigned char *pDstUnit)
 {
     if(NULL == pSrcUnit || NULL == keyEx || NULL == pDstUnit)
@@ -778,18 +939,54 @@ static int unitEncrypt(const unsigned char *pSrcUnit, const unsigned char keyEx[
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "ipConv failed! ret = %d\n", ret);
         return ret;
     }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "ipConv succeed.\n");
 
     //split the tmp to left and right half
-    
+    unsigned char leftHalf[UNIT_HALF_LEN_BYTES] = {0x00};
+    memset(leftHalf, 0x00, UNIT_HALF_LEN_BYTES);
+    unsigned char rightHalf[UNIT_HALF_LEN_BYTES] = {0x00};
+    memset(rightHalf, 0x00, UNIT_HALF_LEN_BYTES);
+    ret = splitUnit2Half(tmp, leftHalf, rightHalf);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "splitUnit2Half failed! ret = %d\n", ret);
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "splitUnit2Half succeed.\n");
 
     //Do cryptRound looply
     int loopCnt = 0;
     for(; loopCnt < UNIT_LOOP_CNT; loopCnt++)
     {
-        ret = cryptRound
+        ret = cryptRound(leftHalf, rightHalf, keyEx[loopCnt]);
+        if(ret != MOCRYPT_DES_ERR_OK)
+        {
+            moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "cryptRound failed! loopCnt = %d, ret = %d\n",
+                loopCnt, ret);
+            return ret;
+        }
     }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "cryptRound over.\n");
+
+    //join this two parts to a unit
+    ret = joinHalf2Unit(leftHalf, rightHalf, tmp);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "joinHalf2Unit failed! ret = %d\n", ret);
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "joinHalf2Unit succeed.\n");
+
+    //Do IP-inverse-table converse
+    ret = ipInvConv(tmp, pDstUnit);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "ipInvConv failed! ret = %d\n", ret);
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "ipInvConv succeed.\n");
     
-    return 0;
+    return MOCRYPT_DES_ERR_OK;
 }
 
 /*
@@ -811,7 +1008,7 @@ static int enCrypt(const unsigned char *pSrc, const unsigned int srcLen,
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "keyExpand succeed.\n");
     
     //Do crypt in a unit looply, a unit has length 8bytes
-    int cnt = 0;
+    unsigned int cnt = 0;
     while(cnt < srcLen / UNIT_LEN_BYTES)
     {
         //do crypt to this unit(length is 8bytes)
@@ -825,12 +1022,91 @@ static int enCrypt(const unsigned char *pSrc, const unsigned int srcLen,
 
         //to next unit
         cnt++;
-        leftLen -= UNIT_LEN_BYTES;
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "enCrypt being done, ret = %d\n", ret);
 
     return ret;
 }
+
+/*
+    do decrypt to a unit which has length 8bytes;
+
+    rule:
+        0.Do IP-table converse to @pSrcUnit;
+        1.split @pSrcUnit to left and right with length 32bits(4bytes);
+        2.Looply do cryptRound in 16times;
+        3.join left and right to 64bits;
+        4.Do IP-inverse-table converse;
+        5.set result to @pDstUnit;
+*/
+static int unitDecrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYEX_ELE_LEN],
+    unsigned char *pDstUnit)
+{
+    if(NULL == pSrcUnit || NULL == keyEx || NULL == pDstUnit)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    //IP-table converse
+    unsigned char tmp[UNIT_LEN_BYTES] = {0x00};
+    memset(tmp, 0x00, UNIT_LEN_BYTES);
+    int ret = ipConv(pSrcUnit, tmp);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "ipConv failed! ret = %d\n", ret);
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "ipConv succeed.\n");
+
+    //split the tmp to left and right half
+    unsigned char leftHalf[UNIT_HALF_LEN_BYTES] = {0x00};
+    memset(leftHalf, 0x00, UNIT_HALF_LEN_BYTES);
+    unsigned char rightHalf[UNIT_HALF_LEN_BYTES] = {0x00};
+    memset(rightHalf, 0x00, UNIT_HALF_LEN_BYTES);
+    ret = splitUnit2Half(tmp, leftHalf, rightHalf);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "splitUnit2Half failed! ret = %d\n", ret);
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "splitUnit2Half succeed.\n");
+
+    //Do cryptRound looply, this is the important point different with encrypt!
+    int loopCnt = 0;
+    for(; loopCnt < UNIT_LOOP_CNT; loopCnt++)
+    {
+        ret = cryptRound(rightHalf, leftHalf, keyEx[UNIT_LOOP_CNT - loopCnt - 1]);
+        if(ret != MOCRYPT_DES_ERR_OK)
+        {
+            moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "cryptRound failed! loopCnt = %d, ret = %d\n",
+                loopCnt, ret);
+            return ret;
+        }
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "cryptRound over.\n");
+
+    //join this two parts to a unit
+    ret = joinHalf2Unit(leftHalf, rightHalf, tmp);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "joinHalf2Unit failed! ret = %d\n", ret);
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "joinHalf2Unit succeed.\n");
+
+    //Do IP-inverse-table converse
+    ret = ipInvConv(tmp, pDstUnit);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "ipInvConv failed! ret = %d\n", ret);
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "ipInvConv succeed.\n");
+    
+    return MOCRYPT_DES_ERR_OK;
+}
+
 
 /*
     Do decrypt to @pSrc;
@@ -839,7 +1115,37 @@ static int enCrypt(const unsigned char *pSrc, const unsigned int srcLen,
 static int deCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
     const unsigned char *pKey, unsigned char *pDst)
 {
-    return 0;
+    //Do key-expanding firstly.
+    unsigned char keyEx[KEYEX_ARRAY_LEN][KEYEX_ELE_LEN];
+    memset(keyEx, 0x00, KEYEX_ARRAY_LEN * KEYEX_ELE_LEN);
+    int ret = keyExpand(pKey, keyEx);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "keyExpand failed! ret = %d\n", ret);
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "keyExpand succeed.\n");
+    
+    //Do crypt in a unit looply, a unit has length 8bytes
+    unsigned int cnt = 0;
+    while(cnt < srcLen / UNIT_LEN_BYTES)
+    {
+        //do crypt to this unit(length is 8bytes)
+        ret = unitDecrypt(pSrc + cnt * UNIT_LEN_BYTES, keyEx, pDst + cnt * UNIT_LEN_BYTES);
+        if(ret != MOCRYPT_DES_ERR_OK)
+        {
+            moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "unitDecrypt failed! cnt = %d, ret = %d\n",
+                cnt, ret);
+            break;
+        }
+
+        //to next unit
+        cnt++;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "deCrypt being done, ret = %d\n", ret);
+
+    return ret;
+
 }
 
 /*
@@ -853,7 +1159,7 @@ static int deCrypt(const unsigned char *pSrc, const unsigned int srcLen,
         3.do IP-inverse-table converse;
 */
 int moCrypt_DES_ECB(const MOCRYPT_METHOD method, const unsigned char * pSrc, const unsigned int srcLen, 
-     const unsigned char *pKey, const unsigned int keyLen, char unsigned char * pDst, unsigned int *pDstLen)
+     const unsigned char *pKey, const unsigned int keyLen, unsigned char * pDst, unsigned int *pDstLen)
 {
     if(NULL == pSrc || NULL == pKey || NULL == pDst || NULL == pDstLen)
     {

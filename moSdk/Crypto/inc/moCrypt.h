@@ -239,7 +239,7 @@ int moCrypt_BASE64_File(const MOCRYPT_METHOD method, const char * pSrcFilepath,
     return 0 if crypt/decrypt OK, 0- else;
 */
 int moCrypt_DES_ECB(const MOCRYPT_METHOD method, const unsigned char * pSrc, const unsigned int srcLen, 
-    const unsigned char *pKey, const unsigned int keyLen, char unsigned char * pDst, unsigned int *pDstLen);
+    const unsigned char *pKey, const unsigned int keyLen, unsigned char * pDst, unsigned int *pDstLen);
 
 
 
