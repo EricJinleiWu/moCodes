@@ -10,10 +10,10 @@
 #include "moCrypt_DES.h"
 #include "moLogger.h"
 
-#define DEBUG_MODE 1
+#define DEBUG_MODE 0
 
-void dumpArrayInfo(const char * pArrayName,const unsigned char * pArray,const unsigned int len)
-//static void dumpArrayInfo(const char * pArrayName,const unsigned char * pArray,const unsigned int len)
+//void dumpArrayInfo(const char * pArrayName,const unsigned char * pArray,const unsigned int len)
+static void dumpArrayInfo(const char * pArrayName,const unsigned char * pArray,const unsigned int len)
 {
 #if DEBUG_MODE
     printf("Dump array [%s] info start:\n\t", pArrayName);
@@ -743,31 +743,38 @@ static int cryptRound(unsigned char * pLeft, unsigned char * pRight,
     memcpy(orgRight, pRight, UNIT_HALF_LEN_BYTES);
 
     //L(i + 1) = Ri
-    memcpy(pLeft, pRight, UNIT_HALF_LEN_BYTES);
+    memcpy(pLeft, orgRight, UNIT_HALF_LEN_BYTES);
+    dumpArrayInfo("pLeft", pLeft, UNIT_HALF_LEN_BYTES);
 
     //R(i + 1) = Li ^ f(Ri, Ki)
+    dumpArrayInfo("OrgRight", orgRight, UNIT_HALF_LEN_BYTES);
     //1.expand-replace to @orgRight, from 32bits to 48bits;
     unsigned char exOrgRight[KEYEX_ELE_LEN] = {0x00};
     roundExReplace(orgRight, exOrgRight);
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "In this round, step1, expand-replace over.\n");
+    dumpArrayInfo("exOrgRight", exOrgRight, KEYEX_ELE_LEN);
 
     //2.@orgRight = @orgRight xor @pCurKeyEx
     unsigned char xorOrgRight[KEYEX_ELE_LEN] = {0x00};
     roundXor(xorOrgRight, exOrgRight, pCurKeyEx, KEYEX_ELE_LEN);
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "In this round, step2, exReplacePart xor Key over.\n");
+    dumpArrayInfo("xorOrgRight", xorOrgRight, KEYEX_ELE_LEN);
 
     //3.To @orgRight, do S-box
     unsigned char sboxRight[UNIT_HALF_LEN_BYTES] = {0x00};
     roundSbox(xorOrgRight, sboxRight);
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "In this round, step3, S-Box over.\n");
+    dumpArrayInfo("sboxRight", sboxRight, UNIT_HALF_LEN_BYTES);
 
     //4.To @orgRight, do P-box
     roundPbox(sboxRight);
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "In this round, step4, P-Box over.\n");
+    dumpArrayInfo("pboxRight", sboxRight, UNIT_HALF_LEN_BYTES);
     
     //5.@pRight = orgLeft xor orgRight;
     roundXor(pRight, sboxRight, orgLeft, UNIT_HALF_LEN_BYTES);
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "In this round, finally, right part being get over.\n");
+    dumpArrayInfo("dstRight", pRight, UNIT_HALF_LEN_BYTES);
     
     return 0;
 }
@@ -940,6 +947,7 @@ static int unitEncrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYE
         return ret;
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "ipConv succeed.\n");
+    dumpArrayInfo("ipConvSrc", tmp, UNIT_LEN_BYTES);
 
     //split the tmp to left and right half
     unsigned char leftHalf[UNIT_HALF_LEN_BYTES] = {0x00};
@@ -968,6 +976,12 @@ static int unitEncrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYE
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "cryptRound over.\n");
 
+    //Should convert left to right, right to left!
+    unsigned char tmpHalf[UNIT_HALF_LEN_BYTES] = {0x00};
+    memcpy(tmpHalf, leftHalf, UNIT_HALF_LEN_BYTES);
+    memcpy(leftHalf, rightHalf, UNIT_HALF_LEN_BYTES);
+    memcpy(rightHalf, tmpHalf, UNIT_HALF_LEN_BYTES);
+
     //join this two parts to a unit
     ret = joinHalf2Unit(leftHalf, rightHalf, tmp);
     if(ret != MOCRYPT_DES_ERR_OK)
@@ -976,6 +990,7 @@ static int unitEncrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYE
         return ret;
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "joinHalf2Unit succeed.\n");
+    dumpArrayInfo("joinedUnit", tmp, UNIT_LEN_BYTES);
 
     //Do IP-inverse-table converse
     ret = ipInvConv(tmp, pDstUnit);
@@ -985,6 +1000,7 @@ static int unitEncrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYE
         return ret;
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "ipInvConv succeed.\n");
+    dumpArrayInfo("dstUnit", pDstUnit, UNIT_LEN_BYTES);
     
     return MOCRYPT_DES_ERR_OK;
 }
@@ -993,10 +1009,8 @@ static int unitEncrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYE
     Do encrypt to @pSrc;
     @pKey has been checked, length is 8bytes;
 */
-int enCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
+static int enCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
     const unsigned char *pKey, unsigned char *pDst)
-//static int enCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
-//    const unsigned char *pKey, unsigned char *pDst)
 {
     //Do key-expanding firstly.
     unsigned char keyEx[KEYEX_ARRAY_LEN][KEYEX_ELE_LEN];
@@ -1078,7 +1092,8 @@ static int unitDecrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYE
     int loopCnt = 0;
     for(; loopCnt < UNIT_LOOP_CNT; loopCnt++)
     {
-        ret = cryptRound(rightHalf, leftHalf, keyEx[UNIT_LOOP_CNT - loopCnt - 1]);
+//        ret = cryptRound(rightHalf, leftHalf, keyEx[UNIT_LOOP_CNT - loopCnt - 1]);
+        ret = cryptRound(leftHalf, rightHalf, keyEx[UNIT_LOOP_CNT - loopCnt - 1]);
         if(ret != MOCRYPT_DES_ERR_OK)
         {
             moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "cryptRound failed! loopCnt = %d, ret = %d\n",
@@ -1087,6 +1102,12 @@ static int unitDecrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYE
         }
     }
     moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "cryptRound over.\n");
+
+    //Should convert left to right, right to left!
+    unsigned char tmpHalf[UNIT_HALF_LEN_BYTES] = {0x00};
+    memcpy(tmpHalf, leftHalf, UNIT_HALF_LEN_BYTES);
+    memcpy(leftHalf, rightHalf, UNIT_HALF_LEN_BYTES);
+    memcpy(rightHalf, tmpHalf, UNIT_HALF_LEN_BYTES);
 
     //join this two parts to a unit
     ret = joinHalf2Unit(leftHalf, rightHalf, tmp);
@@ -1114,10 +1135,8 @@ static int unitDecrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYE
     Do decrypt to @pSrc;
     @pKey has been checked, length is 8bytes;
 */
-int deCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
+static int deCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
     const unsigned char *pKey, unsigned char *pDst)
-//static int deCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
-//    const unsigned char *pKey, unsigned char *pDst)
 {
     //Do key-expanding firstly.
     unsigned char keyEx[KEYEX_ARRAY_LEN][KEYEX_ELE_LEN];
@@ -1182,11 +1201,25 @@ int moCrypt_DES_ECB(const MOCRYPT_METHOD method, const unsigned char * pSrc, con
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input srcLen = %d, cannot divide 8bytes, in DES," \
             "We need srcLen %% 8 == 0!\n", srcLen);
     }
-    if(MOCRYPT_DES_KEYLEN != keyLen)
+
+    //in DES, allow @pKey donot have length 8bytes, if less, add 0 at the end; if more, just use 8bytes;
+    unsigned char key[MOCRYPT_DES_KEYLEN] = {0x00};
+    if(MOCRYPT_DES_KEYLEN < keyLen)
     {
-        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "In DES, key len must be %d! Input kenLen = %d!\n",
-            MOCRYPT_DES_KEYLEN, keyLen);
-        return MOCRYPT_DES_ERR_INPUTERROR;
+        moLoggerWarn(MOCRYPT_LOGGER_MODULE_NAME, "KeyLen=%d, MOCRYPT_DES_KEYLEN=%d, should use the first 8bytes as a valid key.\n",
+            keyLen, MOCRYPT_DES_KEYLEN);
+        memcpy(key, pKey, MOCRYPT_DES_KEYLEN);
+    }
+    else if(MOCRYPT_DES_KEYLEN > keyLen)
+    {
+        moLoggerWarn(MOCRYPT_LOGGER_MODULE_NAME, "KeyLen=%d, MOCRYPT_DES_KEYLEN=%d, will add 0 at the end to be a valid key.\n",
+            keyLen, MOCRYPT_DES_KEYLEN);
+        memset(key, 0x00, MOCRYPT_DES_KEYLEN);
+        memcpy(key, pKey, keyLen);
+    }
+    else
+    {
+        memcpy(key, pKey, MOCRYPT_DES_KEYLEN);
     }
 
     //Do crypt append on crypt/decrypt method

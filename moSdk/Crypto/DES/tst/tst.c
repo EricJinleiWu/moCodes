@@ -5,10 +5,24 @@
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
+#include <errno.h>
+#include <unistd.h>
+#include <stdlib.h>
 
 #include "moCrypt.h"
 #include "moLogger.h"
 #include "moCrypt_DES.h"
+
+static void dumpArrayInfo(const char * pArrayName,const unsigned char * pArray,const unsigned int len)
+{
+    printf("Dump array [%s] info start:\n\t", pArrayName);
+    unsigned int i = 0;
+    for(; i < len; i++)
+    {
+        printf("0x%04x ", *(pArray + i));
+    }
+    printf("\nDump array [%s] over.\n", pArrayName);
+}
 
 static void tst_keyExReplace(void)
 {
@@ -313,27 +327,102 @@ static void tst_joinHalf2Unit(void)
 
 static void tst_enCrypt_deCrypt(void)
 {
+#if 0
     unsigned char orgSrc[UNIT_LEN_BYTES] = {0x00};
     int i = 0;
     for(; i < UNIT_LEN_BYTES; i++)
     {
         orgSrc[i] = rand() % 255;
+//        orgSrc[i] = 11;
     }
+//    orgSrc[0] = 0x12;
+//    orgSrc[1] = 0x34;
+//    orgSrc[2] = 0x12;
+//    orgSrc[3] = 0x34;
+//    orgSrc[4] = 0x12;
+//    orgSrc[5] = 0x34;
+//    orgSrc[6] = 0x12;
+//    orgSrc[7] = 0x34;
     dumpArrayInfo("orgSrc", orgSrc, UNIT_LEN_BYTES);
 
     unsigned char key[UNIT_LEN_BYTES] = {0x00};
+    key[0] = 0x12;
+    key[1] = 0x34;
+    key[2] = 0x12;
+    key[3] = 0x34;
+    key[4] = 0x12;
+    key[5] = 0x34;
+    key[6] = 0x12;
+    key[7] = 0x34;
     for(i = 0; i < UNIT_LEN_BYTES; i++)
     {
         key[i] = i + 32;
+//        key[i] = 11;
     }
+    dumpArrayInfo("key", key, UNIT_LEN_BYTES);
 
     unsigned char cipher[UNIT_LEN_BYTES] = {0x00};
     enCrypt(orgSrc, UNIT_LEN_BYTES, key, cipher);
     dumpArrayInfo("cipher", cipher, UNIT_LEN_BYTES);
 
     unsigned char plain[UNIT_LEN_BYTES] = {0x00};
-    enCrypt(cipher, UNIT_LEN_BYTES, key, plain);
+    deCrypt(cipher, UNIT_LEN_BYTES, key, plain);
     dumpArrayInfo("plain", plain, UNIT_LEN_BYTES);
+#endif
+}
+
+static void tst_moCrypt_DES_ECB(void)
+{
+#define TST_STR_LEN 32
+
+    unsigned char src[TST_STR_LEN] = {0x00};
+    int i = 0;
+    for(i = 0; i < TST_STR_LEN; i++)
+    {
+        src[i] = rand() % 255;
+    }
+    dumpArrayInfo("src", src, TST_STR_LEN);
+
+    unsigned int keyLen = rand() % 16;
+    unsigned char *key = NULL;
+    key = (unsigned char *)malloc(keyLen * (sizeof(unsigned char)));
+    if(key == NULL)
+    {
+        printf("Malloc memory for key failed! errno = %d, desc = [%s]\n",
+            errno, strerror(errno));
+        return ;
+    }
+    for(i = 0; i < keyLen; i++)
+    {
+        key[i] = rand() % 255;
+    }
+    dumpArrayInfo("key", key, keyLen);
+
+    unsigned char cipher[TST_STR_LEN] = {0x00};
+    unsigned int cipherLen = 0;
+    int ret = moCrypt_DES_ECB(MOCRYPT_METHOD_ENCRYPT, src, TST_STR_LEN, 
+        key, keyLen, cipher, &cipherLen);
+    if(ret != 0)
+    {
+        printf("moCrypt_DES_ECB failed! encrypt, ret = %d\n", ret);
+        free(key);
+        key = NULL;
+        return ;
+    }
+    dumpArrayInfo("cipher", cipher, cipherLen);
+
+    unsigned char plain[TST_STR_LEN] = {0x00};
+    unsigned int plainLen = 0;
+    ret = moCrypt_DES_ECB(MOCRYPT_METHOD_DECRYPT, cipher, TST_STR_LEN, 
+        key, keyLen, plain, &plainLen);
+    if(ret != 0)
+    {
+        printf("moCrypt_DES_ECB failed! decrypt, ret = %d\n", ret);
+        free(key);
+        key = NULL;
+        return ;
+    }
+    dumpArrayInfo("plain", plain, plainLen);
 }
 
 int main(int argc, char **argv)
@@ -357,6 +446,7 @@ int main(int argc, char **argv)
     tst_splitUnit2Half();
     tst_joinHalf2Unit();
     tst_enCrypt_deCrypt();
+    tst_moCrypt_DES_ECB();
 
     moLoggerUnInit();
 
