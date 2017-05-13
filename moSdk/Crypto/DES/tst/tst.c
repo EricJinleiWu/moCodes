@@ -374,7 +374,7 @@ static void tst_enCrypt_deCrypt(void)
 static void tst_moCrypt_DES_ECB(void)
 {
 #define TST_STR_LEN 32
-
+#if 0
     unsigned char src[TST_STR_LEN] = {0x00};
     int i = 0;
     for(i = 0; i < TST_STR_LEN; i++)
@@ -422,6 +422,69 @@ static void tst_moCrypt_DES_ECB(void)
         key = NULL;
         return ;
     }
+    
+    free(key);
+    key = NULL;
+    dumpArrayInfo("plain", plain, plainLen);
+#endif
+}
+
+static void tst_moCrypt_DES_CBC(void)
+{
+    unsigned char src[TST_STR_LEN] = {0x00};
+    int i = 0;
+    for(i = 0; i < TST_STR_LEN; i++)
+    {
+        src[i] = rand() % 255;
+    }
+    dumpArrayInfo("src", src, TST_STR_LEN);
+
+    unsigned int keyLen = rand() % 16;
+    unsigned char *key = NULL;
+    key = (unsigned char *)malloc(keyLen * (sizeof(unsigned char)));
+    if(key == NULL)
+    {
+        printf("Malloc memory for key failed! errno = %d, desc = [%s]\n",
+            errno, strerror(errno));
+        return ;
+    }
+    for(i = 0; i < keyLen; i++)
+    {
+        key[i] = rand() % 255;
+    }
+    dumpArrayInfo("key", key, keyLen);
+
+    unsigned char iv[UNIT_LEN_BYTES] = {0x00};
+    moCrypt_DES_CBC_getIv(iv);
+    dumpArrayInfo("Iv", iv, UNIT_LEN_BYTES);
+
+    unsigned char cipher[TST_STR_LEN] = {0x00};
+    unsigned int cipherLen = 0;
+    int ret = moCrypt_DES_CBC(MOCRYPT_METHOD_ENCRYPT, src, TST_STR_LEN, 
+        key, keyLen, iv, cipher, &cipherLen);
+    if(ret != 0)
+    {
+        printf("moCrypt_DES_ECB failed! encrypt, ret = %d\n", ret);
+        free(key);
+        key = NULL;
+        return ;
+    }
+    dumpArrayInfo("cipher", cipher, cipherLen);
+
+    unsigned char plain[TST_STR_LEN] = {0x00};
+    unsigned int plainLen = 0;
+    ret = moCrypt_DES_CBC(MOCRYPT_METHOD_DECRYPT, cipher, TST_STR_LEN, 
+        key, keyLen, iv, plain, &plainLen);
+    if(ret != 0)
+    {
+        printf("moCrypt_DES_ECB failed! decrypt, ret = %d\n", ret);
+        free(key);
+        key = NULL;
+        return ;
+    }
+    
+    free(key);
+    key = NULL;
     dumpArrayInfo("plain", plain, plainLen);
 }
 
@@ -447,6 +510,7 @@ int main(int argc, char **argv)
     tst_joinHalf2Unit();
     tst_enCrypt_deCrypt();
     tst_moCrypt_DES_ECB();
+    tst_moCrypt_DES_CBC();
 
     moLoggerUnInit();
 

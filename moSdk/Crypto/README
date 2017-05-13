@@ -50,3 +50,7 @@ V1.2.7
     EricWu, 20170504
     Add DES algo. in ECB mode;
     To DES, just support do crypt to string, donot support file;
+
+V1.2.8
+    EricWu, 20170513
+    To DES, add CBC mode;

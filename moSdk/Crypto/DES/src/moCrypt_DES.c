@@ -1009,7 +1009,7 @@ static int unitEncrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYE
     Do encrypt to @pSrc;
     @pKey has been checked, length is 8bytes;
 */
-static int enCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
+static int ecbEnCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
     const unsigned char *pKey, unsigned char *pDst)
 {
     //Do key-expanding firstly.
@@ -1039,7 +1039,7 @@ static int enCrypt(const unsigned char *pSrc, const unsigned int srcLen,
         //to next unit
         cnt++;
     }
-    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "enCrypt being done, ret = %d\n", ret);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "ecbEnCrypt being done, ret = %d\n", ret);
 
     return ret;
 }
@@ -1135,7 +1135,7 @@ static int unitDecrypt(const unsigned char *pSrcUnit, unsigned char keyEx[][KEYE
     Do decrypt to @pSrc;
     @pKey has been checked, length is 8bytes;
 */
-static int deCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
+static int ecbDeCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
     const unsigned char *pKey, unsigned char *pDst)
 {
     //Do key-expanding firstly.
@@ -1165,10 +1165,9 @@ static int deCrypt(const unsigned char *pSrc, const unsigned int srcLen,
         //to next unit
         cnt++;
     }
-    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "deCrypt being done, ret = %d\n", ret);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "ecbDeCrypt being done, ret = %d\n", ret);
 
     return ret;
-
 }
 
 /*
@@ -1200,6 +1199,7 @@ int moCrypt_DES_ECB(const MOCRYPT_METHOD method, const unsigned char * pSrc, con
     {
         moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input srcLen = %d, cannot divide 8bytes, in DES," \
             "We need srcLen %% 8 == 0!\n", srcLen);
+        return MOCRYPT_DES_ERR_INPUTERROR;
     }
 
     //in DES, allow @pKey donot have length 8bytes, if less, add 0 at the end; if more, just use 8bytes;
@@ -1227,10 +1227,10 @@ int moCrypt_DES_ECB(const MOCRYPT_METHOD method, const unsigned char * pSrc, con
     switch(method)
     {
         case MOCRYPT_METHOD_ENCRYPT:
-            ret = enCrypt(pSrc, srcLen, pKey, pDst);
+            ret = ecbEnCrypt(pSrc, srcLen, pKey, pDst);
             break;
         case MOCRYPT_METHOD_DECRYPT:
-            ret = deCrypt(pSrc, srcLen, pKey, pDst);
+            ret = ecbDeCrypt(pSrc, srcLen, pKey, pDst);
             break;
         default:
             moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input method = %d, invalid value!\n",
@@ -1252,5 +1252,206 @@ int moCrypt_DES_ECB(const MOCRYPT_METHOD method, const unsigned char * pSrc, con
 
     return ret;
 }
+
+
+
+
+/***********************************************************************************************
+                                    CBC mode to DES
+ ***********************************************************************************************/
+
+int moCrypt_DES_CBC_getIv(unsigned char *pIv)
+{
+    if(NULL == pIv)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    srand((unsigned int)time(NULL));
+
+    int i = 0;
+    for(i = 0; i < UNIT_LEN_BYTES; i++)
+    {
+        pIv[i] = rand() % 255;
+    }
+
+    return MOCRYPT_DES_ERR_OK;
+}
+
+/*
+    Do encrypt to @pSrc;
+    @pKey has been checked, length is 8bytes;
+*/
+static int cbcEnCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
+    const unsigned char *pKey, const unsigned char *pIv, unsigned char *pDst)
+{
+    //Do key-expanding firstly.
+    unsigned char keyEx[KEYEX_ARRAY_LEN][KEYEX_ELE_LEN];
+    memset(keyEx, 0x00, KEYEX_ARRAY_LEN * KEYEX_ELE_LEN);
+    int ret = keyExpand(pKey, keyEx);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "keyExpand failed! ret = %d\n", ret);
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "keyExpand succeed.\n");
+
+    //To first unit, do xor with pIv
+    unsigned char firstUnit[UNIT_LEN_BYTES] = {0x00};
+    memset(firstUnit, 0x00, UNIT_LEN_BYTES);
+    roundXor(firstUnit, pSrc, pIv, UNIT_LEN_BYTES);
+    unitEncrypt(firstUnit, keyEx, pDst);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "the first unit done.\n");
+
+    //To the other units, do xor with ciphers
+    unsigned int cnt = 1;
+    while(cnt < srcLen / UNIT_LEN_BYTES)
+    {
+        unsigned char curUnit[UNIT_LEN_BYTES] = {0x00};
+        memset(curUnit, 0x00, UNIT_LEN_BYTES);
+        //do xor firstly
+        roundXor(curUnit, pSrc + cnt * UNIT_LEN_BYTES, pDst + (cnt - 1) * UNIT_LEN_BYTES, UNIT_LEN_BYTES);
+        
+        //do crypt to this unit(length is 8bytes)
+        ret = unitEncrypt(curUnit, keyEx, pDst + cnt * UNIT_LEN_BYTES);
+        if(ret != MOCRYPT_DES_ERR_OK)
+        {
+            moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "unitEncrypt failed! cnt = %d, ret = %d\n",
+                cnt, ret);
+            break;
+        }
+
+        //to next unit
+        cnt++;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "cbcEnCrypt being done, ret = %d\n", ret);
+
+    return ret;
+}
+
+/*
+    Do decrypt to @pSrc;
+    @pKey has been checked, length is 8bytes;
+*/
+static int cbcDeCrypt(const unsigned char *pSrc, const unsigned int srcLen, 
+    const unsigned char *pKey, const unsigned char *pIv, unsigned char *pDst)
+{
+    //Do key-expanding firstly.
+    unsigned char keyEx[KEYEX_ARRAY_LEN][KEYEX_ELE_LEN];
+    memset(keyEx, 0x00, KEYEX_ARRAY_LEN * KEYEX_ELE_LEN);
+    int ret = keyExpand(pKey, keyEx);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "keyExpand failed! ret = %d\n", ret);
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "keyExpand succeed.\n");
+
+    //To first unit, do xor with pIv
+    unsigned char firstUnit[UNIT_LEN_BYTES] = {0x00};
+    memset(firstUnit, 0x00, UNIT_LEN_BYTES);
+    unitDecrypt(pSrc, keyEx, firstUnit);
+    roundXor(pDst, firstUnit, pIv, UNIT_LEN_BYTES);
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Do decrypt to first unit done.\n");
+    
+    //To the other units
+    unsigned int cnt = 1;
+    while(cnt < srcLen / UNIT_LEN_BYTES)
+    {
+        //do crypt to this unit(length is 8bytes)
+        unsigned char curUnit[UNIT_LEN_BYTES] = {0x00};
+        memset(curUnit, 0x00, UNIT_LEN_BYTES);
+        ret = unitDecrypt(pSrc + cnt * UNIT_LEN_BYTES, keyEx, curUnit/**/);
+        if(ret != MOCRYPT_DES_ERR_OK)
+        {
+            moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "unitDecrypt failed! cnt = %d, ret = %d\n",
+                cnt, ret);
+            break;
+        }
+        roundXor(pDst + cnt * UNIT_LEN_BYTES, curUnit, pSrc + (cnt - 1) * UNIT_LEN_BYTES, UNIT_LEN_BYTES);
+
+        //to next unit
+        cnt++;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "cbcDeCrypt being done, ret = %d\n", ret);
+
+    return ret;
+}
+
+int moCrypt_DES_CBC(const MOCRYPT_METHOD method, const unsigned char * pSrc, const unsigned int srcLen, 
+    const unsigned char *pKey, const unsigned int keyLen, const unsigned char *pIv, 
+    unsigned char * pDst, unsigned int *pDstLen)
+{
+    if(NULL == pSrc || NULL == pKey || NULL == pIv || NULL == pDst || NULL == pDstLen)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    //Check param validition
+    if(0 == srcLen)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input srcLen is 0, cannot do crypt to it!\n");
+        return MOCRYPT_DES_ERR_INPUTERROR;
+    }
+    if(srcLen % UNIT_LEN_BYTES != 0)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input srcLen = %d, cannot divide 8bytes, in DES," \
+            "We need srcLen %% 8 == 0!\n", srcLen);
+        return MOCRYPT_DES_ERR_INPUTERROR;
+    }
+
+    //in DES, allow @pKey donot have length 8bytes, if less, add 0 at the end; if more, just use 8bytes;
+    unsigned char key[MOCRYPT_DES_KEYLEN] = {0x00};
+    if(MOCRYPT_DES_KEYLEN < keyLen)
+    {
+        moLoggerWarn(MOCRYPT_LOGGER_MODULE_NAME, "KeyLen=%d, MOCRYPT_DES_KEYLEN=%d, should use the first 8bytes as a valid key.\n",
+            keyLen, MOCRYPT_DES_KEYLEN);
+        memcpy(key, pKey, MOCRYPT_DES_KEYLEN);
+    }
+    else if(MOCRYPT_DES_KEYLEN > keyLen)
+    {
+        moLoggerWarn(MOCRYPT_LOGGER_MODULE_NAME, "KeyLen=%d, MOCRYPT_DES_KEYLEN=%d, will add 0 at the end to be a valid key.\n",
+            keyLen, MOCRYPT_DES_KEYLEN);
+        memset(key, 0x00, MOCRYPT_DES_KEYLEN);
+        memcpy(key, pKey, keyLen);
+    }
+    else
+    {
+        memcpy(key, pKey, MOCRYPT_DES_KEYLEN);
+    }
+
+    //Do crypt append on crypt/decrypt method
+    int ret = 0;
+    switch(method)
+    {
+        case MOCRYPT_METHOD_ENCRYPT:
+            ret = cbcEnCrypt(pSrc, srcLen, pKey, pIv, pDst);
+            break;
+        case MOCRYPT_METHOD_DECRYPT:
+            ret = cbcDeCrypt(pSrc, srcLen, pKey, pIv, pDst);
+            break;
+        default:
+            moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input method = %d, invalid value!\n",
+                method);
+            ret = MOCRYPT_DES_ERR_INPUTERROR;
+            break;
+    }
+
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Do cyrpt in DES failed! method = %d, ret = %d\n",
+            method, ret);
+    }
+    else
+    {
+        //@pDstLen is the same with srcLen all the time in DES
+        *pDstLen = srcLen;
+    }
+
+    return ret; 
+}
+
 
 

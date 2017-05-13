@@ -232,7 +232,7 @@ int moCrypt_BASE64_File(const MOCRYPT_METHOD method, const char * pSrcFilepath,
         pSrc: the src string, cannot be NULL;
         srcLen: the length of src, should not be 0;
         pKey: the key for crypt/decrypt;
-        keyLen: the length of the key, in DES, this must be 8 bytes, if larger or less, error returned;
+        keyLen: the length of the key;
         pDst: the memory to save result;
         pDstLen: the length of @pDst;
 
@@ -241,7 +241,37 @@ int moCrypt_BASE64_File(const MOCRYPT_METHOD method, const char * pSrcFilepath,
 int moCrypt_DES_ECB(const MOCRYPT_METHOD method, const unsigned char * pSrc, const unsigned int srcLen, 
     const unsigned char *pKey, const unsigned int keyLen, unsigned char * pDst, unsigned int *pDstLen);
 
+/*
+    To CBC mode with DES, we need an Iv(initial vector);
+    @pIv must has length 8bytes or larger, valid length is 8bytes;
+    this will generated in randomizally, can assure crypt security;
 
+    params:
+        pIv: the Iv value;
+
+    return 0 if crypt OK, 0- else;
+*/
+int moCrypt_DES_CBC_getIv(unsigned char *pIv);
+
+/*
+    Do crypt with DES in CBC mode;
+
+    params:
+        method: the crypt method, crypt or decrypt;
+        pSrc: the src string, cannot be NULL;
+        srcLen: the length of src, should not be 0;
+        pKey: the key for crypt/decrypt;
+        keyLen: the length of the key;
+        pIv: has length with 8bytes or larger;
+        pDst: the memory to save result;
+        pDstLen: the length of @pDst;
+
+    return 0 if crypt/decrypt OK, 0- else;
+    
+*/
+int moCrypt_DES_CBC(const MOCRYPT_METHOD method, const unsigned char * pSrc, const unsigned int srcLen, 
+    const unsigned char *pKey, const unsigned int keyLen, const unsigned char *pIv, 
+    unsigned char * pDst, unsigned int *pDstLen);
 
 #ifdef __cplusplus
 }
