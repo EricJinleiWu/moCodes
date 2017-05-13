@@ -209,7 +209,7 @@ int moCrypt_BASE64_File(const MOCRYPT_METHOD method, const char * pSrcFilepath,
 
 
 /****************************************************************************************************/
-/************************************ BASE64 algorithm to do crypt **********************************/
+/************************************ DES & DES3 algorithm to do crypt **********************************/
 /****************************************************************************************************/
 
 /*
@@ -220,7 +220,6 @@ int moCrypt_BASE64_File(const MOCRYPT_METHOD method, const char * pSrcFilepath,
 #define MOCRYPT_DES_ERR_MALLOCFAILED    (0 - 23001) //malloc for memory failed
 #define MOCRYPT_DES_ERR_INVALID_KEY (0 - 23002) //Key for DES must in 8bytes, other length cannot be used in this algorithm.
 #define MOCRYPT_DES_ERR_INPUTERROR   (0 - 23003) //Input param in error, like src string has length 0, and so on
-
 
 #define MOCRYPT_DES_KEYLEN  8   //Key length, in bytes
 
@@ -272,6 +271,24 @@ int moCrypt_DES_CBC_getIv(unsigned char *pIv);
 int moCrypt_DES_CBC(const MOCRYPT_METHOD method, const unsigned char * pSrc, const unsigned int srcLen, 
     const unsigned char *pKey, const unsigned int keyLen, const unsigned char *pIv, 
     unsigned char * pDst, unsigned int *pDstLen);
+
+/*
+    Do crypt/decrypt to @pSrc, the result set to pDst;
+
+    params:
+        method: the crypt method, crypt or decrypt;
+        pSrc: the src string, cannot be NULL;
+        srcLen: the length of src, should not be 0;
+        pKey: the key for crypt/decrypt;
+        keyLen: the length of the key, 16bytes and 24bytes all OK, if larger than 24, just first 24bytes being used;
+        pDst: the memory to save result;
+        pDstLen: the length of @pDst;
+
+    return 0 if crypt/decrypt OK, 0- else;
+*/
+int moCrypt_DES3_ECB(const MOCRYPT_METHOD method, const unsigned char * pSrc, const unsigned int srcLen, 
+    const unsigned char *pKey, const unsigned int keyLen, unsigned char * pDst, unsigned int *pDstLen);
+
 
 #ifdef __cplusplus
 }

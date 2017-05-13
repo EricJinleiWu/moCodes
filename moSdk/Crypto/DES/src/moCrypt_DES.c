@@ -1455,3 +1455,104 @@ int moCrypt_DES_CBC(const MOCRYPT_METHOD method, const unsigned char * pSrc, con
 
 
 
+
+
+
+/***********************************************************************************************
+                                    ECB mode to 3DES
+ ***********************************************************************************************/
+
+int moCrypt_DES3_ECB(const MOCRYPT_METHOD method, const unsigned char * pSrc, const unsigned int srcLen, 
+    const unsigned char *pKey, const unsigned int keyLen, unsigned char * pDst, unsigned int *pDstLen)
+{
+    if(NULL == pSrc || NULL == pKey || NULL == pDst || NULL == pDstLen)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input param is NULL.\n");
+        return MOCRYPT_DES_ERR_INPUTNULL;
+    }
+
+    //Check param validition
+    if(0 == srcLen)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input srcLen is 0, cannot do crypt to it!\n");
+        return MOCRYPT_DES_ERR_INPUTERROR;
+    }
+    if(srcLen % UNIT_LEN_BYTES != 0)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Input srcLen = %d, cannot divide 8bytes, in DES," \
+            "We need srcLen %% 8 == 0!\n", srcLen);
+        return MOCRYPT_DES_ERR_INPUTERROR;
+    }
+
+    //in DES3, @pKey can be 16bytes, 24bytes, and larger
+    unsigned char key[MOCRYPT_DES_KEYLEN * 3] = {0x00};
+    memset(key, 0x00, MOCRYPT_DES_KEYLEN * 3);
+    if(keyLen >= MOCRYPT_DES_KEYLEN * 3) //larger than 24bytes, just use first 24bytes to be key
+    {
+        memcpy(key, pKey, MOCRYPT_DES_KEYLEN * 3);
+    }
+    else   //in [0, 23), padding 0x00 at the end to be 24bytes
+    {
+        memset(key, 0x00, MOCRYPT_DES_KEYLEN);
+        memcpy(key, pKey, keyLen);
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Get key in 24bytes for DES3 succeed.\n");
+
+    //Do DES3 then
+    unsigned char * pTmp = NULL;
+    pTmp = (unsigned char *)malloc(srcLen * sizeof(unsigned char));
+    if(NULL == pTmp)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Malloc for pTmp failed! size = %d, errno = %d, desc = [%s]\n",
+            srcLen, errno, strerror(errno));
+        return MOCRYPT_DES_ERR_MALLOCFAILED;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Malloc for pTmp succeed.\n");
+    //Do encrypt/decrypt with key[0...7]
+    int ret = moCrypt_DES_ECB((method == MOCRYPT_METHOD_ENCRYPT ? MOCRYPT_METHOD_ENCRYPT : MOCRYPT_METHOD_DECRYPT), 
+        pSrc, srcLen, 
+        key + (method == MOCRYPT_METHOD_ENCRYPT ? 0 : MOCRYPT_DES_KEYLEN * 2), MOCRYPT_DES_KEYLEN, 
+        pDst, pDstLen);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Do first round for DES3 failed! ret = %d\n", ret);
+        free(pTmp);
+        pTmp = NULL;
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Do first round for DES3 succeed.\n");
+
+    //Do decrypt/encrypt with key[8...15]
+    ret = moCrypt_DES_ECB((method == MOCRYPT_METHOD_ENCRYPT ? MOCRYPT_METHOD_DECRYPT : MOCRYPT_METHOD_ENCRYPT), 
+        pDst, *pDstLen, 
+        key + MOCRYPT_DES_KEYLEN, MOCRYPT_DES_KEYLEN, 
+        pTmp, pDstLen);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Do second round for DES3 failed! ret = %d\n", ret);
+        free(pTmp);
+        pTmp = NULL;
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Do second round for DES3 succeed.\n");
+
+    //do encrypt/decrypt with key[16...23]
+    ret = moCrypt_DES_ECB((method == MOCRYPT_METHOD_ENCRYPT ? MOCRYPT_METHOD_ENCRYPT : MOCRYPT_METHOD_DECRYPT), 
+        pTmp, *pDstLen, 
+        key + (method == MOCRYPT_METHOD_ENCRYPT ? MOCRYPT_DES_KEYLEN * 2 : 0), MOCRYPT_DES_KEYLEN, 
+        pDst, pDstLen);
+    if(ret != MOCRYPT_DES_ERR_OK)
+    {
+        moLoggerError(MOCRYPT_LOGGER_MODULE_NAME, "Do third round for DES3 failed! ret = %d\n", ret);
+        free(pTmp);
+        pTmp = NULL;
+        return ret;
+    }
+    moLoggerDebug(MOCRYPT_LOGGER_MODULE_NAME, "Do third round for DES3 succeed.\n");
+    
+    free(pTmp);
+    pTmp = NULL;
+
+    return MOCRYPT_DES_ERR_OK;
+}
+

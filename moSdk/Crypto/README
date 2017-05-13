@@ -54,3 +54,7 @@ V1.2.7
 V1.2.8
     EricWu, 20170513
     To DES, add CBC mode;
+
+V1.2.9
+    EricWu, 20170513
+    Add DES3 Ecb mode;
