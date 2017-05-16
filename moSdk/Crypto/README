@@ -58,3 +58,7 @@ V1.2.8
 V1.2.9
     EricWu, 20170513
     Add DES3 Ecb mode;
+
+V1.2.10
+    EricWu, 20170516
+    To DES3, CBC mode supported, and unit test being done.

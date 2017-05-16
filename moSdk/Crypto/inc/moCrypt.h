@@ -289,6 +289,14 @@ int moCrypt_DES_CBC(const MOCRYPT_METHOD method, const unsigned char * pSrc, con
 int moCrypt_DES3_ECB(const MOCRYPT_METHOD method, const unsigned char * pSrc, const unsigned int srcLen, 
     const unsigned char *pKey, const unsigned int keyLen, unsigned char * pDst, unsigned int *pDstLen);
 
+/* 
+    Do crypt with 3des in CBC mode;
+    @pIv must be get from moCrypt_DES_CBC_getIv;
+*/
+int moCrypt_DES3_CBC(const MOCRYPT_METHOD method, const unsigned char * pSrc, const unsigned int srcLen, 
+    const unsigned char *pKey, const unsigned int keyLen, const unsigned char *pIv, 
+    unsigned char * pDst, unsigned int *pDstLen);
+
 
 #ifdef __cplusplus
 }
