@@ -247,6 +247,83 @@ int moUtils_Search_Sunday(const unsigned char * pSrc, const unsigned int srcLen,
     const unsigned char * pNext);
 
 
+
+
+/**********************************************************************************
+    "moUtils_Check_" will be prefix to Check operation
+***********************************************************************************/
+
+#define MOUTILS_CHECK_ERR_OK                        (0x00000000)
+#define MOUTILS_CHECK_ERR_INPUTPARAMNULL            (0 - 13000)     //input param is NULL.
+#define MOUTILS_CHECK_ERR_MALLOCFAILED              (0 - 13001)     //Malloc failed
+
+/*
+    Get summary of @pSrc, summary will set to @pSum;
+
+    @pSrc should not be NULL;
+    @len should not a negative value;
+    @pSum should not be NULL;
+    @len is the length of @pSrc;
+
+    return : 
+        0 : succeed;
+        0-: failed;
+*/
+int moUtils_Check_getSum(const unsigned char *pSrc, const unsigned int len, 
+    unsigned char *pSum);
+
+/*
+    CheckSum;
+
+    return :
+        0 : @sum is checked OK;
+        0-: Input param donot valid, cannot check; Or sum donot checked OK;
+*/
+int moUtils_Check_checkSum(const unsigned char *pSrc, const unsigned int len, 
+    const unsigned char sum);
+
+typedef enum
+{
+    MOUTILS_CHECK_CRCMETHOD_32; //CRC32
+    MOUTILS_CHECK_CRCMETHOD_16; //CRC16
+    MOUTILS_CHECK_CRCMETHOD_8; //CRC8
+    MOUTILS_CHECK_CRCMETHOD_4; //CRC4
+    MOUTILS_CHECK_CRCMETHOD_CCITT; //CRC_CCITT
+}MOUTILS_CHECK_CRCMETHOD;
+
+typedef union
+{
+    unsigned int MOUTILS_CHECK_CRCVALUE_32;
+    unsigned int MOUTILS_CHECK_CRCVALUE_16;
+    unsigned char MOUTILS_CHECK_CRCVALUE_8;
+    unsigned char MOUTILS_CHECK_CRCVALUE_4;
+    unsigned int MOUTILS_CHECK_CRCVALUE_CICTT;
+}MOUTILS_CHECK_CRCVALUE;
+
+/*
+    Get CRC value;
+
+    @pSrc is the src, @len is the length of @pSrc;
+    @method is the method of CRC;
+    @pCrc is the value of CRC;
+
+    return :
+        0 : succeed;
+        0-: failed;
+*/
+int moUtils_Check_getCrc(const unsigned char *pSrc, const unsigned int len, 
+    const MOUTILS_CHECK_CRCMETHOD method, MOUTILS_CHECK_CRCVALUE *pCrc);
+
+/*
+    Check CRC;
+
+    return : 
+        0 : check OK;
+        0-: check failed or input param invalid or any other errors;
+*/
+int moUtils_Check_checkCrc(const unsigned char *pSrc, const unsigned int len, 
+    const MOUTILS_CHECK_CRCMETHOD method, const MOUTILS_CHECK_CRCVALUE crc);
+
 #ifdef __cplusplus
 }
 #endif
