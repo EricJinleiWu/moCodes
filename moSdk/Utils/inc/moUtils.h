@@ -256,6 +256,7 @@ int moUtils_Search_Sunday(const unsigned char * pSrc, const unsigned int srcLen,
 #define MOUTILS_CHECK_ERR_OK                        (0x00000000)
 #define MOUTILS_CHECK_ERR_INPUTPARAMNULL            (0 - 13000)     //input param is NULL.
 #define MOUTILS_CHECK_ERR_MALLOCFAILED              (0 - 13001)     //Malloc failed
+#define MOUTILS_CHECK_ERR_CHECKSUMFAILED            (0 - 13002)     //CheckSum failed! input sum donot right.
 
 /*
     Get summary of @pSrc, summary will set to @pSum;
@@ -284,11 +285,11 @@ int moUtils_Check_checkSum(const unsigned char *pSrc, const unsigned int len,
 
 typedef enum
 {
-    MOUTILS_CHECK_CRCMETHOD_32; //CRC32
-    MOUTILS_CHECK_CRCMETHOD_16; //CRC16
-    MOUTILS_CHECK_CRCMETHOD_8; //CRC8
-    MOUTILS_CHECK_CRCMETHOD_4; //CRC4
-    MOUTILS_CHECK_CRCMETHOD_CCITT; //CRC_CCITT
+    MOUTILS_CHECK_CRCMETHOD_32, //CRC32
+    MOUTILS_CHECK_CRCMETHOD_16, //CRC16
+    MOUTILS_CHECK_CRCMETHOD_8, //CRC8
+    MOUTILS_CHECK_CRCMETHOD_4, //CRC4
+    MOUTILS_CHECK_CRCMETHOD_CCITT, //CRC_CCITT
 }MOUTILS_CHECK_CRCMETHOD;
 
 typedef union

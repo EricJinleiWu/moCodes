@@ -451,6 +451,33 @@ static void tst_moUtils_Search_Effencicy(void)
     printf("Sunday algo, %d times, ret = %d, difftime = %f\n", timeMaxTimes, ret, difftime);
 }
 
+
+/* ********************************************************************* 
+ ********************** Do test to moUitls_Check module. ****************
+ ***********************************************************************/
+static void tst_CheckSum(void)
+{
+#define CHECK_SUM_TST_LEN   8
+    unsigned char src[CHECK_SUM_TST_LEN] = {0x00};
+    int i = 0;
+    for(; i < CHECK_SUM_TST_LEN; i++)
+    {
+        src[i] = rand() % 256;
+    }
+    DumpArray(src, CHECK_SUM_TST_LEN);
+
+    unsigned char sum;
+    moUtils_Check_getSum(src, CHECK_SUM_TST_LEN, &sum);
+    printf("wjl_test : sum = %d\n", sum);
+
+    int ret = moUtils_Check_checkSum(src, CHECK_SUM_TST_LEN, sum);
+    printf("wjl_test : check sum return %d\n", ret);
+    
+    ret = moUtils_Check_checkSum(src, CHECK_SUM_TST_LEN, sum + 1);
+    printf("wjl_test : check sum return %d\n", ret);
+}
+
+
 int main(int argc, char **argv)
 {
     srand((unsigned int )time(NULL));
@@ -472,7 +499,10 @@ int main(int argc, char **argv)
 
 //    tst_moUtils_Search_Rand();
 
-    tst_moUtils_Search_Effencicy();
+//    tst_moUtils_Search_Effencicy();
+
+    tst_CheckSum();
+
 
     moLoggerUnInit();
     

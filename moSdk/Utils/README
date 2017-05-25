@@ -43,3 +43,8 @@ V1.1.7
         To "Search", add a new algo. named Sunday-algo.;
         This algo. has effcicency better than KMP, some times better than BM, too!
         And this algo. is simple in rules;
+
+V1.1.8
+    EricWu, 20170525
+        To "Check", add checkSum algo.
+        And do unit test for it;
