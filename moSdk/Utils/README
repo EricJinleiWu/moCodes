@@ -48,3 +48,6 @@ V1.1.8
     EricWu, 20170525
         To "Check", add checkSum algo.
         And do unit test for it;
+    EricWu, 20170527
+        To Check-CRC, do not do it currently. Because I donot find a standard algorithm description......
+        I find sevaral descriptions in Web, but they are different to each other.....
