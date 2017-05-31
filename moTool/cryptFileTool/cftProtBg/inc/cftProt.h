@@ -15,6 +15,9 @@
 #define CFT_PROT_OK     0
 #define CFT_PROT_INPUT_INVALID  (0 - 10001) //Input param NULL, or not in right range, and so on
 #define CFT_PROT_INITED_YET     (0 - 10002) //cftProt has been inited, cannot init again.
+#define CFT_PROT_MALLOC_FAILED  (0 - 10003) //malloc failed
+#define CFT_PROT_CREATE_TH_FAILED   (0 - 10004) //create thread failed
+#define CFT_PROT_SEM_INIT_FAILED    (0 - 10005) //sem_init failed
 
 /*
     The crypt algorithms being supported currently.
