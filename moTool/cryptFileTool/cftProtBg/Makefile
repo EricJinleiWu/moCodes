@@ -42,13 +42,13 @@ PROGRAM_OBJ_DIR = ./obj
 MAIN_OBJS = $(patsubst $(MOCFT_SRCDIR)/%.cpp, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(MOCFT_SRCDIR)/*.cpp))
 
 #target is a lib
-TARGET = $(MOCFT_BIN_DIR)/mocftProtBg.so
+TARGET = $(MOCFT_BIN_DIR)/libMocftProtBg.so
           
 # complete binary
 APP: DEPENDS $(TARGET)
 $(TARGET): $(MAIN_OBJS)
 	@echo ">>> compiling $(TARGET) ..."
-	$(CXX) -o $@ $^ $(INCDIRS) $(LDFLAGS)
+	$(CXX) -o $@ -shared $^ $(INCDIRS) 
       
 DEPENDS:
 	@echo "::: compiling depends ..."

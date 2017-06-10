@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
-
+#include <semaphore.h>
 
 #include "moLogger.h"
 #include "cftProt.h"
@@ -46,6 +46,11 @@ static CFT_PROT_TH_RUNNING_STATE gIsThRunning = CFT_PROT_TH_RUNNING_STATE_STOP;
 static pthread_t gThId = CFT_PROT_INVALID_TH_ID;
 
 /*
+    The progress of crypting, just one task being crypted one time, so a global variable being used.
+*/
+static int gCryptProgress = 0;
+
+/*
     Get a request node from @gReqQueue from head;
 */
 static REQ_NODE * deQueue()
@@ -56,7 +61,7 @@ static REQ_NODE * deQueue()
         return NULL;
     }
 
-    if(gReqQueue->next = NULL)
+    if(NULL == gReqQueue->next)
     {
         moLoggerDebug(MOCFT_LOG_MODULE_NAME, "gReqQueue->next == NULL, cannot deQueue anything!\n");
         return NULL;
@@ -80,10 +85,248 @@ static REQ_NODE * deQueue()
 }
 
 /*
+    A callback function, which will register to moCrypt, the progress value will notify us 
+    by this function;
+*/
+void cryptProgress(int value)
+{
+    moLoggerDebug(MOCFT_LOG_MODULE_NAME, "gCryptProgress = %d, value = %d\n", 
+        gCryptProgress, value);
+    gCryptProgress = value;
+}
+
+static int getDstFilepath(const char *pSrcFilepath, const MOCRYPT_METHOD method, char * pDstFilepath)
+{
+    if(NULL == pSrcFilepath || NULL == pDstFilepath)
+    {
+        moLoggerError(MOCFT_LOG_MODULE_NAME, "Input param is NULL.\n");
+        return CFT_PROT_INPUT_INVALID;
+    }
+
+    int ret = 0;
+    switch(method)
+    {
+        case MOCRYPT_METHOD_DECRYPT:
+            if(strlen(pSrcFilepath) + CFT_PROT_PLAIN_FILE_SUFFIX_LEN > MOCRYPT_FILEPATH_LEN)
+            {
+                moLoggerError(MOCFT_LOG_MODULE_NAME, "srcFilepath has length = %d, " \
+                    "CFT_PROT_PLAIN_FILE_SUFFIX_LEN = %d, Allowed dst filepath max value is %d," \
+                    "So this is an invalid srcfilepath! Too long!\n",
+                    strlen(pSrcFilepath), CFT_PROT_PLAIN_FILE_SUFFIX_LEN, MOCRYPT_FILEPATH_LEN);
+                ret = CFT_PROT_INPUT_INVALID;
+            }
+            else
+            {
+                memset(pDstFilepath, 0x00, MOCRYPT_FILEPATH_LEN);
+                sprintf(pDstFilepath, "%s%s", pSrcFilepath, CFT_PROT_PLAIN_FILE_SUFFIX);
+                moLoggerDebug(MOCFT_LOG_MODULE_NAME, "srcFilepath = [%s], dstFilepath = [%s]\n",
+                    pSrcFilepath, pDstFilepath);
+                ret = CFT_PROT_OK;
+            }
+            break;
+        case MOCRYPT_METHOD_ENCRYPT:
+            if(strlen(pSrcFilepath) + CFT_PROT_CIPHER_FILE_SUFFIX_LEN > MOCRYPT_FILEPATH_LEN)
+            {
+                moLoggerError(MOCFT_LOG_MODULE_NAME, "srcFilepath has length = %d, " \
+                    "CFT_PROT_CIPHER_FILE_SUFFIX_LEN = %d, Allowed dst filepath max value is %d," \
+                    "So this is an invalid srcfilepath! Too long!\n",
+                    strlen(pSrcFilepath), CFT_PROT_CIPHER_FILE_SUFFIX_LEN, MOCRYPT_FILEPATH_LEN);
+                ret = CFT_PROT_INPUT_INVALID;
+            }
+            else
+            {
+                memset(pDstFilepath, 0x00, MOCRYPT_FILEPATH_LEN);
+                sprintf(pDstFilepath, "%s%s", pSrcFilepath, CFT_PROT_CIPHER_FILE_SUFFIX);
+                moLoggerDebug(MOCFT_LOG_MODULE_NAME, "srcFilepath = [%s], dstFilepath = [%s]\n",
+                    pSrcFilepath, pDstFilepath);
+                ret = CFT_PROT_OK;
+            }
+            break;
+        default:
+            moLoggerError(MOCFT_LOG_MODULE_NAME, "Input method = %d, invalid!\n", method);
+            ret = CFT_PROT_INPUT_INVALID;
+            break;
+    }
+
+    return ret;
+}
+
+static int doBase64Request(const char * pSrcFilepath, const char * pPasswd, const MOCRYPT_METHOD method)
+{
+    if(NULL == pSrcFilepath || NULL == pPasswd)
+    {
+        moLoggerError(MOCFT_LOG_MODULE_NAME, "Input param is NULL.\n");
+        return CFT_PROT_INPUT_INVALID;
+    }
+
+    moLoggerDebug(MOCFT_LOG_MODULE_NAME, "srcfilepath = [%s], passwd = [%s]\n",
+        pSrcFilepath, pPasswd);
+    
+    char pDstFilepath[MOCRYPT_FILEPATH_LEN] = {0x00};
+    int ret = getDstFilepath(pSrcFilepath, method, pDstFilepath);
+    if(ret != CFT_PROT_OK)
+    {
+        moLoggerError(MOCFT_LOG_MODULE_NAME, "getDstFilepath failed! srcFilepath = [%s], method = %d, ret = %d\n",
+            pSrcFilepath, method, ret);
+        return ret;
+    }
+    ret = moCrypt_BASE64_File(method, pSrcFilepath, pDstFilepath, cryptProgress);
+    if(ret != 0)
+    {
+        moLoggerError(MOCFT_LOG_MODULE_NAME, "moCrypt_BASE64_File failed! ret = %d\n", ret);
+        return ret;
+    }
+
+    moLoggerDebug(MOCFT_LOG_MODULE_NAME, "moCrypt_BASE64_File done!\n");
+    return CFT_PROT_OK;
+}
+
+static int doRc4Request(const char * pSrcFilepath, const char * pPasswd, const MOCRYPT_METHOD method)
+{
+    if(NULL == pSrcFilepath || NULL == pPasswd)
+    {
+        moLoggerError(MOCFT_LOG_MODULE_NAME, "Input param is NULL.\n");
+        return CFT_PROT_INPUT_INVALID;
+    }
+
+    moLoggerDebug(MOCFT_LOG_MODULE_NAME, "srcfilepath = [%s], passwd = [%s]\n",
+        pSrcFilepath, pPasswd);
+
+    
+    char pDstFilepath[MOCRYPT_FILEPATH_LEN] = {0x00};
+    int ret = getDstFilepath(pSrcFilepath, method, pDstFilepath);
+    if(ret != CFT_PROT_OK)
+    {
+        moLoggerError(MOCFT_LOG_MODULE_NAME, "getDstFilepath failed! srcFilepath = [%s], method = %d, ret = %d\n",
+            pSrcFilepath, method, ret);
+        return ret;
+    }
+    
+    MOCRYPT_RC4_FILEINFO rc4Info;
+    memset(&rc4Info, 0x00, sizeof(MOCRYPT_RC4_FILEINFO));
+    strncpy(rc4Info.pSrcFilepath, pSrcFilepath, MOCRYPT_FILEPATH_LEN);
+    rc4Info.pSrcFilepath[MOCRYPT_FILEPATH_LEN - 1] = 0x00;
+    strncpy(rc4Info.pDstFilepath, pDstFilepath, MOCRYPT_FILEPATH_LEN);
+    rc4Info.pDstFilepath[MOCRYPT_FILEPATH_LEN - 1] = 0x00;
+    rc4Info.pCallback = cryptProgress;
+    strcpy((char *)rc4Info.pKey, pPasswd);
+    rc4Info.keyLen = strlen((char *)rc4Info.pKey);
+    moLoggerDebug(MOCFT_LOG_MODULE_NAME, "RC4 info: srcfilepath = [%s], dstfilepath = [%s], " \
+        "key = [%s], keylen = [%d]\n", rc4Info.pSrcFilepath, rc4Info.pDstFilepath, rc4Info.pKey, rc4Info.keyLen);
+
+    ret = moCrypt_RC4_cryptFile(&rc4Info);
+    if(ret != 0)
+    {
+        moLoggerError(MOCFT_LOG_MODULE_NAME, "moCrypt_RC4_cryptFile failed! ret = %d\n", ret);
+        return ret;
+    }
+
+    moLoggerDebug(MOCFT_LOG_MODULE_NAME, "moCrypt_RC4_cryptFile done!\n");
+    return CFT_PROT_OK;
+}
+
+static void notifyProgress2UI(const int progress)
+{
+    //TODO, should notify UI to show Progress, I want to realize this function with socket;
+    (void )progress;
+    return ;
+}
+
+/*
+    Deal with a crypt request;
+*/
+static int doRequest(const REQ_NODE * pReqNode)
+{
+    if(NULL == pReqNode)
+    {
+        moLoggerError(MOCFT_LOG_MODULE_NAME, "Input param is NULL.\n");
+        return CFT_PROT_INPUT_INVALID;
+    }
+
+    //Start crypt
+    int ret = 0;
+    MO_CFT_ALGO algoNo = pReqNode->req.algoNo;
+    switch(algoNo)
+    {
+//        case MO_CFT_ALGO_3DES:
+//            ret = doDes3Request(pReqNode->req.srcFilepath, pReqNode->req.passwd, pReqNode->req.cryptMethod);
+//            break;
+        case MO_CFT_ALGO_BASE64:
+            ret = doBase64Request(pReqNode->req.srcFilepath, pReqNode->req.passwd, pReqNode->req.cryptMethod);
+            break;
+//        case MO_CFT_ALGO_DES:
+//            ret = doDesRequest(pReqNode->req.srcFilepath, pReqNode->req.passwd, pReqNode->req.cryptMethod);
+//            break;
+        case MO_CFT_ALGO_RC4:
+            ret = doRc4Request(pReqNode->req.srcFilepath, pReqNode->req.passwd, pReqNode->req.cryptMethod);
+            break;
+        default:
+            ret = CFT_PROT_INPUT_INVALID;
+            moLoggerError(MOCFT_LOG_MODULE_NAME, "Input algoNo = %d, donot support it now.\n", algoNo);
+            break;
+    }
+
+    if(ret < 0)
+    {
+        moLoggerError(MOCFT_LOG_MODULE_NAME, "Start crypt failed! ret = %d\n", ret);
+        notifyProgress2UI(ret);
+    }
+    else
+    {
+        //Get progress, and send it to cftUI
+        while(1)
+        {
+            moLoggerDebug(MOCFT_LOG_MODULE_NAME, "gCryptProgress = %d\n", gCryptProgress);
+            notifyProgress2UI(gCryptProgress);
+            if(gCryptProgress >=0 && gCryptProgress < 100)
+            {
+                usleep(10 * 1000);  //10ms
+                continue;
+            }
+            else if(gCryptProgress == 100)
+            {
+                moLoggerDebug(MOCFT_LOG_MODULE_NAME, "crypt done!\n");
+                ret = 0;
+                break;
+            }
+            else
+            {
+                moLoggerDebug(MOCFT_LOG_MODULE_NAME, "gCryptProgress invalid! crypt failed!\n");
+                ret = gCryptProgress;
+                break;
+            }
+        }
+    }
+    
+    return ret;
+}
+
+/*
+    Clear the gReqQueue, should free all nodes;
+    head node of this queue will not be deleted;
+*/
+static void clearQueue()
+{
+    REQ_NODE *pCurReq = gReqQueue;
+    REQ_NODE *pNextReq = pCurReq->next;
+    while(pNextReq != NULL && pNextReq != gReqQueue)
+    {
+        pCurReq = pNextReq;
+        pNextReq = pNextReq->next;
+        free(pCurReq);
+        pCurReq = NULL;
+    }
+
+    gReqQueue->prev = NULL;
+    gReqQueue->next = NULL;
+}
+
+/*
     A thread, to get requests from @gReqQueue, and do crypt to them;
 */
-static void thDoRequests(void * args)
+static void * thDoRequests(void * args)
 {
+    args = args;
     moLoggerInfo(MOCFT_LOG_MODULE_NAME, "thread thDoRequests started!\n");
 
     //@gIsThRunning is a flag, to determine thread running or not;
@@ -98,7 +341,18 @@ static void thDoRequests(void * args)
         {
             moLoggerDebug(MOCFT_LOG_MODULE_NAME, "get a request from queue.\n");
 
-            //TODO, do this request
+            //do this request
+            int ret = doRequest(pCurReq);
+            if(ret != CFT_PROT_OK)
+            {
+                moLoggerError(MOCFT_LOG_MODULE_NAME, "doRequest failed! ret = %d\n", ret);
+                //If a task has error, clear all tasks from gReqQueue, and user must deal with this error
+                free(pCurReq);
+                pCurReq = NULL;
+                clearQueue();
+                break;
+            }
+            moLoggerDebug(MOCFT_LOG_MODULE_NAME, "doRequest OK.\n");
 
             //After this request being done, just free its memory
             free(pCurReq);
@@ -110,6 +364,8 @@ static void thDoRequests(void * args)
     }
     
     moLoggerInfo(MOCFT_LOG_MODULE_NAME, "thread thDoRequests stopped!\n");
+
+    return NULL;
 }
 
 /*
@@ -172,19 +428,11 @@ void cftProtUnInit(void)
         sem_post(&gSem);
         pthread_join(gThId, NULL);
         gThId = CFT_PROT_INVALID_TH_ID;
-        sem_destroy(gSem);
+        sem_destroy(&gSem);
         moLoggerInfo(MOCFT_LOG_MODULE_NAME, "thread thDoRequests stopped.\n");
 
         //clear @gReqQueue then
-        REQ_NODE *pCurReq = gReqQueue;
-        REQ_NODE *pNextReq = pCurReq->next;
-        while(pNextReq != NULL && pNextReq != gReqQueue)
-        {
-            pCurReq = pNextReq;
-            pNextReq = pNextReq->next;
-            free(pCurReq);
-            pCurReq = NULL;
-        }
+        clearQueue();
 
         //head node must be freeed, too
         free(gReqQueue);
@@ -226,6 +474,7 @@ int cftProtAddRequest(const CFT_REQUEST_INFO * pRequests, const unsigned int req
         pCurNode->req.algoNo = pRequests[i].algoNo;
         strcpy(pCurNode->req.srcFilepath, pRequests[i].srcFilepath);
         strcpy(pCurNode->req.passwd, pRequests[i].passwd);
+        pCurNode->req.cryptMethod = pRequests[i].cryptMethod;
         pCurNode->next = NULL;
         pCurNode->prev = NULL;
 
@@ -288,7 +537,7 @@ int cftProtAddRequest(const CFT_REQUEST_INFO * pRequests, const unsigned int req
         else
         {
             pTmpList->prev->next = gReqQueue;
-            pTmpList.prev = gReqQueue;
+            pTmpList->prev = gReqQueue;
         }
     }
     else
@@ -305,11 +554,14 @@ int cftProtAddRequest(const CFT_REQUEST_INFO * pRequests, const unsigned int req
         else
         {
             pTmpList->prev->next = gReqQueue;
-            pTmpList.prev = pCurLastNode;
+            pTmpList->prev = pCurLastNode;
         }
     }
 
     moLoggerDebug(MOCFT_LOG_MODULE_NAME, "All requests being added to gReqQueue.\n");
+
+    //Send semaphore to @thDoRequest, tell it to work
+    sem_post(&gSem);
 
     return CFT_PROT_OK;
 }

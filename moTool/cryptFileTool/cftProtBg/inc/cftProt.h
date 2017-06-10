@@ -1,10 +1,14 @@
 #ifndef __CFT_PROT_H__
 #define __CFT_PROT_H__
 
-/*
-    The length of src filepath, 512 bytes is enough;
-*/
-#define SRC_FILEPATH_LEN    512
+#include "moCrypt.h"
+
+#define CFT_PROT_CIPHER_FILE_SUFFIX  ".cftCipher"
+#define CFT_PROT_CIPHER_FILE_SUFFIX_LEN 10  //strlen(CFT_PROT_CIPHER_FILE_SUFFIX)
+#define CFT_PROT_PLAIN_FILE_SUFFIX  ".cftPlain"
+#define CFT_PROT_PLAIN_FILE_SUFFIX_LEN 9  //strlen(CFT_PROT_PLAIN_FILE_SUFFIX)
+
+#define CFT_PROT_SRC_FILEPATH_LEN    MOCRYPT_FILEPATH_LEN
 
 /*
     The max length of password;
@@ -35,9 +39,10 @@ typedef enum
 */
 typedef struct
 {
-    unsigned char srcFilepath[SRC_FILEPATH_LEN];
-    unsigned char passwd[PASSWD_MAX_LEN];
+    char srcFilepath[CFT_PROT_SRC_FILEPATH_LEN];
+    char passwd[PASSWD_MAX_LEN];
     MO_CFT_ALGO algoNo;
+    MOCRYPT_METHOD cryptMethod; //encrypt or decrypt
 }CFT_REQUEST_INFO;
 
 /*
