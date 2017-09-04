@@ -25,7 +25,8 @@
 #include <time.h>
 #include <math.h>
 
-#define MAX_PRIME_NUM   (0x10ff)
+//Cannot too large, because we just can deal with little number now, large number will be done later.
+#define MAX_PRIME_NUM   (30)
 
 #define E_VALUE1    11
 #define E_VALUE2    17
@@ -101,7 +102,7 @@ static int lcm(const int num1, const int num2)
 */
 static int getE()
 {
-    return 17;
+    return 11;
 }
 
 static int extendEuclid(const int E, const int L, int * D, int * k)
@@ -120,6 +121,37 @@ static int extendEuclid(const int E, const int L, int * D, int * k)
 
     return r;
 }
+
+int exGcd(int a,int b,int &x,int &y)
+{
+    if(b==0)
+    {
+        x=1;
+        y=0;
+        return a;
+    }
+    int r=exGcd(b,a%b,x,y);
+    int t=x;
+    x=y;
+    y=t-a/b*y;
+    
+    return r;
+}
+
+#if 0
+int main(int argc, char **argv)
+{
+    int E = 11, L = 120;
+    int D = 0, K = 0;
+    extendEuclid(E, L, &D, &K);
+    printf("E = %d, L = %d, d = %d, k = %d\n", E, L, D, K);
+
+    exGcd(E, L, D, K);
+    printf("E = %d, L = %d, d = %d, k = %d\n", E, L, D, K);
+    
+    return 0;
+}
+#endif
 
 /*
     E * d + k * L = 1;
@@ -148,6 +180,12 @@ static int genKeys(int *E, int *D, int *N)
     *D = getD(*E, L);
     printf("E = %d, D = %d, N = %d, L = %d\n", *E, *D, *N, L);
 
+	//This is very important!!
+    if(*D < 0)
+    {
+        *D = *D + L;
+        printf("D < 0, we convert it to %d\n", D);
+    }
     
     return 0;
 }
