@@ -328,6 +328,61 @@ int moUtils_Check_checkCrc(const unsigned char *pSrc, const unsigned int len,
 
 #endif
 
+
+
+
+/**********************************************************************************
+    "moUtils_Ini_" will be prefix to Ini file operation, currently, support parse
+***********************************************************************************/
+#define MOUTILS_INI_SECTION_NAME_MAX_LEN	128
+#define MOUTILS_INI_ATTR_KEY_MAX_LEN		128
+#define MOUTILS_INI_ATTR_VALUE_MAX_LEN		128
+
+/* The attribute*/
+typedef struct
+{
+	char key[MOUTILS_INI_ATTR_KEY_MAX_LEN];
+	char value[MOUTILS_INI_ATTR_VALUE_MAX_LEN];
+}MOUTILS_INI_ATTR_INFO;
+
+/* Record attr info of a section in a list*/
+typedef struct _MOUTILS_INI_ATTR_NODE
+{
+	MOUTILS_INI_ATTR_INFO attrInfo;
+	struct _MOUTILS_INI_ATTR_NODE *next;
+}MOUTILS_INI_ATTR_INFO_NODE;
+
+typedef struct _MOUTILS_INI_SECTION_NODE
+{
+	char sectionName[MOUTILS_INI_SECTION_NAME_MAX_LEN];
+	MOUTILS_INI_ATTR_INFO_NODE *pHeadAttrNode;		//The head of the list which record all attr info node;
+	struct _MOUTILS_INI_SECTION_NODE *next;
+}MOUTILS_INI_SECTION_INFO_NODE;
+
+/* Do init operation
+ * If init succeed, return valid pointer;
+ * otherwise, return NULL;
+ * 
+ * Make sure to call UnInit! Or memory leakage!
+ * */
+MOUTILS_INI_SECTION_INFO_NODE * moUtils_Ini_Init(const char *filepath);
+
+/* Dump all section info*/
+void moUtils_Ini_DumpAllInfo(const MOUTILS_INI_SECTION_INFO_NODE *pSecInfoHeadNode);
+
+/* Get value with defined section and key
+ * If get succeed, return value is 0, and the attribute value will set to pAttrValue;
+ * else, return value is 0-;
+ * */
+int moUtils_Ini_GetAttrValue(const char *pSecName, const char *pAttrKey, char *pAttrValue,
+        const MOUTILS_INI_SECTION_INFO_NODE *pSecInfoHeadNode);
+
+/* Do uninit operation*/
+int moUtils_Ini_UnInit(MOUTILS_INI_SECTION_INFO_NODE *pSecInfoHeadNode);
+
+
+
+
 #ifdef __cplusplus
 }
 #endif

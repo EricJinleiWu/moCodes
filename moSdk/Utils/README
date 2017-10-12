@@ -51,3 +51,9 @@ V1.1.8
     EricWu, 20170527
         To Check-CRC, do not do it currently. Because I donot find a standard algorithm description......
         I find sevaral descriptions in Web, but they are different to each other.....
+
+V1.1.9
+    EricWu, 20171012
+        Add a new directory Conf to Utils, in this directory, I want to do ini, xml and json;
+        Currently, just move moIniParser from moSdk to this directory, and use moLogger to pirnt log info;
+        

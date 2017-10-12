@@ -21,6 +21,9 @@ Search_INC_DIR = $(Search_DIR)/inc
 Check_DIR = ./Check
 Check_SRC_DIR = $(Check_DIR)/src
 Check_INC_DIR = $(Check_DIR)/inc
+Conf_Ini_DIR = ./Conf/Ini
+Conf_Ini_SRC_DIR = $(Conf_Ini_DIR)/src
+Conf_Ini_INC_DIR = $(Conf_Ini_DIR)/inc
 
 #MoLogger dir
 MOLOGGER_DIR = ../Logger
@@ -49,6 +52,7 @@ MAIN_OBJS = $(patsubst $(ThreadPool_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wild
 MAIN_OBJS += $(patsubst $(File_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(File_SRC_DIR)/*.c))
 MAIN_OBJS += $(patsubst $(Search_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(Search_SRC_DIR)/*.c))
 MAIN_OBJS += $(patsubst $(Check_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(Check_SRC_DIR)/*.c))
+MAIN_OBJS += $(patsubst $(Conf_Ini_SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(Conf_Ini_SRC_DIR)/*.c))
 
 #target is a lib
 TARGET_DIR = ./lib
@@ -79,6 +83,9 @@ $(PROGRAM_OBJ_DIR)/%.o: $(Search_SRC_DIR)/%.c
 	@echo ">>> compiling $< ..."
 	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
 $(PROGRAM_OBJ_DIR)/%.o: $(Check_SRC_DIR)/%.c
+	@echo ">>> compiling $< ..."
+	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
+$(PROGRAM_OBJ_DIR)/%.o: $(Conf_Ini_SRC_DIR)/%.c
 	@echo ">>> compiling $< ..."
 	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
 	

@@ -11,7 +11,7 @@ MOUTILS_LIBDIR = ../../release/
 TAR = tstMoUtils
 
 all:
-	$(CC) -o $(TAR) $(SRC_FILES) $(INC_DIR) -lpthread -L$(MOUTILS_LIBDIR) -lMoUtils  -lMoLogger -lMoIniParser
+	$(CC) -o $(TAR) $(SRC_FILES) $(INC_DIR) -lpthread -L$(MOUTILS_LIBDIR) -lMoUtils  -lMoLogger 
 
 clean:
 	rm -rf $(TAR)

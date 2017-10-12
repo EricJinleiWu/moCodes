@@ -170,8 +170,6 @@ static int genKeys(int *E, int *D, int *N)
 {
     int p = getRandPrimeNum();
     int q = getRandPrimeNum();
-    p = 11;
-    q = 13;
     printf("p = %d, q = %d\n", p, q);
 
     int L = (p - 1) * (q - 1);
@@ -193,7 +191,7 @@ static int genKeys(int *E, int *D, int *N)
 /*
     src ** ED % N;
 */
-static int rsaCrypt(const int ED, const int N, const int src, int * dst)
+static int rsaCrypt(int ED, const int N, const int src, int * dst)
 {
     int ret = 0;
     int i = 0; 

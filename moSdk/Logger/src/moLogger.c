@@ -7,8 +7,8 @@
 #include <pthread.h>
 
 #include "moLogger.h"
-#include "moLoggerUtils.h"
-#include "moIniParser.h"
+#include "utils.h"
+#include "iniParser.h"
 
 #define ATTR_LEVEL      "level"
 #define ATTR_LOCALFILE  "localfile"

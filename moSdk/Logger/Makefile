@@ -11,11 +11,8 @@ MO_SDK_RELEASE_DIR = ../release
 #src dir
 SRC_DIR = ./src
 
-#unit test dir
-TST_DIR = ./tst
-
 # INC DIRS.
-INCDIRS = -I./inc -I../IniParser/inc/
+INCDIRS = -I./inc
 
 # System lib path
 LDFLAGS = -L../
@@ -34,14 +31,6 @@ MAIN_OBJS = $(patsubst $(SRC_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(SRC_
 TARGET_DIR = ./lib
 TARGET = $(TARGET_DIR)/libMoLogger.so.$(DVRGW_SUFFIX)
 
-
-#unit test obj
-TEST_OBJS = $(patsubst $(TST_DIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(TST_DIR)/*.c))
-
-#get the test process
-TEST_TARGET_DIR = $(TST_DIR)
-TEST_TARGET = $(TEST_TARGET_DIR)/tstMoLogger
-          
 # complete binary
 APP: DEPENDS $(TARGET)
 $(TARGET): $(MAIN_OBJS)
@@ -64,12 +53,6 @@ $(PROGRAM_OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 $(PROGRAM_OBJ_DIR)/%.o: $(TST_DIR)/%.cpp
 	@echo ">>> compiling $< ..."
 	$(CXX) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
-	
-test:$(TEST_TARGET)
-$(TEST_TARGET):$(TEST_OBJS)
-	echo ">>> compiling $(TEST_TARGET) ..."
-	$(CC) -o $@ $^ $(INCDIRS) $(LDFLAGS) -L $(TARGET_DIR) -lMoLogger
-	
 	
 clean:
 	@rm -rf $(PROGRAM_OBJ_DIR)

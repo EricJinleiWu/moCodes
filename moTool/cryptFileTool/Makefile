@@ -30,7 +30,7 @@ INCDIRS = -I$(MOCFT_INCDIR) \
 # System lib path
 LDFLAGS =	-lpthread -lrt -ldl
 LDFLAGS += \
-		   -L../../moSdk/release -lMoLogger -lMoUtils -lMoCrypto -lMoIniParser
+		   -L../../moSdk/release -lMoLogger -lMoUtils -lMoCrypto
 
 #Cflags
 CFLAGS	= -g -ggdb -MMD -Wall -W

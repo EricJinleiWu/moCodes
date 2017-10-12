@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <errno.h>
 
-#include "moLoggerUtils.h"
+#include "utils.h"
 #include "moLogger.h"
 
 /*

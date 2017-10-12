@@ -457,7 +457,7 @@ static void tst_moUtils_Search_Effencicy(void)
  ***********************************************************************/
 static void tst_CheckSum(void)
 {
-#define CHECK_SUM_TST_LEN   8
+#define CHECK_SUM_TST_LEN   64
     unsigned char src[CHECK_SUM_TST_LEN] = {0x00};
     int i = 0;
     for(; i < CHECK_SUM_TST_LEN; i++)
@@ -478,6 +478,33 @@ static void tst_CheckSum(void)
 }
 
 
+
+/* ********************************************************************* 
+ ********************** Do test to moUitls_Conf_Ini module. ****************
+ ***********************************************************************/
+void testBasicIniParser()
+{
+//    char filepath[128] = "./iniFiles/rightFormat.ini";
+//    char filepath[128] = "./iniFiles/rightFormat.ini.bak";
+    char filepath[128] = "./iniFiles/wrongFormatDuplSecname.ini";
+    MOUTILS_INI_SECTION_INFO_NODE *pHeadNode = NULL;
+    pHeadNode = moUtils_Ini_Init(filepath);
+    if(NULL == pHeadNode)
+    {
+        printf("wjl_test : moIniParser_Init with filepath = [%s] failed!\n", filepath);
+    }
+    else
+    {
+        printf("wjl_test : moIniParser_Init with filepath = [%s] succeed!\n", filepath);        
+        
+        moUtils_Ini_DumpAllInfo(pHeadNode);
+        
+        moUtils_Ini_UnInit(pHeadNode);
+    }
+}
+
+
+
 int main(int argc, char **argv)
 {
     srand((unsigned int )time(NULL));
@@ -496,12 +523,11 @@ int main(int argc, char **argv)
 #endif
 
 //    tst_moUtils_Search_Basic();
-
 //    tst_moUtils_Search_Rand();
-
 //    tst_moUtils_Search_Effencicy();
+//    tst_CheckSum();
+    testBasicIniParser();
 
-    tst_CheckSum();
 
 
     moLoggerUnInit();

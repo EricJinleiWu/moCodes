@@ -6,12 +6,11 @@ CC			:= gcc
 SRC_DIR = ./
 
 # INC DIRS.
-INCDIRS = -I../inc -I../../IniParser/inc/
+INCDIRS = -I../inc
 
 # System lib path
 LIB_LOGGER_DIR = ../lib/
-LIB_INIPARSER_DIR = ../../IniParser/lib
-LDFLAGS = -L$(LIB_LOGGER_DIR) -lMoLogger -L$(LIB_INIPARSER_DIR) -lMoIniParser
+LDFLAGS = -L$(LIB_LOGGER_DIR) -lMoLogger
 LDFLAGS +=	-lpthread -lrt -ldl
 
 #Cflags

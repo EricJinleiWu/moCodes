@@ -27,3 +27,9 @@ V1.0.3:
     From this version, I changed the API of moLogger from "moLogger(moduleName, level, ...)" to "moLoggerDebug(moduleName, ...) && moLoggerWarn... and so on";
     And after this version, all logs can contain __FILE__ && __FUNCTION__ && __LINE__, this can help us when debug.
 
+V1.0.4:
+    EricWu, 20171012
+    From this version, I delete the appendence to "moIniParser";
+    I changed the structure of MoSdk, moIniParser will be set to moConf which in moUtils;
+    In moLogger, just use source code of moIniParser to do config file parsing work;
+    This can help us to use moLogger without any other limits;
