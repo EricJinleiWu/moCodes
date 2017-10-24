@@ -1,4 +1,4 @@
-DIRS=Crypto IniParser Logger Utils Sort
+DIRS=Crypto Logger Utils Sort
 
 all:
 	for i in $(DIRS); do \
