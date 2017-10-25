@@ -51,6 +51,14 @@ MO_LOGGER_BOOL isValidLevelValue(const char *str);
 */
 MO_LOGGER_BOOL isConfFileExist(const char *dir);
 
+/*
+    @pLevel is a string of level, must be in ["debug", "info", "warn", "error", "fatal"]
+    valid value has been defind in @gStrValue;
+    level id will be returned if @pLevel is valid, or return 0-;
+*/
+int getLevelFromValue(const char *pLevel);
+
+
 #ifdef __cplusplus
 }
 #endif

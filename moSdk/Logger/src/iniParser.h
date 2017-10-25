@@ -1,5 +1,5 @@
-#ifndef __MO_INI_PARSER_H__
-#define __MO_INI_PARSER_H__
+#ifndef __INI_PARSER_H__
+#define __INI_PARSER_H__
 
 #ifdef __cplusplus
 extern "C"{
@@ -36,7 +36,7 @@ typedef struct SECTION_NODE
  * 
  * Make sure to call UnInit! Or memory leakage!
  * */
-SECTION_INFO_NODE * moIniParser_Init(const char *filepath);
+SECTION_INFO_NODE * iniParserInit(const char *filepath);
 
 /* Dump all section info*/
 void moIniParser_DumpAllInfo(const SECTION_INFO_NODE *pSecInfoHeadNode);
@@ -45,11 +45,11 @@ void moIniParser_DumpAllInfo(const SECTION_INFO_NODE *pSecInfoHeadNode);
  * If get succeed, return value is 0, and the attribute value will set to pAttrValue;
  * else, return value is 0-;
  * */
-int moIniParser_GetAttrValue(const char *pSecName, const char *pAttrKey, char *pAttrValue,
+int iniParserGetAttrValue(const char *pSecName, const char *pAttrKey, char *pAttrValue,
         const SECTION_INFO_NODE *pSecInfoHeadNode);
 
 /* Do uninit operation*/
-int moIniParser_UnInit(SECTION_INFO_NODE *pSecInfoHeadNode);
+int iniParserUnInit(SECTION_INFO_NODE *pSecInfoHeadNode);
 
 
 #ifdef __cplusplus

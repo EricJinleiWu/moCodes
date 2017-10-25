@@ -96,7 +96,7 @@ int moLoggerInit(const char *fileDir)
     filepath[filepathLen - 1] = 0x00;
 
     /* Parse this config file */
-    gpSecHeadNode = moIniParser_Init(filepath);
+    gpSecHeadNode = iniParserInit(filepath);
     if(NULL == gpSecHeadNode)
 	{
 		moLoggerOwnInfo("moIniParser_Init failed! file directory is [%s], filepath is [%s].\n",
@@ -154,7 +154,7 @@ void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *fil
     /* Get the level firstly */
     char value[ATTR_VALUE_MAX_LEN] = {0x00};
     memset(value, 0x00, ATTR_VALUE_MAX_LEN);
-    int ret = moIniParser_GetAttrValue(moduleName, ATTR_LEVEL, value, gpSecHeadNode);
+    int ret = iniParserGetAttrValue(moduleName, ATTR_LEVEL, value, gpSecHeadNode);
     if(0 != ret)
     {
         moLoggerOwnInfo("moIniParser_GetAttrValue failed! ret = %d, moduleName = [%s], ATTR_LEVEL = [%s]\n",
@@ -168,12 +168,12 @@ void logger(const char *moduleName, const MO_LOGGER_LEVEL level, const char *fil
         return ;
     }
 
-    if(level >= configLevel)    //Need output this log
+    if(level >= (unsigned int)configLevel)    //Need output this log
     {        
         /* Check logout to file or not */
         memset(value, 0x00, ATTR_VALUE_MAX_LEN);
         MO_LOGGER_BOOL isWriteLog2File = MO_LOGGER_FALSE;
-        ret = moIniParser_GetAttrValue(moduleName, ATTR_LOCALFILE, value, gpSecHeadNode);
+        ret = iniParserGetAttrValue(moduleName, ATTR_LOCALFILE, value, gpSecHeadNode);
         if(0 == ret)
         {
             //Need output to file, filepath being defined in @value
@@ -238,7 +238,7 @@ int moLoggerUnInit(void)
         if(0 == gInitCnt)
         {
             /* Release all info being parsed from config file. */
-            moIniParser_UnInit(gpSecHeadNode);
+            iniParserUnInit(gpSecHeadNode);
             gpSecHeadNode = NULL;
 
             memset(gFileDir, 0x00, MO_LOGGER_MAX_DIRPATH_LEN);

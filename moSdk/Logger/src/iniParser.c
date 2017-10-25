@@ -633,7 +633,7 @@ static int GetSectionList(FILE *fp, SECTION_INFO_NODE *pSecInfoHeadNode)
  * 		2.2.file content;
  * 3.Get all info to local;
  * */
-SECTION_INFO_NODE * moIniParser_Init(const char *filepath)
+SECTION_INFO_NODE * iniParserInit(const char *filepath)
 {
 	if(NULL == filepath)
 	{
@@ -707,7 +707,7 @@ void moIniParser_DumpAllInfo(const SECTION_INFO_NODE *pSecInfoHeadNode)
 }
 
 /* Get the value of an attribute with input section and key*/
-int moIniParser_GetAttrValue(const char *pSecName, const char *pAttrKey, char *pAttrValue, 
+int iniParserGetAttrValue(const char *pSecName, const char *pAttrKey, char *pAttrValue, 
         const SECTION_INFO_NODE *pSecInfoHeadNode)
 {
 	if(NULL == pSecInfoHeadNode)
@@ -758,7 +758,7 @@ int moIniParser_GetAttrValue(const char *pSecName, const char *pAttrKey, char *p
 	return 0;
 }
 
-int moIniParser_UnInit(SECTION_INFO_NODE *pSecInfoHeadNode)
+int iniParserUnInit(SECTION_INFO_NODE *pSecInfoHeadNode)
 {
 	if(NULL == pSecInfoHeadNode)
 	{
