@@ -29,12 +29,19 @@
 #include "moNvrClient.h"
 #include "commMsg.h"
 #include "confParser.h"
-#include "keyAgree.h"
 
 #include "moUtils.h"
 #include "moLogger.h"
 #include "moCrypt.h"
 
+/*
+    To heartbeat thread, we use this inteval, this can help us to stop thread quickly.
+*/
+#define THREAD_TIME_INTEVAL     1
+/*
+    In this timeout, if cannot connect to server, we think connect to server failed!
+*/
+#define CONNECT_TIMEOUT         3
 
 typedef enum
 {
@@ -49,34 +56,306 @@ int gSockId = -1;
 pthread_mutex_t gLock = PTHREAD_MUTEX_INITIALIZER;
 pMoNvrCliSendFrameCallback gpSendFrameFunc = NULL;
 MONVRCLI_STATE gState = MONVRCLI_STATE_IDLE;
+char gIsRecvRespThrRunning = 0;
+char gIsHeartbeatThrRunning = 0;
+
+
+/* set socket to non block mode */
+static int setSockToNonBlock(const int sockId)
+{
+    int b_on = 1;
+    int ret = ioctl(sockId, FIONBIO, &b_on);
+    if(ret != 0)
+    {
+        moLoggerError(MO_NVR_CLIENT_LOG_MODULE, 
+            "ioctl to set socket to nonblock failed! ret = %d, errno = %d, desc = [%s]\n",
+            ret, errno, strerror(errno));
+        return -1;
+    }
+    moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "ioctl to set socket to nonblock succeed.\n");
+    
+    return 0;
+}
+
+/*
+    Connect to server in timeout;
+*/
+static int connect2ServerAsync(const int sockId, const IP_ADDR_INFO servInfo, const int timeout)
+{
+    moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "sockId=%d, server ip=[%s], server port=%d, timeout=%d\n",
+        sockId, servInfo.ip, servInfo.port, timeout);
+    
+    struct sockaddr_in servAddr;
+    memset(&servAddr, 0x00, sizeof(struct sockaddr_in));
+    servAddr.sin_family = AF_INET;
+    servAddr.sin_addr.s_addr = inet_addr(servInfo.ip);
+    servAddr.sin_port = htons(servInfo.port);
+    int ret = connect(gSockId, (struct sockaddr *)&servAddr, sizeof(struct sockaddr));
+    if(0 == ret)
+    {
+        moLoggerInfo(MO_NVR_CLIENT_LOG_MODULE, "Connect succeed once!\n");
+    }
+    else
+    {
+        if(errno == EINPROGRESS)
+        {
+            moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "Socket being blocked yet, we have no ret.\n");
+            //Do select here.
+            fd_set wFdSet;
+            FD_ZERO(&wFdSet);
+            FD_SET(gSockId, &wFdSet);
+            fd_set rFdSet;
+            FD_ZERO(&rFdSet);
+            FD_SET(gSockId, &rFdSet);
+            struct timeval tm;
+            tm.tv_sec = timeout;
+            tm.tv_usec = 0;
+            ret = select(gSockId + 1, &rFdSet, &wFdSet, NULL, &timeout);
+            if(ret < 0)
+            {
+                moLoggerError(MO_NVR_CLIENT_LOG_MODULE, "when connect, select failed! ret = %d, errno = %d, desc = [%s]\n", 
+                    ret, errno, strerror(errno));
+                return -1;
+            }
+            else if(ret == 0)
+            {
+                moLoggerError(MO_NVR_CLIENT_LOG_MODULE, "when connect, select timeout!\n");
+                return -2;
+            }
+            else
+            {
+                //select succeed, but its neccessary to assure its really succeed.
+                if(FD_ISSET(gSockId, &wFdSet))
+                {
+                    if(FD_ISSET(gSockId, &rFdSet))
+                    {
+                        moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, 
+                            "select ok, but wFdSet and rFdSet all being set, we should check!\n");
+                        //check this socket is OK or not.
+                        int err = 0;
+                        socklen_t errLen;
+                        ret = getsockopt(gSockId, SOL_SOCKET, SO_ERROR, (void *)&err, &errLen);
+                        if(0 != ret)
+                        {
+                            moLoggerError(MO_NVR_CLIENT_LOG_MODULE, 
+                                "getsockopt failed! ret = %d, errno = %d, desc = [%s]\n", 
+                                ret, errno, strerror(errno));
+                            return -3;
+                        }
+                        else
+                        {
+                            if(err != 0)
+                            {
+                                moLoggerError(MO_NVR_CLIENT_LOG_MODULE, 
+                                    "getsockopt ok, but err = %d, donot mean OK, just mean some error!\n",
+                                    err);
+                                return -4;
+                            }
+                            else
+                            {
+                                moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, 
+                                    "getsockopt ok, and err = %d, means connect succeed!\n", err);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, 
+                            "select ok, and just wFdSet being set, means connect being OK.\n");
+                    }
+                }
+                else
+                {
+                    //Just this socket being set to wFdSet, if not this socket, error ocurred!
+                    moLoggerError(MO_NVR_CLIENT_LOG_MODULE, "select ok, but the fd is not client socket!\n");
+                    return -5;
+                }
+            }
+        }
+        else
+        {
+            moLoggerError(MO_NVR_CLIENT_LOG_MODULE, "Connect failed! ret = %d, errno = %d, desc = [%s]\n",
+                ret, errno, strerror(errno));
+            return -5;
+        }
+    }
+    moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "Connect succeed now!\n");
+    
+    return 0;
+}
 
 /*
     Connect to server;
 
     1.create socket;
     2.do connect;
-        2.1.If in timeout, donot recv server response, failed;
-        2.2.recv server response, succeed.
 */
 static int connectToServer(const IP_ADDR_INFO servInfo)
 {
-    //TODO, do it.
+    moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "Input server : ip = [%s], port = [%d]\n",
+        servInfo.ip, servInfo.port);
+
+    //create socket
+    gSockId = socket(AF_INET, SOCK_STREAM, 0);
+    if(gSockId < 0)
+    {
+        moLoggerError(MO_NVR_CLIENT_LOG_MODULE, "Create socket failed! errno = %d, desc = [%s]\n",
+            errno, strerror(errno));
+        return -1;
+    }
+    moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "Create socket succeed. sockId = %d.\n", gSockId);
+
+    //set socket to reuseable
+    int on = 1;
+    int ret = setsockopt(gSockId, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    if(ret < 0)
+    {
+        moLoggerError(MO_NVR_CLIENT_LOG_MODULE, "Set socket to reuseable failed! ret = %d, errno = %d, desc = [%s]\n",
+            ret, errno, strerror(errno));
+        close(gSockId);
+        gSockId = -1;
+        return -2;
+    }
+    moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "set socket to reuseable succeed.\n");
+
+    //set socket to async
+    ret = setSockToNonBlock(gSockId);
+    if(ret < 0)
+    {
+        moLoggerError(MO_NVR_CLIENT_LOG_MODULE, "Set socket to nonblock failed! ret = %d, errno = %d, desc = [%s]\n",
+            ret, errno, strerror(errno));
+        close(gSockId);
+        gSockId = -1;
+        return -3;
+    }
+    moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "set socket to non block succeed.\n");
+
+    //connect to server in timeout
+    ret = connect2ServerAsync(gSockId, servInfo, CONNECT_TIMEOUT);
+    if(ret < 0)
+    {
+        moLoggerError(MO_NVR_CLIENT_LOG_MODULE, "Connect to server failed! ret = %d\n",
+            ret);
+        close(gSockId);
+        gSockId = -1;
+        return -4;
+    }
+    moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "connect to server(ip[%s]port[%d]) succeed.\n",
+        servInfo.ip, servInfo.port);
+    
     return 0;
+}
+
+/*
+    disconnect to server;
+    just send a request "byebye" to server, donot care its response;
+*/
+static void disConnectToServer()
+{
+    commmsgSendStopReq(gSockId);
 }
 
 /*
     A thread, to recv the response from server, then parse it, deal with it.
 */
-stativ void * recvRespThr(void * args)
+static void * recvRespThr(void * args)
 {
-    //TODO, do it
+    args = args;
+
+    while(1)
+    {
+        fd_set rFds;
+        FD_ZERO(&rFds);
+        FD_SET(gSockId, &rFds);
+        
+        struct timeval tm;
+        tm.tv_sec = THREAD_TIME_INTEVAL;
+        tm.tv_usec = 0;
+
+        int ret = select(gSockId + 1, &rFds, NULL, NULL, &tm);
+        if(ret < 0) //select failed
+        {
+            moLoggerError(MO_NVR_CLIENT_LOG_MODULE, 
+                "select failed! ret = %d, errno = %d, desc = [%s]\n",
+                ret, errno, strerror(errno));
+            continue;   //just continue, donot exit now.
+        }
+        else if(ret = 0)    //select timeout
+        {
+            moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, 
+                "select timeout, means donot recv response from server.\n");
+            continue;
+        }
+        else
+        {
+            moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "recv a response now.\n");
+            if(FD_ISSET(gSockId, &rFds))
+            {
+                
+            }
+        }
+    }
+
+    return NULL;
 }
 
 //start thread recvRespThr, this thread to recv all response from server;
 static int startRecvRespThr()
 {
     pthread_t thId;
-    int ret = pthread_create(&thId, NULL, );
+    int ret = pthread_create(&thId, NULL, recvRespThr, NULL);
+    if(ret != 0)
+    {
+        moLoggerError(MO_NVR_CLIENT_LOG_MODULE, "Create thread recvRespThr failed! ret = %d, errno = %d, desc = [%s]\n",
+            ret, errno, strerror(errno));
+        return -1;
+    }
+    moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "Create thread recvRespThr succeed. thId = %ld\n", thId);
+    return 0;
+}
+
+static void stopRecvRespThr()
+{
+    //TODO, do it.
+}
+
+/*
+    This thread should send heartbeat to server looply;
+*/
+static void * heartbeatThr(void * args)
+{
+    args = args;
+    //TODO, do it.
+
+    return NULL;
+}
+
+//start thread recvRespThr, this thread to recv all response from server;
+static int startHeartbeatThr()
+{
+    pthread_t thId;
+    int ret = pthread_create(&thId, NULL, heartbeatThr, NULL);
+    if(ret != 0)
+    {
+        moLoggerError(MO_NVR_CLIENT_LOG_MODULE, "Create thread heartbeatThr failed! ret = %d, errno = %d, desc = [%s]\n",
+            ret, errno, strerror(errno));
+        return -1;
+    }
+    moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "Create thread heartbeatThr succeed. thId = %ld\n", thId);
+    return 0;
+}
+
+/*
+    This to stop heartbeat thread;
+*/
+static void stopHeartBeatThr()
+{
+    //TODO, set the heartbeat thread running flag to false
+
+    //sleep 1s is necessary, this can help us to assure heartbeat thread has been stopped
+    sleep(1);
+
+    
 }
 
 /*
@@ -130,7 +409,7 @@ int moNvrCli_init(const char *pConfFilepath, pMoNvrCliSendFrameCallback pFunc)
     moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "confParserGetServerInfo succeed, server ip = [%s], port = %d.\n",
         servInfo.ip, servInfo.port);
 
-    //2 Connect to server, TODO, this function should set gSockId value;
+    //2 Connect to server
     ret = connectToServer(servInfo);
     if(ret != 0)
     {
@@ -143,11 +422,13 @@ int moNvrCli_init(const char *pConfFilepath, pMoNvrCliSendFrameCallback pFunc)
     moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "connectToServer succeed.\n");
 
     //3 start a thread to receive all response sent from server
+    gIsRecvRespThrRunning = 1£»
     ret = startRecvRespThr();
     if(ret != 0)
     {
         moLoggerError(MO_NVR_CLIENT_LOG_MODULE, "startRecvRespThr failed! ret = %d\n", 
             ret);
+        gIsRecvRespThrRunning = 0;
         disConnectToServer();   //send byebye to server
         confParserUnInit();
         pthread_mutex_unlock(&gLock);
@@ -156,11 +437,13 @@ int moNvrCli_init(const char *pConfFilepath, pMoNvrCliSendFrameCallback pFunc)
     moLoggerDebug(MO_NVR_CLIENT_LOG_MODULE, "startRecvRespThr succeed.\n");
     
     //4 start a thread to send heartbeat;
+    gIsHeartbeatThrRunning = 1;
     ret = startHeartbeatThr();
     if(ret != 0)
     {
         moLoggerError(MO_NVR_CLIENT_LOG_MODULE, "startHeartbeatThr failed! ret = %d\n", 
             ret);
+        gIsHeartbeatThrRunning = 0;
         disConnectToServer();   //send byebye to server
         stopRecvRespThr();  //stop thread
         confParserUnInit();

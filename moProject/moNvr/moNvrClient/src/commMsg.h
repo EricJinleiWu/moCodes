@@ -7,10 +7,16 @@ extern "C" {
 
 #include "moCrypt.h"
 
-#define COMMMSG_FORMAT "<?xml version=\"1.0\" encoding=\"gb2312\"?>" \
-    "<CmdId>%d<\CmdId>" \
-    "<ContLen>%d<\ContLen>" \
-    "<Content>%s<\Content>"
+/*
+    Header can help us to know this is which command;
+    If cmdId donot COMMMSG_RESPCMD_SENDFRAME and COMMMSG_RESPCMD_KEYAGREE, 
+        header is enough for us to know which cmd is, we donot need content;
+    else, we should get content, its length is defined in "ContLen";
+*/
+#define COMMMSG_HEADER "<?xml version=\"1.0\" encoding=\"gb2312\"?>" \
+    "<CmdId>%04d<\CmdId>" \
+    "<ContLen>%08d<\ContLen>"
+#define COMMMSG_HEADER_LEN  85  //The length of COMMMSG_HEADER, if use a charArray to save it, should at least has length 86 to set "\0"
 
 #define COMMMSG_RESP_CONT_MAXLEN     65535
 #define COMMMSG_RESP_FRAMEVALUE_MAXLEN    64512  //65536-1024
@@ -28,6 +34,15 @@ extern "C" {
     "<BlkIdx>%d<\BlkIdx>" \
     "<CurBlkLen>%d<\CurBlkLen>" \
     "<body>%s<\body>"
+
+/*
+    CryptAlgo : 1,RC4; 2,DES; 3,DES3; 4, AES;
+    KeyLen : the length of key;
+    Key : the key;
+*/
+#define COMMMSG_RESP_KEYAGREE_RET_FORMAT    "<CryptAlgo>%d<\CryptAlgo>" \
+    "<KeyLen>%d<\KeyLen>" \
+    "<Key>%s<\Key>"
 
 typedef struct
 {
@@ -87,16 +102,16 @@ typedef enum
 /*
     send heartbeat to server;
 */
-int commmsgSendHeartbeat();
+int commmsgSendHeartbeat(const int sockId);
 
 /*
     before moNvrClient stop, send a request to server, to tell her we will stop;
 */
-int commmsgSendStopReq();
+int commmsgSendStopReq(const int sockId);
 
-int commmsgSendStartPlayReq();
+int commmsgSendStartPlayReq(const int sockId);
 
-int commmsgSendStopPlayReq();
+int commmsgSendStopPlayReq(const int sockId);
 
 /*
     Server send a response, and parse it;
@@ -116,7 +131,7 @@ int commmsgParseResp(const char * pRespStr, COMMMSG_RESPINFO * pRespInfo, COMMMS
 
     TODO, this just a stub;
 */
-int commmsgKeyAgree();
+int commmsgKeyAgree(const int sockId);
 
 /*
     Do decrypt to cipher text;

@@ -6,7 +6,7 @@ VERNUM = $(shell cat VERINFO | grep MoNvrClient | awk '{print $$2}' | cut -b 2-)
 DVRGW_SUFFIX = $(VERNUM)
 
 #src dir
-SRC_DIR = ./
+SRC_DIR = ./src
 
 # INC DIRS. 
 INCDIRS = -I./inc \
