@@ -283,7 +283,10 @@ int moUtils_Check_getSum(const unsigned char *pSrc, const unsigned int len,
 int moUtils_Check_checkSum(const unsigned char *pSrc, const unsigned int len, 
     const unsigned char sum);
 
-#if 0
+
+
+
+
 typedef enum
 {
     MOUTILS_CHECK_CRCMETHOD_32, //CRC32
@@ -313,7 +316,7 @@ typedef union
         0 : succeed;
         0-: failed;
 */
-int moUtils_Check_getCrc(const unsigned char *pSrc, const unsigned int len, 
+int moUtils_Check_getCrc(const char *pSrc, const unsigned int len, 
     const MOUTILS_CHECK_CRCMETHOD method, MOUTILS_CHECK_CRCVALUE *pCrc);
 
 /*
@@ -325,8 +328,6 @@ int moUtils_Check_getCrc(const unsigned char *pSrc, const unsigned int len,
 */
 int moUtils_Check_checkCrc(const unsigned char *pSrc, const unsigned int len, 
     const MOUTILS_CHECK_CRCMETHOD method, const MOUTILS_CHECK_CRCVALUE crc);
-
-#endif
 
 
 
