@@ -31,6 +31,7 @@ MOLOGGER_INC = $(MOLOGGER_DIR)/inc
 
 # INC DIRS.
 INCDIRS = -I./inc \
+	      -I../inc \
 	      -I$(ThreadPool_INC_DIR) \
 	      -I$(File_INC_DIR) \
 		  -I$(Search_INC_DIR) \

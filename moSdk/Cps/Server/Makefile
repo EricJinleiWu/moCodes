@@ -6,17 +6,14 @@ VERNUM = $(shell cat VERINFO | grep MOCPS_SERVER | awk '{print $$2}' | cut -b 2-
 DVRGW_SUFFIX = $(VERNUM)
 
 MO_SDK_RELEASE_DIR = ../../release
-
-#The inc dir of Logger
-MOLOGGER_DIR = ../../Logger
-MOLOGGER_INCDIR = $(MOLOGGER_DIR)/inc
+MO_SDK_INC_DIR = ../../inc
 
 #src dir
 SRCDIR = ./src
 
 # INC DIRS. All algorithm should set header file in this directory.
 INCDIRS = -I./inc \
-		  -I$(MOLOGGER_INCDIR)
+	  -I$(MO_SDK_INC_DIR)
 
 # System lib path
 LDFLAGS =	-lpthread -lrt -ldl
@@ -39,7 +36,7 @@ APP: DEPENDS $(TARGET)
 $(TARGET): $(MAIN_OBJS)
 	@echo ">>> compiling $(TARGET) ..."
 	$(CC) -o $@ $^ -shared $(INCDIRS) $(LDFLAGS)
-	ln -s libMoCpsServ.so.$(DVRGW_SUFFIX) $(TARGET_DIR)/libMoCpsServ.so
+	ln -s libMoCpsServer.so.$(DVRGW_SUFFIX) $(TARGET_DIR)/libMoCpsServer.so
 	cp $(TARGET_DIR)/* $(MO_SDK_RELEASE_DIR) -rfad
       
 DEPENDS:

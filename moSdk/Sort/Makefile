@@ -16,7 +16,8 @@ SORT_SRC = ./src
 
 # INC DIRS. All algorithm should set header file in this directory.
 INCDIRS = -I./inc \
-		  -I$(MOLOGGER_INCDIR)
+		-I../inc \
+		-I$(MOLOGGER_INCDIR)
 
 # System lib path
 #LDFLAGS =	-lpthread -lrt -ldl

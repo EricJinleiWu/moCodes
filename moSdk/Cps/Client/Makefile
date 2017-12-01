@@ -6,10 +6,7 @@ VERNUM = $(shell cat VERINFO | grep MOCPS_CLIENT | awk '{print $$2}' | cut -b 2-
 DVRGW_SUFFIX = $(VERNUM)
 
 MO_SDK_RELEASE_DIR = ../../release
-
-#The inc dir of Logger
-MOLOGGER_DIR = ../../Logger
-MOLOGGER_INCDIR = $(MOLOGGER_DIR)/inc
+MO_SDK_INC_DIR = ../../inc
 
 #src dir
 UTILS_SRCDIR = ../Utils/src
@@ -18,7 +15,7 @@ SRCDIR = ./src
 # INC DIRS. All algorithm should set header file in this directory.
 INCDIRS = -I../Utils/inc \
 		-I./inc \
-		  -I$(MOLOGGER_INCDIR)
+		-I$(MO_SDK_INC_DIR)
 
 # System lib path
 LDFLAGS =	-lpthread -lrt -ldl

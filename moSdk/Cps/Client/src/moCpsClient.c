@@ -294,20 +294,20 @@ static int doEncrypt2Req(const MOCPS_CTRL_REQUEST req, char *pCipher)
     return ret;
 }
 
-static int decryptWithAes(const char *pCipher, MOCPS_CTRL_RESPONSE * pRespPlain)
+static int decryptWithAes(const char *pCipher, char * pPlain, const int len)
 {
     //TODO, this is stub exec
-    memcpy((char *)pRespPlain, pCipher, sizeof(MOCPS_CTRL_RESPONSE));
+    memcpy(pPlain, pCipher, len);
     return 0;
 }
 
-static int decryptWithDes(const char *pCipher, MOCPS_CTRL_RESPONSE * pRespPlain)
+static int decryptWithDes(const char *pCipher, char * pPlain, const int len)
 {
     unsigned int plainLen = 0;
     int ret = moCrypt_DES_ECB(MOCRYPT_METHOD_DECRYPT,
-        (unsigned char *)pCipher, sizeof(MOCPS_CTRL_RESPONSE),
+        (unsigned char *)pCipher, len,
         (unsigned char *)&gCryptInfo.cryptKey, gCryptInfo.keyLen,
-        (unsigned char *)pRespPlain, &plainLen);
+        (unsigned char *)pPlain, &plainLen);
     if(ret < 0)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES_ECB failed, ret = %d\n", ret);
@@ -317,13 +317,13 @@ static int decryptWithDes(const char *pCipher, MOCPS_CTRL_RESPONSE * pRespPlain)
     return 0;
 }
 
-static int decryptWithDes3(const char *pCipher, MOCPS_CTRL_RESPONSE * pRespPlain)
+static int decryptWithDes3(const char *pCipher, char * pPlain, const int len)
 {
     unsigned int plainLen = 0;
     int ret = moCrypt_DES3_ECB(MOCRYPT_METHOD_DECRYPT,
-        (unsigned char *)pCipher, sizeof(MOCPS_CTRL_RESPONSE),
+        (unsigned char *)pCipher, len,
         (unsigned char *)&gCryptInfo.cryptKey, gCryptInfo.keyLen,
-        (unsigned char *)pRespPlain, &plainLen);
+        (unsigned char *)pPlain, &plainLen);
     if(ret < 0)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES3_ECB failed, ret = %d\n", ret);
@@ -333,11 +333,11 @@ static int decryptWithDes3(const char *pCipher, MOCPS_CTRL_RESPONSE * pRespPlain
     return 0;
 }
 
-static int decryptWithRc4(const char *pCipher, MOCPS_CTRL_RESPONSE * pRespPlain)
+static int decryptWithRc4(const char *pCipher, char * pPlain, const int len)
 {
-    memcpy((char *)pRespPlain, (char *)pCipher, sizeof(MOCPS_CTRL_RESPONSE));
+    memcpy((char *)pPlain, (char *)pCipher, len);
     int ret = moCrypt_RC4_cryptString((unsigned char *)&gCryptInfo.cryptKey, 
-        gCryptInfo.keyLen, (unsigned char *)pRespPlain, sizeof(MOCPS_CTRL_RESPONSE));
+        gCryptInfo.keyLen, (unsigned char *)pPlain, len);
     if(ret < 0)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_RC4_cryptString failed, ret = %d\n", ret);
@@ -350,9 +350,9 @@ static int decryptWithRc4(const char *pCipher, MOCPS_CTRL_RESPONSE * pRespPlain)
 /*
     decrypt response from cipher to plain.
 */
-static int doDecrypt2Resp(const char *pCipher, MOCPS_CTRL_RESPONSE * pCtrlResp)
+static int doDecrypt2Resp(const char *pCipher, char * pPlain, const int len)
 {
-    if(NULL == pCipher || NULL == pCtrlResp)
+    if(NULL == pCipher || NULL == pPlain)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL.\n");
         return -1;
@@ -362,16 +362,16 @@ static int doDecrypt2Resp(const char *pCipher, MOCPS_CTRL_RESPONSE * pCtrlResp)
     switch(gCryptInfo.cryptAlgoNo)
     {
         case MOCPS_CRYPT_ALGO_AES:
-            ret = decryptWithAes(pCipher, pCtrlResp);
+            ret = decryptWithAes(pCipher, pPlain, len);
             break;
         case MOCPS_CRYPT_ALGO_DES:
-            ret = decryptWithDes(pCipher, pCtrlResp);
+            ret = decryptWithDes(pCipher, pPlain, len);
             break;
         case MOCPS_CRYPT_ALGO_DES3:
-            ret = decryptWithDes3(pCipher, pCtrlResp);
+            ret = decryptWithDes3(pCipher, pPlain, len);
             break;
         case MOCPS_CRYPT_ALGO_RC4:
-            ret = decryptWithRc4(pCipher, pCtrlResp);
+            ret = decryptWithRc4(pCipher, pPlain, len);
             break;
         default:
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input algoNo=%d, invalid one.\n", gCryptInfo.cryptAlgoNo);
@@ -919,6 +919,155 @@ static int sendDataport2Server(const int dataport)
 }
 
 /*
+    Check @header in right format or not;
+*/
+static int isRightFormatHeader(const MOCPS_DATA_RESPONSE_HEADER header)
+{
+    if(strcmp(header.mark, MOCPS_MARK_SERVER) != 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Mark=[%s], donot [%s], not a right format header!\n",
+            header.mark, MOCPS_MARK_SERVER);
+        return 0;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Mark ok.\n");
+
+    if(header.cmdId >= MOCPS_CMDID_MAX)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "CmdId=%d, larger than %d, not a right format header!\n",
+            header.cmdId, MOCPS_CMDID_MAX);
+        return 0;        
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "CmdId ok.\n");
+
+    int ret = moUtils_Check_checkSum((unsigned char *)&header, 
+        sizeof(MOCPS_DATA_RESPONSE_HEADER) - sizeof(unsigned char), header.checksum);
+    if(ret < 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
+            "moUtils_Check_checkSum failed! ret = %d\n", ret);
+        return 0;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "header check ok.\n");
+    return 1;
+}
+
+/*
+    Recv from server looply util find a header in right format;
+    then decrypt it, and set to pHeader;
+*/
+static int recvHeadAndCheck(MOCPS_DATA_RESPONSE_HEADER *pHeader)
+{
+    int cipherOffset = 0;
+    int cipherLen = sizeof(MOCPS_DATA_RESPONSE_HEADER);
+    int ret = 0;    
+    MOCPS_DATA_RESPONSE_HEADER cipher, plain;
+    memset(&cipher, 0x00, sizeof(MOCPS_DATA_RESPONSE_HEADER));
+    memset(&plain, 0x00, sizeof(MOCPS_DATA_RESPONSE_HEADER));
+    while(1)
+    {
+        //1.read cipher text firstly
+        ret = readn(gDataSockId, (char *)&cipher + cipherOffset, cipherLen);
+        if(ret != cipherLen)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "readn failed! readLen=%d, cipherLen=%d\n",
+                ret, cipherLen);
+            ret = -1;
+            break;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "readn succeed.\n");
+        //2.decrypt to it
+        memcpy(&plain, &cipher, sizeof(MOCPS_DATA_RESPONSE_HEADER));
+        ret = doDecrypt2Resp((char *)&cipher + cipherOffset, (char *)&plain + cipherOffset, cipherLen);
+        if(ret < 0)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "decrypt failed! ret = %d\n", ret);
+            ret = -2;
+            break;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "decrypt succeed.\n");
+        //3.find mark
+        ret = moUtils_Search_BF((unsigned char *)&plain, sizeof(MOCPS_DATA_RESPONSE_HEADER),
+            (unsigned char *)MOCPS_MARK_SERVER, strlen(MOCPS_MARK_SERVER));
+        if(ret < 0)
+        {
+            moLoggerWarn(MOCPS_MODULE_LOGGER_NAME, "moUtils_Search_BF failed! ret = %d\n", ret);
+            //reset cipher offset and length, find it looply
+            memset(&cipher, 0x00, sizeof(MOCPS_DATA_RESPONSE_HEADER));
+            memcpy(&cipher, &plain + (sizeof(MOCPS_DATA_RESPONSE_HEADER) - strlen(MOCPS_MARK_SERVER) + 1), 
+                strlen(MOCPS_MARK_SERVER) - 1);
+            memset(&plain, 0x00, sizeof(MOCPS_DATA_RESPONSE_HEADER));
+            cipherOffset = strlen(MOCPS_MARK_SERVER) - 1;
+            cipherLen = sizeof(MOCPS_DATA_RESPONSE_HEADER) - strlen(MOCPS_MARK_SERVER) + 1;
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "New loop, cipherOffset=%d, cipherLen=%d\n",
+                cipherOffset, cipherLen);
+            continue;
+        }
+        else if(ret == 0)
+        {
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, 
+                "Find mark at the beginning! Now start check it in right format or not!\n");
+            //check its format
+            if(isRightFormatHeader(plain))
+            {
+                moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "This header is a right format header!\n");
+                memcpy(pHeader, &plain, sizeof(MOCPS_DATA_RESPONSE_HEADER));
+                ret = 0;
+                break;
+            }
+            else
+            {
+                moLoggerWarn(MOCPS_MODULE_LOGGER_NAME, "This donot a valid header format!\n");
+                //reset cipher offset and length, find it looply
+                memset(&cipher, 0x00, sizeof(MOCPS_DATA_RESPONSE_HEADER));
+                memcpy(&cipher, &plain + (sizeof(MOCPS_DATA_RESPONSE_HEADER) - strlen(MOCPS_MARK_SERVER) + 1), 
+                    strlen(MOCPS_MARK_SERVER) - 1);
+                memset(&plain, 0x00, sizeof(MOCPS_DATA_RESPONSE_HEADER));
+                cipherOffset = strlen(MOCPS_MARK_SERVER) - 1;
+                cipherLen = sizeof(MOCPS_DATA_RESPONSE_HEADER) - strlen(MOCPS_MARK_SERVER) + 1;
+                moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "New loop, cipherOffset=%d, cipherLen=%d\n",
+                    cipherOffset, cipherLen);
+                continue;
+            }
+        }
+        else    //Find a mark, but donot at the beginning of this header
+        {
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, 
+                "Find mark in the middle of this header, should recv the next data now.\n");
+            memset(&cipher, 0x00, sizeof(MOCPS_DATA_RESPONSE_HEADER));
+            memcpy(&cipher, &plain + ret, sizeof(MOCPS_DATA_RESPONSE_HEADER) - ret);
+            memset(&plain, 0x00, sizeof(MOCPS_DATA_RESPONSE_HEADER));
+            cipherOffset = sizeof(MOCPS_DATA_RESPONSE_HEADER) - ret;
+            cipherLen = ret;
+            continue;
+        }
+    }
+    
+    return ret;    
+}
+
+/*
+    Recv a block from server with length @blkLen, and set to @pBlk
+*/
+static int recvBody(const int blkLen, char *pBlk)
+{
+    if(NULL == pBlk)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL!\n");
+        return -1;
+    }
+    int readLen = readn(gDataSockId, pBlk, blkLen);
+    if(readLen != blkLen)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "readn failed! readLen=%d, blkLen=%d\n",
+            readLen, blkLen);
+        return -2;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "read block succeed.\n");
+    
+    return 0;
+}
+
+/*
     Each 1 second, do a loop, this can help us to stop thread;
     1.get data;
     2.parse data(decrypt), get header;
@@ -962,21 +1111,22 @@ static void * recvDataThr(void * args)
                 if(recvState == RECVDATA_STATE_RECVHEAD)
                 {
                     memset(&header, 0x00, sizeof(MOCPS_DATA_RESPONSE_HEADER));
-                    ret = recvHeadAndParse(&header);    //TODO, read from server, decrypt, parse, save to local memory
+                    ret = recvHeadAndCheck(&header);    //TODO, read from server, decrypt, parse, save to local memory
                     if(ret < 0)
                     {
                         moLoggerError(MOCPS_MODULE_LOGGER_NAME,
-                            "recvHeadAndParse failed! ret = %d\n", ret);
+                            "recvHeadAndCheck failed! ret = %d\n", ret);
                         continue;
                     }
                     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Recv head ok.\n");
+                    //change state, to recv body
                     recvState = RECVDATA_STATE_RECVBODY;
                 }
                 else
                 {
                     char curBlk[MOCPS_DATA_BODY_BLK_MAXSIZE] = {0x00};
                     memset(curBlk, 0x00, MOCPS_DATA_BODY_BLK_MAXSIZE);
-                    ret = recvBody(header.curBlkLen, curBlk); //TODO, recv in blocks, save in block memory we managed
+                    ret = recvBody(header.curBlkLen, curBlk);
                     if(ret < 0)
                     {
                         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "recv body failed!\n");
@@ -990,7 +1140,7 @@ static void * recvDataThr(void * args)
                     //If current data is completed, call function, throw it to outside for using
                     if(dmmIsCompleteData())
                     {
-                        ret = gpDataCallbackFunc(dmmDataPtr()/*return a char * pointer which point to data*/, header.totalLen);
+                        ret = gpDataCallbackFunc(dmmDataPtr(), header.totalLen);
                         if(ret < 0)
                         {
                             moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
@@ -1410,7 +1560,7 @@ static int sendReq2Server(const char * buf, const int bufLen)
     1.wait response in timeout;
     2.decrypt to response;
 */
-static int getRespFromServer(MOCPS_CTRL_RESPONSE * pCtrlResp)
+static int getRespFromServer(const MOCPS_CMDID cmdId, MOCPS_CTRL_RESPONSE * pCtrlResp)
 {
     if(NULL == pCtrlResp)
     {
@@ -1429,64 +1579,78 @@ static int getRespFromServer(MOCPS_CTRL_RESPONSE * pCtrlResp)
         return -2;
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "malloc for response succeed.\n");
-    //1.2.recv response from server in timeout(WAIT_RESP_TIMEOUT)
-    fd_set rFdSet;
-    FD_ZERO(&rFdSet);
-    FD_SET(gCtrlSockId, &rFdSet);
-    struct timeval tm;
-    tm.tv_sec = WAIT_RESP_TIMEOUT;
-    tm.tv_usec = 0;
-    int ret = select(gCtrlSockId + 1, &rFdSet, NULL, NULL, &tm);
-    if(ret < 0)
+    while(1)
     {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "select failed! ret = %d, errno = %d, desc = [%s]\n",
-            ret, errno, strerror(errno));
-        free(pRespCipher);
-        pRespCipher = NULL;
-        return -3;
-    }
-    else if(ret == 0)
-    {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "select timeout!\n");
-        free(pRespCipher);
-        pRespCipher = NULL;
-        return -4;
-    }
-    else
-    {
-        if(FD_ISSET(gCtrlSockId, &rFdSet))
+        //1.2.recv response from server in timeout(WAIT_RESP_TIMEOUT)
+        fd_set rFdSet;
+        FD_ZERO(&rFdSet);
+        FD_SET(gCtrlSockId, &rFdSet);
+        struct timeval tm;
+        tm.tv_sec = WAIT_RESP_TIMEOUT;
+        tm.tv_usec = 0;
+        int ret = select(gCtrlSockId + 1, &rFdSet, NULL, NULL, &tm);
+        if(ret < 0)
         {
-            int readLen = readn(gCtrlSockId, pRespCipher, sizeof(MOCPS_CTRL_RESPONSE));
-            if(readLen != sizeof(MOCPS_CTRL_RESPONSE))
-            {
-                moLoggerError(MOCPS_MODULE_LOGGER_NAME, "readn failed! readLen=%d, size=%d\n",
-                    readLen, sizeof(MOCPS_CTRL_RESPONSE));
-                
-                free(pRespCipher);
-                pRespCipher = NULL;
-                return -5;
-            }
-            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Read cipher response from server succeed.\n");
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "select failed! ret = %d, errno = %d, desc = [%s]\n",
+                ret, errno, strerror(errno));
+            free(pRespCipher);
+            pRespCipher = NULL;
+            return -3;
+        }
+        else if(ret == 0)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "select timeout!\n");
+            free(pRespCipher);
+            pRespCipher = NULL;
+            return -4;
         }
         else
         {
-            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot the socket we need!\n");
+            if(FD_ISSET(gCtrlSockId, &rFdSet))
+            {
+                int readLen = readn(gCtrlSockId, pRespCipher, sizeof(MOCPS_CTRL_RESPONSE));
+                if(readLen != sizeof(MOCPS_CTRL_RESPONSE))
+                {
+                    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "readn failed! readLen=%d, size=%d\n",
+                        readLen, sizeof(MOCPS_CTRL_RESPONSE));
+                    
+                    free(pRespCipher);
+                    pRespCipher = NULL;
+                    return -5;
+                }
+                moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Read cipher response from server succeed.\n");
+            }
+            else
+            {
+                moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot the socket we need!\n");
+                free(pRespCipher);
+                pRespCipher = NULL;
+                return -6;
+            }
+        }
+        
+        //2.decrypt the cipher to plain
+        ret = doDecrypt2Resp(pRespCipher, (char *)pCtrlResp, sizeof(MOCPS_CTRL_RESPONSE));
+        if(ret < 0)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "doDecrypt2Resp failed! ret = %d\n", ret);
             free(pRespCipher);
             pRespCipher = NULL;
-            return -6;
+            return -7;
         }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "doDecrypt2Resp succeed.\n");
+        
+        //3.Check this response is we need or not
+        if(cmdId != pCtrlResp->basicInfo.cmdId)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "This donot the response we need! " \
+                "cmdId we needed is %d, pCtrlResp->basicInfo.cmdId = %d", 
+                cmdId, pCtrlResp->basicInfo.cmdId);
+            continue;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Get the response we need!\n");
+        break;
     }
-    
-    //2.decrypt the cipher to plain
-    ret = doDecrypt2Resp(pRespCipher, pCtrlResp);
-    if(ret < 0)
-    {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "doDecrypt2Resp failed! ret = %d\n", ret);
-        free(pRespCipher);
-        pRespCipher = NULL;
-        return -7;
-    }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "doDecrypt2Resp succeed.\n");
     
     free(pRespCipher);
     pRespCipher = NULL;
@@ -1567,7 +1731,7 @@ int moCpsCli_sendRequest(const MOCPS_CMDID cmdId, const MOCPS_REQUEST_TYPE isNee
     if(isNeedResp)
     {
         moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Need response from server, get it now.\n");
-        ret = getRespFromServer(pCtrlResp);
+        ret = getRespFromServer(req.basicInfo.cmdId, pCtrlResp);
         if(ret < 0)
         {
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "getRespFromServer failed! ret = %d\n", ret);
@@ -1675,6 +1839,29 @@ static int dmmSaveCurBodyBlk(const MOCPS_DATA_RESPONSE_HEADER header, const char
     //calc the @pCurBlk should save in where
     unsigned int offset = header.curBlkIdx * MOCPS_DATA_BODY_BLK_MAXSIZE;
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "offset = %d\n", offset);
+    //check this block has been write or not, if being write yet, donot write again.
+    //duplicat block, logically speaking, donot appeared.
+    int i = 0;
+    for(; i < 16; i++)
+    {
+        if(*(gpDmmData + offset + i) == 0x00)
+        {
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
+    if(i < 16)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "The block duplicated! " \
+            "header.cmdId=%d, header.seqId=%u, header.curBlkIdx=%lu, header.curBlkLen=%u", 
+            header.cmdId, header.seqId, header.curBlkIdx, header.curBlkLen);
+        pthread_mutex_unlock(&gDmmMutex);
+        return 0;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "The block donot write to local yet, write it now.\n");
     //save it to local memory
     memcpy(gpDmmData + offset, pCurBlk, header.curBlkLen);
     //refresh local record

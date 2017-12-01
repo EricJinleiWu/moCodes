@@ -12,7 +12,8 @@ MO_SDK_RELEASE_DIR = ../release
 SRC_DIR = ./src
 
 # INC DIRS.
-INCDIRS = -I./inc
+INCDIRS = -I./inc \
+	  -I../inc
 
 # System lib path
 LDFLAGS = -L../

@@ -31,7 +31,8 @@ DES_INC_DIR = $(DES_DIR)/inc
 
 # INC DIRS. All algorithm should set header file in this directory.
 INCDIRS = -I./inc \
-	      -I$(RC4_INC_DIR) \
+		-I../inc \
+	        -I$(RC4_INC_DIR) \
 		  -I$(MD5_INC_DIR) \
 		  -I$(BASE64_INC_DIR) \
 		  -I$(DES_INC_DIR) \
