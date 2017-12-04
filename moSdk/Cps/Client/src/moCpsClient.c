@@ -79,6 +79,12 @@ static void dmmClear();
 static char * dmmDataPtr();
 static char dmmIsCompleteData();
 
+static int crmmInit();
+static void crmmUnInit();
+static char * crmmGet();
+static int crmmMaxSize();
+
+
 /*
     Parse the @pConfFilepath, get its values
 */
@@ -1214,11 +1220,31 @@ static void stopRecvDataThr()
 /*
     Use private key, to decrypt @pRespCipher to pRespPlain;
 */
-static int decryptKeyAgreeResponse(const char * pRespCipher, MOCPS_CTRL_RESPONSE * pRespPlain)
+static int decryptKeyAgreeResponse(const char * pRespCipher, MOCPS_KEYAGREE_RESPONSE * pRespPlain)
 {
     //TODO,this just a stub, we will use RSA to do it later.
-    memcpy(pRespPlain, pRespCipher, sizeof(MOCPS_CTRL_RESPONSE));
+    memcpy(pRespPlain, pRespCipher, sizeof(MOCPS_KEYAGREE_RESPONSE));
     
+    return 0;
+}
+
+static int checkKeyagreeResp(const MOCPS_KEYAGREE_RESPONSE resp)
+{
+    if(resp.cmdId != MOCPS_CMDID_KEYAGREE)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "input cmdid=%d, donot MOCPS_CMDID_KEYAGREE(%d)\n",
+            resp.cmdId, MOCPS_CMDID_KEYAGREE);
+        return -1;
+    }
+    int ret = moUtils_Check_checkCrc(
+        (unsigned char *)&resp, sizeof(MOCPS_KEYAGREE_RESPONSE) - sizeof(MOUTILS_CHECK_CRCVALUE),
+        MOUTILS_CHECK_CRCMETHOD_32, resp.crc32);
+    if(ret < 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moUtils_Check_checkCrc failed! ret = %d\n", ret);
+        return -2;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "check key agree response ok.\n");
     return 0;
 }
 
@@ -1250,8 +1276,8 @@ static int doKeyAgree()
     //3.wait for response in timeout
     int waitTime = 0;
     int ret = 0;
-    MOCPS_CTRL_RESPONSE resp;
-    memset(&resp, 0x00, sizeof(MOCPS_CTRL_RESPONSE));
+    MOCPS_KEYAGREE_RESPONSE resp;
+    memset(&resp, 0x00, sizeof(MOCPS_KEYAGREE_RESPONSE));
     while(waitTime <= KEYAGREE_TIMEOUT)
     {
         fd_set rFdSet;
@@ -1279,11 +1305,11 @@ static int doKeyAgree()
             {
                 moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Get keyagree response from server.\n");
 
-                int readLen = readn(gCtrlSockId, (char *)&resp, sizeof(MOCPS_CTRL_RESPONSE));
-                if(readLen != sizeof(MOCPS_CTRL_RESPONSE))
+                int readLen = readn(gCtrlSockId, (char *)&resp, sizeof(MOCPS_KEYAGREE_RESPONSE));
+                if(readLen != sizeof(MOCPS_KEYAGREE_RESPONSE))
                 {
                     moLoggerError(MOCPS_MODULE_LOGGER_NAME, "readn failed! readLen = %d, size = %d\n",
-                        readLen, sizeof(MOCPS_CTRL_RESPONSE));
+                        readLen, sizeof(MOCPS_KEYAGREE_RESPONSE));
                     return -3;
                 }
                 moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "read keyagree original response succeed.\n");
@@ -1299,13 +1325,27 @@ static int doKeyAgree()
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "get keyagree response waste time %d seconds.\n", waitTime);
 
     //4.decrypt the response to plain text
-    MOCPS_CTRL_RESPONSE respPlain;
-    memset(&respPlain, 0x00, sizeof(MOCPS_CTRL_RESPONSE));
-    decryptKeyAgreeResponse((char * )&resp, &respPlain);
+    MOCPS_KEYAGREE_RESPONSE respPlain;
+    memset(&respPlain, 0x00, sizeof(MOCPS_KEYAGREE_RESPONSE));
+    ret = decryptKeyAgreeResponse((char * )&resp, &respPlain);
+    if(ret < 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "decryptKeyAgreeResponse failed! ret = %d\n", ret);
+        return -5;
+    }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "decryptKeyAgreeResponse OVER.\n");
 
-    //5.get cryptInfo we needed
-    memcpy(&gCryptInfo, &respPlain, sizeof(MOCPS_CTRL_RESPONSE));
+    //5.check the response in right format or not
+    ret = checkKeyagreeResp(respPlain);
+    if(ret < 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "checkKeyagreeResp failed! ret = %d\n", ret);
+        return -6;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "checkKeyagreeResp ok.\n");
+
+    //6.get cryptInfo we needed
+    memcpy(&gCryptInfo, &respPlain.cryptInfo, sizeof(MOCPS_CRYPT_INFO));
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Set crypt info to local memory ok.\n");
     
     return 0;
@@ -1346,6 +1386,15 @@ int moCpsCli_init(const char* pConfFilepath, const pDataCallbackFunc pFunc)
     }
     moLoggerError(MOCPS_MODULE_LOGGER_NAME, "dmmInit succeed.");
 
+    //do data memory manager init firstly, if memory cannot malloced, other will not be done
+    ret = crmmInit();
+    if(ret < 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "crmmInit failed, ret = %d\n", ret);
+        return MOCPS_CLI_ERR_INTERNAL;
+    }
+    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "crmmInit succeed.");
+
     //1.get config info
     MOCPS_CLI_CONFINFO confInfo;
     memset(&confInfo, 0x00, sizeof(MOCPS_CLI_CONFINFO));
@@ -1354,6 +1403,7 @@ int moCpsCli_init(const char* pConfFilepath, const pDataCallbackFunc pFunc)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "parseConf failed! ret = %d, pConfFilepath = [%s]\n",
             ret, pConfFilepath);
+        crmmUnInit();
         dmmUnInit();
         pthread_mutex_unlock(&gMutex);
         return MOCPS_CLI_ERR_PARSECONF_FAILED;
@@ -1367,6 +1417,7 @@ int moCpsCli_init(const char* pConfFilepath, const pDataCallbackFunc pFunc)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "createCtrlSocket failed! ret = %d\n",
             ret);
+        crmmUnInit();
         dmmUnInit();
         pthread_mutex_unlock(&gMutex);
         return MOCPS_CLI_ERR_CREATESOCK_FAILED;
@@ -1381,6 +1432,7 @@ int moCpsCli_init(const char* pConfFilepath, const pDataCallbackFunc pFunc)
             ret);
         sayByebye2Server();
         destroyCtrlSocket();
+        crmmUnInit();
         dmmUnInit();
         pthread_mutex_unlock(&gMutex);
         return MOCPS_CLI_ERR_CREATETHR_FAILED;
@@ -1395,6 +1447,7 @@ int moCpsCli_init(const char* pConfFilepath, const pDataCallbackFunc pFunc)
             ret);
         sayByebye2Server();
         destroyCtrlSocket();
+        crmmUnInit();
         dmmUnInit();
         pthread_mutex_unlock(&gMutex);
         return MOCPS_CLI_ERR_CREATETHR_FAILED;
@@ -1410,6 +1463,7 @@ int moCpsCli_init(const char* pConfFilepath, const pDataCallbackFunc pFunc)
         stopHeartBeatThr();
         sayByebye2Server();
         destroyCtrlSocket();
+        crmmUnInit();
         dmmUnInit();
         pthread_mutex_unlock(&gMutex);
         return MOCPS_CLI_ERR_CREATETHR_FAILED;
@@ -1425,6 +1479,7 @@ int moCpsCli_init(const char* pConfFilepath, const pDataCallbackFunc pFunc)
         stopHeartBeatThr();
         sayByebye2Server();
         destroyCtrlSocket();
+        crmmUnInit();
         dmmUnInit();
         pthread_mutex_unlock(&gMutex);
         return MOCPS_CLI_ERR_CREATESOCK_FAILED;
@@ -1441,6 +1496,7 @@ int moCpsCli_init(const char* pConfFilepath, const pDataCallbackFunc pFunc)
         sayByebye2Server();
         destroyCtrlSocket();
         destroyDataSocket();
+        crmmUnInit();
         dmmUnInit();
         pthread_mutex_unlock(&gMutex);
         return MOCPS_CLI_ERR_CREATETHR_FAILED;
@@ -1473,6 +1529,7 @@ void moCpsCli_unInit()
     destroyCtrlSocket();
     destroyDataSocket();
     gpDataCallbackFunc = NULL;
+    crmmUnInit();
     dmmUnInit();
     gIsInited = INIT_STATE_NO;
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCpsCli_unInit ok.\n");
@@ -1568,20 +1625,12 @@ static int getRespFromServer(const MOCPS_CMDID cmdId, MOCPS_CTRL_RESPONSE * pCtr
         return -1;        
     }
 
-    //1.get response from server;
-    //1.1.get memory for cipher response from server;
-    char * pRespCipher = NULL;
-    pRespCipher = (char *)malloc(sizeof(char) * sizeof(MOCPS_CTRL_RESPONSE));
-    if(pRespCipher == NULL)
-    {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "malloc for response failed! errno = %d, desc = [%s]\n",
-            errno, strerror(errno));
-        return -2;
-    }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "malloc for response succeed.\n");
     while(1)
     {
-        //1.2.recv response from server in timeout(WAIT_RESP_TIMEOUT)
+        //1.get response from server;
+        MOCPS_CTRL_RESPONSE_BASIC basicRespCipher;
+        memset(&basicRespCipher, 0x00, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
+
         fd_set rFdSet;
         FD_ZERO(&rFdSet);
         FD_SET(gCtrlSockId, &rFdSet);
@@ -1593,29 +1642,22 @@ static int getRespFromServer(const MOCPS_CMDID cmdId, MOCPS_CTRL_RESPONSE * pCtr
         {
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "select failed! ret = %d, errno = %d, desc = [%s]\n",
                 ret, errno, strerror(errno));
-            free(pRespCipher);
-            pRespCipher = NULL;
             return -3;
         }
         else if(ret == 0)
         {
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "select timeout!\n");
-            free(pRespCipher);
-            pRespCipher = NULL;
             return -4;
         }
         else
         {
             if(FD_ISSET(gCtrlSockId, &rFdSet))
             {
-                int readLen = readn(gCtrlSockId, pRespCipher, sizeof(MOCPS_CTRL_RESPONSE));
-                if(readLen != sizeof(MOCPS_CTRL_RESPONSE))
+                int readLen = readn(gCtrlSockId, (char *)&basicRespCipher, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
+                if(readLen != sizeof(MOCPS_CTRL_RESPONSE_BASIC))
                 {
                     moLoggerError(MOCPS_MODULE_LOGGER_NAME, "readn failed! readLen=%d, size=%d\n",
-                        readLen, sizeof(MOCPS_CTRL_RESPONSE));
-                    
-                    free(pRespCipher);
-                    pRespCipher = NULL;
+                        readLen, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
                     return -5;
                 }
                 moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Read cipher response from server succeed.\n");
@@ -1623,37 +1665,69 @@ static int getRespFromServer(const MOCPS_CMDID cmdId, MOCPS_CTRL_RESPONSE * pCtr
             else
             {
                 moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot the socket we need!\n");
-                free(pRespCipher);
-                pRespCipher = NULL;
                 return -6;
             }
         }
         
         //2.decrypt the cipher to plain
-        ret = doDecrypt2Resp(pRespCipher, (char *)pCtrlResp, sizeof(MOCPS_CTRL_RESPONSE));
+        MOCPS_CTRL_RESPONSE_BASIC basicRespPlain;
+        memset(&basicRespPlain, 0x00, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
+        ret = doDecrypt2Resp((const char *)&basicRespCipher, (char *)&basicRespPlain, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
         if(ret < 0)
         {
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "doDecrypt2Resp failed! ret = %d\n", ret);
-            free(pRespCipher);
-            pRespCipher = NULL;
             return -7;
         }
         moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "doDecrypt2Resp succeed.\n");
         
         //3.Check this response is we need or not
-        if(cmdId != pCtrlResp->basicInfo.cmdId)
+        if(cmdId != basicRespPlain.cmdId)
         {
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "This donot the response we need! " \
                 "cmdId we needed is %d, pCtrlResp->basicInfo.cmdId = %d", 
-                cmdId, pCtrlResp->basicInfo.cmdId);
+                cmdId, basicRespPlain.cmdId);
             continue;
         }
         moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Get the response we need!\n");
+
+        //4.Check crc
+        if((ret = moUtils_Check_checkCrc((unsigned char *)&basicRespPlain,
+            sizeof(MOCPS_CTRL_RESPONSE_BASIC) - sizeof(MOUTILS_CHECK_CRCVALUE),
+            MOUTILS_CHECK_CRCMETHOD_32, basicRespPlain.crc32)) != 0)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "CRC check failed! ret = %d\n", ret);
+            return -8;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "CRC check ok!\n");
+        memcpy(&pCtrlResp->basicInfo, &basicRespPlain, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
+        
         break;
     }
+
+    //Then, we must get the body
+    if(pCtrlResp->basicInfo.bodyLen == 0)
+    {
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "This response body length is 0, will not have body.\n");
+        pCtrlResp->pBody = NULL;
+    }
+    else if(pCtrlResp->basicInfo.bodyLen >= crmmMaxSize())
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "bodyLen=%d, too larger! The max we allowed is %d\n",
+            pCtrlResp->basicInfo.bodyLen, crmmMaxSize());
+        return -9;
+    }
+    else
+    {
+        int ret = readn(gCtrlSockId, crmmGet(), pCtrlResp->basicInfo.bodyLen);
+        if(ret < 0)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "recvRespBody failed! ret = %d\n", ret);
+            return -10;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "recvRespBody ok.\n");
+        pCtrlResp->pBody = crmmGet();
+    }
     
-    free(pRespCipher);
-    pRespCipher = NULL;
     return 0;
 }
 
@@ -1745,6 +1819,53 @@ int moCpsCli_sendRequest(const MOCPS_CMDID cmdId, const MOCPS_REQUEST_TYPE isNee
     }
     
     return MOCPS_CLI_ERR_OK;
+}
+
+/****************************************************************************************************/
+/******************************* A module named CtrlRespMemoryManager ****************************/
+/****************************************************************************************************/
+
+#define CRMM_SIZE   (2 * 1024 * 1024)   //2M
+
+static char * gCrmmData = NULL;
+
+static int crmmInit()
+{
+    if(gCrmmData != NULL)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
+            "gCrmmData donot NULL, CRMM has been inited! cannot init again.\n");
+        return -1;
+    }
+    gCrmmData = (char *)malloc(sizeof(char) * CRMM_SIZE);
+    if(NULL == gCrmmData)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Malloc for gCrmmData failed! errno=%d, desc=[%s]\n",
+            errno, strerror(errno));
+        return -2;
+    }
+    memset(gCrmmData, 0x00, CRMM_SIZE);
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "crmmInit ok.\n");
+    return 0;
+}
+
+static void crmmUnInit()
+{
+    if(gCrmmData != NULL)
+    {
+        free(gCrmmData);
+        gCrmmData = NULL;
+    }
+}
+
+static char * crmmGet()
+{
+    return gCrmmData;
+}
+
+static int crmmMaxSize()
+{
+    return CRMM_SIZE;
 }
 
 

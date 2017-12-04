@@ -23,6 +23,7 @@ typedef enum
     MOCPS_CMDID_HEARTBEAT,
     MOCPS_CMDID_BYEBYE,
     MOCPS_CMDID_SEND_DATAPORT,
+    MOCPS_CMDID_GETFILEINFO,    //Get the files info in moCpsServer;
     MOCPS_CMDID_GETDATA,
     MOCPS_CMDID_MAX
 }MOCPS_CMDID;
@@ -77,6 +78,7 @@ typedef struct
 	char mark[MOCPS_MARK_MAXLEN];		//MOCPS_SERVER
 	MOCPS_CMDID cmdId;		//CMD_KEYAGREE
 	MOCPS_CRYPT_INFO cryptInfo;
+    MOUTILS_CHECK_CRCVALUE crc32;
 }MOCPS_KEYAGREE_RESPONSE;
 
 typedef struct
@@ -85,13 +87,13 @@ typedef struct
 	MOCPS_CMDID cmdId;
 	char res[3];		//reserved
 	int bodyLen;		//The valid data length in body
-	char body[2048];	//2K is enough now, if donot enough in future, expand it.
+	MOUTILS_CHECK_CRCVALUE crc32;		//crc32 to check data
 }MOCPS_CTRL_RESPONSE_BASIC;
 
 typedef struct
 {
     MOCPS_CTRL_RESPONSE_BASIC basicInfo;
-	MOUTILS_CHECK_CRCVALUE crc32;		//crc32 to check data
+    char * pBody;   //When bodyLen!=0, we should malloc a memory for this pBody to save the body
 }MOCPS_CTRL_RESPONSE;
 
 typedef struct
