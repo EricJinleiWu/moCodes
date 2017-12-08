@@ -13,6 +13,7 @@ SRCDIR = ./src
 
 # INC DIRS. All algorithm should set header file in this directory.
 INCDIRS = -I./inc \
+	  -I../Utils/inc \
 	  -I$(MO_SDK_INC_DIR)
 
 # System lib path

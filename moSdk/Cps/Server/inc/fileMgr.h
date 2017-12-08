@@ -16,9 +16,15 @@ int fmInit(const char * pDirpath);
 void fmUnInit();
 
 /*
+    Get the length of filelist, caller must use this function firstly, then 
+    malloc memory in this size, then call @fmGetFilelist to get file info.
+*/
+int fmGetFileinfoLength(int * pLen);
+
+/*
     Get file list info from this directory;
 */
-int fmGetDirInfo();
+int fmGetFileinfo(char * pFileinfo, const int len);
 
 /*
     Read file;

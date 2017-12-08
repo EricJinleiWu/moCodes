@@ -110,6 +110,25 @@ typedef struct
 	unsigned char checksum;		//use check sum algo. to check its right or not;
 }MOCPS_DATA_RESPONSE_HEADER;
 
+
+
+typedef enum
+{
+    MOCPS_FILETYPE_VIDEO,  //video, can play in player, has suffix with ".mp4" and so on
+    MOCPS_FILETYPE_AUDIO,  //audio, can play in player, has suffix with ".mp3" and so on
+    MOCPS_FILETYPE_PIC,    //picture, has suffix with ".jpg" and so on
+    MOCPS_FILETYPE_OTHERS,  //other files, can be read in common file mode
+    MOCPS_FILETYPE_MAX
+}MOCPS_FILETYPE;
+
+typedef struct
+{
+    long long int size;
+    char filename[FILENAME_MAXLEN];
+    MOCPS_FILETYPE type;
+}MOCPS_BASIC_FILEINFO;
+
+
 /* 
     Check input @pIp is a valid ip address or not;
     A valid ip address in format like aaa.bbb.ccc.ddd;
