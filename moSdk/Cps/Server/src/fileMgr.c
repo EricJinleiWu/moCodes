@@ -573,6 +573,20 @@ static int initDirfileInfo()
     return 0;
 }
 
+static void unInitDirfileInfo()
+{
+    if(gDirFileInfo.pFileInfo != NULL)
+    {
+        free(gDirFileInfo.pFileInfo);
+        gDirFileInfo.pFileInfo = NULL;
+    }
+    gDirFileInfo.fileInfoLen = 0;
+    gDirFileInfo.curMemSize = 0;
+    gDirFileInfo.sumFileNum = 0;
+    pthread_mutex_destroy(&gDirFileInfo.mutex);
+    memset(gDirFileInfo.dirPath, 0x00, DIRPATH_MAXLEN);
+}
+
 /*
     1.check input directory path valid or not;
     2.get all file info in this directory;
@@ -699,7 +713,7 @@ int fmGetFileinfo(char * pFileinfo, const int len)
 /*
     Read file;
 */
-int fmReadFile(const char *pFilepath, const int offset, const int length, char *pBuf)
+int fmReadFile(const MOCPS_BASIC_FILEINFO fileInfo, const int offset, const int length, char *pBuf)
 {
     //TODO
     return 0;

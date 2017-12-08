@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include "moCpsUtils.h"
+
 /*
     Do init, must input a directory to this module, we will do this directory;
 */
@@ -29,7 +31,7 @@ int fmGetFileinfo(char * pFileinfo, const int len);
 /*
     Read file;
 */
-int fmReadFile(const char *pFilepath, const int offset, const int length, char *pBuf);
+int fmReadFile(const MOCPS_BASIC_FILEINFO fileInfo, const int offset, const int length, char *pBuf);
 
 #ifdef __cplusplus
 }
