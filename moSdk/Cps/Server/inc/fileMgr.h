@@ -33,6 +33,13 @@ int fmGetFileinfo(char * pFileinfo, const int len);
 */
 int fmReadFile(const MOCPS_BASIC_FILEINFO fileInfo, const int offset, const int length, char *pBuf);
 
+/*
+    When caller donot read this file, should call this function to stop it,
+    or, handle will be leaked.
+*/
+int fmStopReadFile(const MOCPS_BASIC_FILEINFO fileInfo);
+
+
 #ifdef __cplusplus
 }
 #endif

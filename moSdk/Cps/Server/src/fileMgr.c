@@ -12,10 +12,6 @@
 #include "moLogger.h"
 #include "moCpsUtils.h"
 
-#define DIRPATH_MAXLEN  256
-#define FILENAME_MAXLEN 256
-#define FILEPATH_MAXLEN (DIRPATH_MAXLEN + FILENAME_MAXLEN)
-
 #define FM_MEM_INC_SIZE    (1 * 1024 * 1024)   //each time, memory increased 1M
 
 typedef enum
@@ -73,7 +69,11 @@ static FM_DIRFILE_LIST gDirFileList;
 static FM_DIRFILEINFO gDirFileInfo;
 /* flag, to sign this module being inited or not; */
 static char gIsInited = 0;
-
+/*
+    1 : checkDirThr running;
+    0 : checkDirThr stopped;
+*/
+static int gCheckDirThrRunning = 0;
 
 static void unInitDirfileList();
 
@@ -564,9 +564,9 @@ static int initDirfileInfo()
         for(; i < gDirFileList.fileNum[filetype]; i++)
         {
             pCurNode = pCurNode->next;
-            memset(
+            memcpy(
                 gDirFileInfo.pFileInfo + (filetype == 0 ? 0 : gDirFileList.fileNum[filetype - 1] + i) * sizeof(MOCPS_BASIC_FILEINFO),
-                &pCurNode->info.basicInfo, sizeof(MOCPS_BASIC_FILEINFO));
+                (char *)&pCurNode->info.basicInfo, sizeof(MOCPS_BASIC_FILEINFO));
         }
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "set all file info ok.\n");
@@ -585,6 +585,41 @@ static void unInitDirfileInfo()
     gDirFileInfo.sumFileNum = 0;
     pthread_mutex_destroy(&gDirFileInfo.mutex);
     memset(gDirFileInfo.dirPath, 0x00, DIRPATH_MAXLEN);
+}
+
+static void * checkDirThr(void * args)
+{
+    args = args;
+    while(gCheckDirThrRunning)
+    {
+        //TODO, do it
+        sleep(60);
+    }
+    
+    return NULL;
+}
+
+static int startCheckDirThr()
+{
+    gCheckDirThrRunning = 1;
+    
+    pthread_t thId;
+    int ret = pthread_create(&thId, NULL, checkDirThr, NULL);
+    if(ret < 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
+            "Create checkDirthread failed! ret=%d, errno=%d, desc=[%s]\n",
+            ret, errno, strerror(errno));
+        gCheckDirThrRunning = 0;
+        return -1;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "create checkDirThr OK.\n");
+    return 0;
+}
+
+static void stopCheckDirThr()
+{
+    gCheckDirThrRunning = 0;
 }
 
 /*
@@ -711,12 +746,243 @@ int fmGetFileinfo(char * pFileinfo, const int len)
 }
 
 /*
+    From @gDirfileInfo, find a node, which has name and type equal with input @pFilename and @type;
+    If error, or donot find it, return NULL;
+    This function must be locked by caller!
+    It will not lock itself!!
+*/
+static FM_FILEINFO_NODE * findFileNode(const char * pFilename, const MOCPS_FILETYPE type)
+{
+    if(NULL == pFilename || type >= MOCPS_FILETYPE_MAX)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
+            "Input param invalid! pFilename=[%s], type=%d, MOCPS_FILETYPE_MAX=%d\n",
+            pFilename, type, MOCPS_FILETYPE_MAX);
+        return NULL;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "pFilename=[%s], type=%d(%s)\n",
+        pFilename, type, gSubDirName[type]);
+
+    if(gDirFileList.pFileList[type] == NULL)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "donot have fileNode in this type!\n");
+        return NULL;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "start find this node now.\n");
+
+    int isFind = 0;
+    FM_FILEINFO_NODE * pNode = NULL;
+    pNode = gDirFileList.pFileList[type]->next;
+    while(pNode != NULL)
+    {
+        if(0 == strcmp(pNode->info.basicInfo.filename, pFilename))
+        {
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Find it!\n");
+            isFind = 1;
+            break;
+        }
+        pNode = pNode->next;
+        continue;
+    }
+
+    if(isFind == 0)
+    {
+        moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, "Donot find this file!\n");
+        return NULL;
+    }
+    return pNode;
+}
+
+/*
+    Caller want to read this file, and the first time to read it,
+    should call this function to open this file;
+*/
+static int openFile(FM_FILEINFO_NODE * pNode)
+{
+    if(NULL == pNode || NULL == pNode->info.basicInfo.filename)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL!\n");
+        return -1;
+    }
+    if(pNode->info.fp != NULL || pNode->info.readHdrNum != 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Somebody has read this file yet!\n");
+        return -2;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Start to open file [%s] now.\n",
+        pNode->info.basicInfo.filename);
+
+    char filepath[FILEPATH_MAXLEN] = {0x00};
+    memset(filepath, 0x00, FILEPATH_MAXLEN);
+    sprintf(filepath, "%s/%s/%s", gDirFileList.dirPath, gSubDirName[pNode->info.basicInfo.type],
+        pNode->info.basicInfo.filename);
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "filepath = [%s]\n", filepath);
+
+    pNode->info.fp = fopen(filepath, "r+");
+    if(pNode->info.fp == NULL)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "fopen failed! filepath=[%s], errno=%d, desc=[%s]\n",
+            filepath, errno, strerror(errno));
+        return -3;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "fopen succeed.\n");
+
+    pNode->info.readHdrNum = 1;
+    return 0;
+}
+
+static int readFile(FM_FILEINFO_NODE *pNode, const int offset, 
+    const int length, char *pBuf)
+{
+    if(NULL == pNode || NULL == pNode->info.fp || NULL == pBuf)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL!\n");
+        return -1;
+    }
+    rewind(pNode->info.fp);
+    int ret = fseek(pNode->info.fp, offset, SEEK_SET);
+    if(ret < 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "fseek failed! ret=%d, errno=%d, desc=[%s]\n",
+            ret, errno, strerror(errno));
+        return -2;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "fseek succeed.\n");
+
+    ret = fread(pBuf, 1, length, pNode->info.fp);
+    if(ret != length)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
+            "fread failed! ret=%d, length=%d, errno=%d, desc=[%s]\n",
+            ret, length, errno, strerror(errno));
+        return -3;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "fread succeed.\n");
+    return 0;
+}
+
+/*
     Read file;
 */
 int fmReadFile(const MOCPS_BASIC_FILEINFO fileInfo, const int offset, const int length, char *pBuf)
 {
-    //TODO
+    if(NULL == pBuf)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL!\n");
+        return -1;
+    }
+    if(offset + length > fileInfo.size)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "offset(%d)+length(%d)=%d, larger than fileSize(%lld)!\n",
+            offset, length, offset + length, fileInfo.size);
+        return -2;
+    }
+    if(fileInfo.filename == NULL || fileInfo.type >= MOCPS_FILETYPE_MAX)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
+            "fileInfo.type=%d(maxValue=%d), fileInfo.filename=[%s], invalid argument!\n",
+            fileInfo.type, MOCPS_FILETYPE_MAX, fileInfo.filename);
+        return -3;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Input info : " \
+        "Filename:[%s], fileSize:%lld, fileType:%d(%s), offset:%d, length:%d\n",
+        fileInfo.filename, fileInfo.size, fileInfo.type, gSubDirName[fileInfo.type],
+        offset, length);
+
+    pthread_mutex_lock(&gDirFileList.mutex);
+    FM_FILEINFO_NODE * pNode = NULL;
+    pNode = findFileNode(fileInfo.filename, fileInfo.type);
+    if(NULL == pNode)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "findFileNode failed! fileName=[%s], fileType=%d(%s)\n",
+            fileInfo.filename, fileInfo.type, gSubDirName[fileInfo.type]);
+        pthread_mutex_unlock(&gDirFileList.mutex);
+        return -4;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "findFileNode succeed.\n");
+
+    if(pNode->info.fp == NULL)
+    {
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "The first time to read this file, open it now.\n");
+        int ret = openFile(pNode);
+        if(ret < 0)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "openFile failed! ret=%d, filename=[%s], type=%d(%s)\n",
+                ret, fileInfo.filename, fileInfo.type, gSubDirName[fileInfo.type]);
+            pthread_mutex_unlock(&gDirFileList.mutex);
+            return -5;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "openFile succeed.\n");
+    }
+
+    int ret = readFile(pNode, offset, length, pBuf);
+    if(ret < 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "readFile failed! ret = %d\n", ret);
+        pthread_mutex_unlock(&gDirFileList.mutex);
+        return -6;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "readFile succeed.\n");
+    pthread_mutex_unlock(&gDirFileList.mutex);
     return 0;
+}
+
+int fmStopReadFile(const MOCPS_BASIC_FILEINFO fileInfo)
+{
+    if(fileInfo.filename == NULL)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL!\n");
+        return -1;
+    }
+    if(fileInfo.type >= MOCPS_FILETYPE_MAX)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input type=%d, MOCPS_FILETYPE_MAX=%d, invalid argument!\n",
+            fileInfo.type, MOCPS_FILETYPE_MAX);
+        return -2;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Stop read file : filename=[%s], filetype=%d(%s)\n",
+        fileInfo.filename, fileInfo.type, gSubDirName[fileInfo.type]);
+
+    pthread_mutex_lock(&gDirFileList.mutex);
+    FM_FILEINFO_NODE * pNode = NULL;
+    pNode = findFileNode(fileInfo.filename, fileInfo.type);
+    if(NULL == pNode)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "findFileNode failed! fileName=[%s], fileType=%d(%s)\n",
+            fileInfo.filename, fileInfo.type, gSubDirName[fileInfo.type]);
+        pthread_mutex_unlock(&gDirFileList.mutex);
+        return -3;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "findFileNode succeed.\n");
+
+    int ret = 0;
+    if(pNode->info.readHdrNum <= 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pNode->info.readHdrNum=%d, check for why!!\n",
+            pNode->info.readHdrNum);
+        ret = -4;
+    }
+    else if(pNode->info.readHdrNum == 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pNode->info.readHdrNum == 0, have been closed yet!\n");
+        ret = -5;
+    }
+    else
+    {
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "pNode->info.readHdrNum = %d\n",
+            pNode->info.readHdrNum);
+        pNode->info.readHdrNum--;
+        if(pNode->info.readHdrNum == 0)
+        {
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "File should be close now!\n");
+            fclose(pNode->info.fp);
+            pNode->info.fp = NULL;
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "closeFile succeed.\n");
+            ret = 0;
+        }
+    }
+    pthread_mutex_unlock(&gDirFileList.mutex);
+    return ret;
 }
 
 
