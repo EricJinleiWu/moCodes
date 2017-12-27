@@ -27,6 +27,8 @@ static pthread_mutex_t gMutex = PTHREAD_MUTEX_INITIALIZER;
 static int gCheckHeartbeatThrRunning = 0;
 static THR_RUNSTATE gCheckHeartbeatThrState = THR_RUNSTATE_STOPED;
 
+static pFuncNotifyInvalidCli gpNotifyInvalidCliFunc;
+
 static void * checkHeartbeatThr(void *args)
 {
     args = args;
@@ -68,6 +70,14 @@ static void * checkHeartbeatThr(void *args)
             }
             else
             {
+                //Tell moCpsServer, this client being invalid, should stop its threads, and free its resources;
+                int ret = gpNotifyInvalidCliFunc(pCurNode->info.ctrlSockId);
+                if(ret != 0)
+                {
+                    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "gpNotifyInvalidCliFunc failed! ret = %d\n", ret);
+                }
+                moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "gpNotifyInvalidCliFunc succeed!\n");
+                
                 //should delete this client
                 pPreNode->next = pCurNode->next;
                 
@@ -121,9 +131,9 @@ static void stopCheckHeartbeatThr()
     Generate a list to save all client info;
     create a thread to check all clients' heartbeat;
 */
-int cliMgrInit()
+int cliMgrInit(pFuncNotifyInvalidCli pFunc)
 {
-    if(gpCliInfoListHead != NULL)
+    if(gpCliInfoListHead != NULL || NULL == pFunc)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
             "gpCliInfoListHead not NULL, CLIMGR being inited! cannot init again!\n");
@@ -151,6 +161,8 @@ int cliMgrInit()
         return -3;
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "startCheckHeartbeatThr succeed!\n");
+
+    gpNotifyInvalidCliFunc = pFunc;
     
     return 0;
 }
@@ -173,6 +185,7 @@ void cliMgrUnInit()
     }
     free(gpCliInfoListHead);
     gpCliInfoListHead = NULL;
+    gpNotifyInvalidCliFunc = NULL;
 }
 
 int cliMgrRefreshHeartbeat(const char * pAddr)
@@ -257,8 +270,9 @@ int cliMgrInsertNewCli(const char * pAddr, const int ctrlPort, const int ctrlSoc
     strcpy(pNewNode->info.addr, pAddr);
     pNewNode->info.ctrlPort = ctrlPort;
     pNewNode->info.ctrlSockId= ctrlSockId;
+    pNewNode->info.state = CLIMGR_CLI_STATE_CTRLSOCKIN;
+    
     pNewNode->next = NULL;
-
     pPreNode->next = pNewNode;
     
     pthread_mutex_unlock(&gMutex);
@@ -267,45 +281,114 @@ int cliMgrInsertNewCli(const char * pAddr, const int ctrlPort, const int ctrlSoc
 }
 
 /*
-    Set state, if state set to Heartbeat, should check its timeout;
+    1.check this client being exist or not;
+    2.if exist, delete it;
+
+    if donot exist in this list, return 0, too.
 */
-int cliMgrSetState(const char *pAddr, CLIMGR_CLI_STATE state)
+int cliMgrDeleteCli(const char *pAddr)
 {
-    if(NULL == pAddr || state >= CLIMGR_CLI_STATE_MAX)
+    if(NULL == pAddr)
     {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is invalid!\n");
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL.\n");
         return -1;
     }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "address=[%s], state=%d\n",
-        pAddr, state);
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "client ip=[%s], should delete it from cliMgr.\n", pAddr);
 
     in_addr_t value = inet_addr(pAddr);
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "address [%s] has id=%u\n", pAddr, value);
 
     pthread_mutex_lock(&gMutex);
+    CLIMGR_CLIINFO_NODE * pPreNode = gpCliInfoListHead;
     CLIMGR_CLIINFO_NODE * pCurNode = gpCliInfoListHead->next;
-    while(pCurNode != NULL)
+    while(NULL != pCurNode)
     {
         if(pCurNode->info.id == value)
         {
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Find this client in cliMgr!\n");
+            break;
+        }
+        pPreNode = pCurNode;
+        pCurNode = pCurNode->next;
+    }
+    if(NULL == pCurNode)
+    {
+        moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, "Donot find this client in cliMgr! return directly.\n");
+        pthread_mutex_unlock(&gMutex);
+        return 0;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "start delete this client now.\n");
+
+    int ret = gpNotifyInvalidCliFunc(pCurNode->info.ctrlSockId);
+    if(ret != 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "gpNotifyInvalidCliFunc failed! ret = %d\n", ret);
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "gpNotifyInvalidCliFunc succeed!\n");
+
+    pPreNode->next = pCurNode->next;
+    free(pCurNode);
+    pCurNode = NULL;
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "has deleted this client now.\n");
+    
+    pthread_mutex_unlock(&gMutex);
+    return 0;
+}
+
+/*
+    Set state, if state set to Heartbeat, should check its timeout;
+*/
+int cliMgrSetState(const int ctrlSockId, CLIMGR_CLI_STATE state)
+{
+    if(state >= CLIMGR_CLI_STATE_MAX)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is invalid!\n");
+        return -1;
+    }
+    
+    pthread_mutex_lock(&gMutex);
+    CLIMGR_CLIINFO_NODE * pCurNode = gpCliInfoListHead->next;
+    while(pCurNode != NULL)
+    {
+        if(pCurNode->info.ctrlSockId == ctrlSockId)
+        {
             moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Find this client!\n");
             pCurNode->info.state = state;
-            break;
+            pthread_mutex_unlock(&gMutex);
+            return 0;
         }
         pCurNode = pCurNode->next;
     }
 
-    int ret = 0;
-    if(NULL == pCurNode)
-    {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot find this node!\n");
-        ret = -3;
-    }
-    
+    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot find this node!\n");
     pthread_mutex_lock(&gMutex);
-    return ret;
+    return -2;
 }
 
+int cliMgrGetState(const int ctrlSockId, CLIMGR_CLI_STATE *state)
+{
+    pthread_mutex_lock(&gMutex);
+    CLIMGR_CLIINFO_NODE * pCurNode = gpCliInfoListHead->next;
+    while(pCurNode != NULL)
+    {
+        if(pCurNode->info.ctrlSockId == ctrlSockId)
+        {
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Find this client!\n");
+            *state = pCurNode->info.state;
+            pthread_mutex_lock(&gMutex);
+            return 0;
+        }
+        pCurNode = pCurNode->next;
+    }
+    
+    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot find this node!\n");
+    pthread_mutex_lock(&gMutex);
+    return -1;
+
+}
+
+
+#if 0
 int cliMgrSetDataPortValue(const char * pAddr, const int dataPort, const int dataSockId)
 {
     if(NULL == pAddr)
@@ -344,7 +427,7 @@ int cliMgrSetDataPortValue(const char * pAddr, const int dataPort, const int dat
     
     return 0;
 }
-
+#endif
 
 
 

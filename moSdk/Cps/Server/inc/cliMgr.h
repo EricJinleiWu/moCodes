@@ -29,8 +29,8 @@ typedef struct
     char addr[MOCPS_IP_ADDR_MAXLEN];    //255.255.255.255 is the largest ip address
     int ctrlPort;
     int ctrlSockId;
-    int dataPort;
-    int dataSockId;
+//    int dataPort;
+//    int dataSockId;
     CLIMGR_CLI_STATE state;
     clock_t lastHeartbeatTime;  //last heartbeat time, to check heartbeat timeout or not
 }CLIMGR_CLIINFO;
@@ -41,12 +41,17 @@ typedef struct _CLIMGR_CLIINFO_NODE
     struct _CLIMGR_CLIINFO_NODE * next;
 }CLIMGR_CLIINFO_NODE;
 
+typedef int (*pFuncNotifyInvalidCli)(const int ctrlSockId);
+
 /*
     Do init;
     Generate a list to save all client info;
     create a thread to check all clients' heartbeat;
+    @pFunc is a function pointer, when we find a client being invalid, like heartbeat timeout, or say byebye to server,
+        or any others, should use this function, to tell moCpsServer, to stop the thread for this client, and free 
+        its sources;
 */
-int cliMgrInit();
+int cliMgrInit(pFuncNotifyInvalidCli pFunc);
 
 /*
     Do uninit;
@@ -59,6 +64,11 @@ void cliMgrUnInit();
 int cliMgrInsertNewCli(const char * pAddr, const int ctrlPort, const int ctrlSockId);
 
 /*
+    When moCpsServer recv a request "byebye" from client, should delete it from cliMgr;
+*/
+int cliMgrDeleteCli(const char *pAddr);
+
+/*
     Recv a heartbeat from a client, should refresh its heartbeat time;
 */
 int cliMgrRefreshHeartbeat(const char * pAddr);
@@ -66,11 +76,19 @@ int cliMgrRefreshHeartbeat(const char * pAddr);
 /*
     Set state, if state set to Heartbeat, should check its timeout;
 */
-int cliMgrSetState(const char *pAddr, CLIMGR_CLI_STATE state);
+int cliMgrSetState(const int ctrlSockId, CLIMGR_CLI_STATE state);
 
+/*
+    Get its state;
+*/
+int cliMgrGetState(const int ctrlSockId, CLIMGR_CLI_STATE *state);
 
+#if 0
+/*
+    Set data port value to local memory;
+*/
 int cliMgrSetDataPortValue(const char * pAddr, const int dataPort, const int dataSockId);
-
+#endif
 
 #ifdef __cplusplus
 }

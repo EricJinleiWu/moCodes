@@ -15,6 +15,8 @@ extern "C" {
 #define MOCPS_MODULE_LOGGER_NAME    "MOCPS"
 #define MOCPS_IP_ADDR_MAXLEN    16
 #define MOCPS_INVALID_SOCKID    (-1)
+#define MOCPS_INVALID_THR_ID    0
+#define MOCPS_INVALID_PORT      (0)
 #define MOCPS_DATA_BODY_BLK_MAXSIZE 1024
 
 
@@ -35,6 +37,7 @@ typedef enum
 
 typedef enum
 {
+    MOCPS_CRYPT_ALGO_IDLE,  //This means keyagree failed!
     MOCPS_CRYPT_ALGO_DES,
     MOCPS_CRYPT_ALGO_DES3,
     MOCPS_CRYPT_ALGO_AES,
@@ -75,7 +78,7 @@ typedef struct
 {
 	MOCPS_CRYPT_ALGO cryptAlgoNo;	//AlgoDes, AlgoDes3, AlgoRc4, and so on
 	MOCPS_CRYPT_KEY_INFO cryptKey;  //The key
-	unsigned char keyLen;		//The length of key 
+	int keyLen;		//The length of key 
 }MOCPS_CRYPT_INFO;
 
 typedef struct

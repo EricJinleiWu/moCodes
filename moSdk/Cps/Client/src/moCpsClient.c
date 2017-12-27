@@ -946,7 +946,8 @@ static int isRightFormatHeader(const MOCPS_DATA_RESPONSE_HEADER header)
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "CmdId ok.\n");
 
     int ret = moUtils_Check_checkSum((unsigned char *)&header, 
-        sizeof(MOCPS_DATA_RESPONSE_HEADER) - sizeof(unsigned char), header.checksum);
+        sizeof(MOCPS_DATA_RESPONSE_HEADER) - sizeof(MOUTILS_CHECK_CRCVALUE), 
+        header.checksum);
     if(ret < 0)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
@@ -1386,7 +1387,7 @@ int moCpsCli_init(const char* pConfFilepath, const pDataCallbackFunc pFunc)
     }
     moLoggerError(MOCPS_MODULE_LOGGER_NAME, "dmmInit succeed.");
 
-    //do data memory manager init firstly, if memory cannot malloced, other will not be done
+    //do ctrl response memory manager init firstly, if memory cannot malloced, other will not be done
     ret = crmmInit();
     if(ret < 0)
     {
