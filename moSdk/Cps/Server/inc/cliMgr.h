@@ -66,12 +66,12 @@ int cliMgrInsertNewCli(const char * pAddr, const int ctrlPort, const int ctrlSoc
 /*
     When moCpsServer recv a request "byebye" from client, should delete it from cliMgr;
 */
-int cliMgrDeleteCli(const char *pAddr);
+int cliMgrDeleteCli(const int ctrlSockId);
 
 /*
     Recv a heartbeat from a client, should refresh its heartbeat time;
 */
-int cliMgrRefreshHeartbeat(const char * pAddr);
+int cliMgrRefreshHeartbeat(const int ctrlSockId);
 
 /*
     Set state, if state set to Heartbeat, should check its timeout;
@@ -82,6 +82,8 @@ int cliMgrSetState(const int ctrlSockId, CLIMGR_CLI_STATE state);
     Get its state;
 */
 int cliMgrGetState(const int ctrlSockId, CLIMGR_CLI_STATE *state);
+
+void cliMgrDump();
 
 #if 0
 /*

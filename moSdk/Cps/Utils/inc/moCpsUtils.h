@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include <signal.h>
+
 #include "moCrypt.h"
 #include "moUtils.h"
 
@@ -23,6 +25,13 @@ extern "C" {
 #define DIRPATH_MAXLEN  256
 #define FILENAME_MAXLEN 256
 #define FILEPATH_MAXLEN (DIRPATH_MAXLEN + FILENAME_MAXLEN)
+
+/*
+    We use a signal to stop our threads;
+    this signal I choosed SIGALRM;
+    when I want to stop a thread, send a SIGALRM signal to it by pthread_kill();
+*/
+#define MOCPS_STOP_THR_SIG  SIGALRM
 
 typedef enum
 {
@@ -174,6 +183,23 @@ int splitInt2Char(const int src, char dst[4]);
     it is reverse process to splitInt2Char;
 */
 int mergeChar2Int(const char src[4], int *dst);
+
+/*
+    Kill the thread with Id @thId;
+*/
+int killThread(const pthread_t thId);
+
+/*
+    A function, when a thread being recv a stop signal, call it.
+*/
+void threadExitSigCallback(int sigNo);
+
+/*
+    Register the signal to a thread;
+    When we killThread, we need this register;
+*/
+int threadRegisterSignal(sigset_t * pSet);
+
 
 #ifdef __cplusplus
 }

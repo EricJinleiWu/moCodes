@@ -553,6 +553,7 @@ static int initDirfileInfo()
             errno, strerror(errno), gDirFileInfo.curMemSize);
         return -2;
     }
+    memset(gDirFileInfo.pFileInfo, 0x00, gDirFileInfo.curMemSize);
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "malloc ok.\n");
 
     //set value to it
@@ -983,6 +984,37 @@ int fmStopReadFile(const MOCPS_BASIC_FILEINFO fileInfo)
     }
     pthread_mutex_unlock(&gDirFileList.mutex);
     return ret;
+}
+
+void fmDump()
+{
+    printf("==================== Dump FileMgr module resources start now ====================\n");
+    
+    do
+    {
+        printf("\t FileList info(dirpath=[%s], fileNumber=%d) : \n",
+            gDirFileList.dirPath, gDirFileList.fileNum);
+        printf("\t All files info here:\n");
+
+        pthread_mutex_lock(&gDirFileList.mutex);
+        int i = 0;
+        for(; i < MOCPS_FILETYPE_MAX; i++)
+        {
+            int cnt = 0;
+            FM_FILEINFO_NODE *pCurNode = gDirFileList.pFileList[i]->next;
+            while(pCurNode != NULL)
+            {
+                cnt++;
+                printf("\t\t FileType=[%s], fileName=[%s], fileSie=%lld, typeId=%d, readHdrNum=%d\n", 
+                    gSubDirName[i], pCurNode->info.basicInfo.filename, pCurNode->info.basicInfo.size, 
+                    pCurNode->info.basicInfo.type, pCurNode->info.readHdrNum);
+            }
+            printf("\t\t In summary, %d files of this type.\n", cnt);
+        }
+        pthread_mutex_unlock(&gDirFileList.mutex);    
+    }while(0);
+    
+    printf("==================== Dump FileMgr module resources stop now ====================\n");
 }
 
 

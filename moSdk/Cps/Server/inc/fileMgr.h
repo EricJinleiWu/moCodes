@@ -39,6 +39,7 @@ int fmReadFile(const MOCPS_BASIC_FILEINFO fileInfo, const int offset, const int 
 */
 int fmStopReadFile(const MOCPS_BASIC_FILEINFO fileInfo);
 
+void fmDump();
 
 #ifdef __cplusplus
 }

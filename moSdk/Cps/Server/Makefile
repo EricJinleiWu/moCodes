@@ -37,7 +37,7 @@ APP: DEPENDS $(TARGET)
 $(TARGET): $(MAIN_OBJS)
 	@echo ">>> compiling $(TARGET) ..."
 	$(CC) -o $@ $^ -shared $(INCDIRS) $(LDFLAGS)
-	ln -s libMoCpsServer.so.$(DVRGW_SUFFIX) $(TARGET_DIR)/libMoCpsServer.so
+	ln -s libMoCpsServ.so.$(DVRGW_SUFFIX) $(TARGET_DIR)/libMoCpsServ.so
 	cp $(TARGET_DIR)/* $(MO_SDK_RELEASE_DIR) -rfad
       
 DEPENDS:

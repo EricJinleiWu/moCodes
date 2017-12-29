@@ -25,6 +25,12 @@ void moCpsServ_unInit();
 int moCpsServ_startRunning();
 
 /*
+    Dump the resource of moCpsServer;
+    This can help us to debug;
+*/
+void moCpsServ_dump();
+
+/*
     Stop running;
     after this function, all requests from clients, will not be done;
     return 0 if succeed.

@@ -188,40 +188,25 @@ void cliMgrUnInit()
     gpNotifyInvalidCliFunc = NULL;
 }
 
-int cliMgrRefreshHeartbeat(const char * pAddr)
+int cliMgrRefreshHeartbeat(const int ctrlSockId)
 {
-    if(NULL == pAddr)
-    {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL!\n");
-        return -1;
-    }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "address = [%s]\n", pAddr);
-
-    in_addr_t value = inet_addr(pAddr);
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "address [%s] has id=%u\n", pAddr, value);
-
     pthread_mutex_lock(&gMutex);
+
     CLIMGR_CLIINFO_NODE * pCurNode = gpCliInfoListHead->next;
     while(pCurNode != NULL)
     {
-        if(pCurNode->info.id == value)
+        if(pCurNode->info.ctrlSockId == ctrlSockId)
         {
             moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Find this client!\n");
             pCurNode->info.lastHeartbeatTime = clock();
-            break;
+            pthread_mutex_unlock(&gMutex);
+            return 0;
         }
         pCurNode = pCurNode->next;
     }
-
-    int ret = 0;
-    if(NULL == pCurNode)
-    {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot find this node!\n");
-        ret = -3;
-    }
-    
+    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot find this client!\n");
     pthread_mutex_lock(&gMutex);
-    return ret;
+    return -1;
 }
 
 /*
@@ -286,24 +271,15 @@ int cliMgrInsertNewCli(const char * pAddr, const int ctrlPort, const int ctrlSoc
 
     if donot exist in this list, return 0, too.
 */
-int cliMgrDeleteCli(const char *pAddr)
+int cliMgrDeleteCli(const int ctrlSockId)
 {
-    if(NULL == pAddr)
-    {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL.\n");
-        return -1;
-    }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "client ip=[%s], should delete it from cliMgr.\n", pAddr);
-
-    in_addr_t value = inet_addr(pAddr);
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "address [%s] has id=%u\n", pAddr, value);
-
     pthread_mutex_lock(&gMutex);
+    
     CLIMGR_CLIINFO_NODE * pPreNode = gpCliInfoListHead;
     CLIMGR_CLIINFO_NODE * pCurNode = gpCliInfoListHead->next;
     while(NULL != pCurNode)
     {
-        if(pCurNode->info.id == value)
+        if(pCurNode->info.ctrlSockId == ctrlSockId)
         {
             moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Find this client in cliMgr!\n");
             break;
@@ -318,13 +294,6 @@ int cliMgrDeleteCli(const char *pAddr)
         return 0;
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "start delete this client now.\n");
-
-    int ret = gpNotifyInvalidCliFunc(pCurNode->info.ctrlSockId);
-    if(ret != 0)
-    {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "gpNotifyInvalidCliFunc failed! ret = %d\n", ret);
-    }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "gpNotifyInvalidCliFunc succeed!\n");
 
     pPreNode->next = pCurNode->next;
     free(pCurNode);
@@ -384,7 +353,35 @@ int cliMgrGetState(const int ctrlSockId, CLIMGR_CLI_STATE *state)
     moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot find this node!\n");
     pthread_mutex_lock(&gMutex);
     return -1;
+}
 
+    
+void cliMgrDump()
+{
+    printf("==================== Dump CliMgr module resources start now ====================\n");
+    
+    do
+    {
+        if(NULL == gpCliInfoListHead)
+            break;
+    
+        pthread_mutex_lock(&gMutex);
+
+        int cnt = 0;
+        CLIMGR_CLIINFO_NODE * pCurNode = gpCliInfoListHead->next;
+        while(pCurNode != NULL)
+        {
+            printf("\t IP=[%s], ctrlPort=%d, ctrlSockId=%d, lastHeatbeatTime=%d, state=%d\n",
+                pCurNode->info.addr, pCurNode->info.ctrlPort, pCurNode->info.ctrlSockId, 
+                pCurNode->info.lastHeartbeatTime, pCurNode->info.state);
+            cnt++;
+        }
+        printf("\t In summary, %d nodes here.\n", cnt);
+        
+        pthread_mutex_unlock(&gMutex);    
+    }while(0);
+    
+    printf("==================== Dump CliMgr module resources stop now ====================\n");
 }
 
 

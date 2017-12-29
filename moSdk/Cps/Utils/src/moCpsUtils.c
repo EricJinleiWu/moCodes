@@ -116,3 +116,128 @@ int mergeChar2Int(const char src[4], int *dst)
     return 0;
 }
 
+/*
+    1.check the thread running or not;
+    2.send signal to stop it;
+    3.wait it stoped;
+*/
+int killThread(const pthread_t thId)
+{
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "The thread being stopped with ID=%lu\n", (unsigned long int)thId);
+    //check this thread running or not now.
+    int ret = pthread_kill(thId, 0);
+    if(ret != 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pthread_kill failed! ret=%d\n", ret);
+        if(ret == ESRCH)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Thread donot running now! cannot stop it!\n");
+            return -1;
+        }
+        else if(ret == EINVAL)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Invalid signal!\n");
+            return -2;
+        }
+        else
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Other error! ret = %d\n", ret);
+            return -3;
+        }
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "This thread still running, can stop it now.\n");
+
+    //send signal to stop it
+    ret = pthread_kill(thId, MOCPS_STOP_THR_SIG);
+    if(ret != 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pthread_kill failed! ret = %d\n", ret);
+        return -4;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "pthread_kill succeed.\n");
+
+    //wait the thread stopped
+    ret = pthread_join(thId, NULL);
+    if(ret != 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pthread_join failed! ret = %d\n", ret);
+        return -5;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "pthread_join succeed!\n");
+
+    return 0;
+}
+
+void threadExitSigCallback(int sigNo)
+{
+    moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, 
+        "Thread (id=%lu) recv the stopped signal(sigNo=%d), will stop now!\n",
+        pthread_self(), sigNo);
+}
+
+/*
+    1.sigaction;
+    2.sigadd;
+*/
+int threadRegisterSignal(sigset_t * pSet)
+{
+    struct sigaction actions;
+    memset(&actions, 0x00, sizeof(struct sigaction));
+    sigemptyset(&actions.sa_mask);
+    actions.sa_flags = 0;
+    actions.sa_handler = threadExitSigCallback;
+    int ret = sigaction(MOCPS_STOP_THR_SIG, &actions, NULL);
+    if(ret != 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "sigaction failed! " \
+            "ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
+        return -1;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "sigaction succeed.\n");
+
+    sigemptyset(pSet);
+    sigaddset(pSet, MOCPS_STOP_THR_SIG);
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
