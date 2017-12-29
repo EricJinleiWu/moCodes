@@ -197,7 +197,7 @@ static void dumpConfInfo(const MOCPS_CLI_CONFINFO info)
 {
     moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, "Dump config info start:\n");
     moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, "ServerIp=[%s], ServerPort=%d, " \
-        "ClientIp=[%s], ClientDataPort=%d, ClientCtrlPort=%d", 
+        "ClientIp=[%s], ClientDataPort=%d, ClientCtrlPort=%d\n", 
         info.servIp, info.servPort, info.cliIp, info.cliDataPort, info.cliCtrlPort);
     moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, "Dump config info stop.\n");
 }
@@ -643,8 +643,8 @@ static void destroyDataSocket()
 static int createCtrlSocket(const MOCPS_CLI_CONFINFO confInfo)
 {
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, 
-        "Server ip = [%s], port = %d, client data port = %d\n",
-        confInfo.servIp, confInfo.servPort, confInfo.cliDataPort);
+        "Server ip = [%s], port = %d, client ctrl port = %d\n",
+        confInfo.servIp, confInfo.servPort, confInfo.cliCtrlPort);
 
     if(gCtrlSockId != MOCPS_INVALID_SOCKID)
     {
@@ -654,7 +654,7 @@ static int createCtrlSocket(const MOCPS_CLI_CONFINFO confInfo)
     }
 
     //create socket
-    int ret = createSockAndBind(confInfo.cliIp, confInfo.cliDataPort, &gCtrlSockId);
+    int ret = createSockAndBind(confInfo.cliIp, confInfo.cliCtrlPort, &gCtrlSockId);
     if(gCtrlSockId < 0)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "createSockAndBind failed! ret = %d\n", ret);
@@ -1264,6 +1264,7 @@ static int doKeyAgree()
     req.basicInfo.cmdId = MOCPS_CMDID_KEYAGREE;
     moUtils_Check_getCrc((char *)&req.basicInfo, sizeof(MOCPS_CTRL_REQUEST_BASIC),
         MOUTILS_CHECK_CRCMETHOD_32, &req.crc32);
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "generate request for KEYAGREE succeed.\n");
 
     //2.send to moCpsServer
     int writeLen = writen(gCtrlSockId, (char *)&req, sizeof(MOCPS_CTRL_REQUEST));
@@ -1323,6 +1324,12 @@ static int doKeyAgree()
             }
         }
     }
+    if(waitTime > KEYAGREE_TIMEOUT)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "KeyAgree failed! donot get response in %d seconds.\n",
+            KEYAGREE_TIMEOUT);
+        return -5;
+    }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "get keyagree response waste time %d seconds.\n", waitTime);
 
     //4.decrypt the response to plain text
@@ -1332,7 +1339,7 @@ static int doKeyAgree()
     if(ret < 0)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "decryptKeyAgreeResponse failed! ret = %d\n", ret);
-        return -5;
+        return -6;
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "decryptKeyAgreeResponse OVER.\n");
 
@@ -1341,7 +1348,7 @@ static int doKeyAgree()
     if(ret < 0)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "checkKeyagreeResp failed! ret = %d\n", ret);
-        return -6;
+        return -7;
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "checkKeyagreeResp ok.\n");
 
@@ -1385,7 +1392,7 @@ int moCpsCli_init(const char* pConfFilepath, const pDataCallbackFunc pFunc)
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "dmmInit failed, ret = %d\n", ret);
         return MOCPS_CLI_ERR_INTERNAL;
     }
-    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "dmmInit succeed.");
+    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "dmmInit succeed.\n");
 
     //do ctrl response memory manager init firstly, if memory cannot malloced, other will not be done
     ret = crmmInit();
@@ -1394,7 +1401,7 @@ int moCpsCli_init(const char* pConfFilepath, const pDataCallbackFunc pFunc)
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "crmmInit failed, ret = %d\n", ret);
         return MOCPS_CLI_ERR_INTERNAL;
     }
-    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "crmmInit succeed.");
+    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "crmmInit succeed.\n");
 
     //1.get config info
     MOCPS_CLI_CONFINFO confInfo;

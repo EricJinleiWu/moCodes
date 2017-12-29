@@ -81,6 +81,9 @@ static pthread_mutex_t gCriMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int gSockId = MOCPS_INVALID_SOCKID;
 
+static void criDump();
+
+
 /*
     Thread, to check all clients thread state, if state in DELETING, 
     means we should stop its thread, and delete it from list;
@@ -105,6 +108,9 @@ static void * criCheckThr(void * args)
         pthread_mutex_lock(&gCriMutex);
 
         CLI_RUNNING_INFO_NODE * pPreNode = gpCriListHead;
+        if(NULL == pPreNode)
+            break;
+        
         CLI_RUNNING_INFO_NODE * pCurNode = gpCriListHead->next;
         while(pCurNode != NULL)
         {
@@ -224,7 +230,7 @@ static int criInsertNewCliInfo(const char * ip, const int sockId, const int ctrl
         {
             moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "This client has been exist!\n");
             pthread_mutex_unlock(&gCriMutex);
-            //We thind this means client being inserted yet, return 0, too.
+            //We think this means client being inserted yet, return 0, too.
             return 0;
         }
         pCurNode = pCurNode->next;
@@ -239,6 +245,7 @@ static int criInsertNewCliInfo(const char * ip, const int sockId, const int ctrl
         pthread_mutex_unlock(&gCriMutex);
         return -3;
     }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "malloc for new node succeed.\n");
 
     //Set values
     strncpy(pNewNode->info.ip, ip, MOCPS_IP_ADDR_MAXLEN);
@@ -256,8 +263,10 @@ static int criInsertNewCliInfo(const char * ip, const int sockId, const int ctrl
     //insert to list
     pNewNode->next = gpCriListHead->next;
     gpCriListHead->next = pNewNode;
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "New node being inserted after head node!\n");
     
     pthread_mutex_unlock(&gCriMutex);
+    criDump();
     return 0;
 }
 
@@ -372,7 +381,7 @@ static int criSetDataSockPort(const int ctrlSockId, const int dataPort)
     return -2;
 }
 
-static int criRefreshCtrlThrInfo(const in_addr_t ipValue, const pthread_t thId)
+static int criRefreshCtrlThrInfo(const int ctrlSockId, const pthread_t thId)
 {
     if(NULL == gpCriListHead)
     {
@@ -382,10 +391,15 @@ static int criRefreshCtrlThrInfo(const in_addr_t ipValue, const pthread_t thId)
 
     pthread_mutex_lock(&gCriMutex);
 
+    printf("wjl_test : ctrlSockId = %d\n",ctrlSockId);
+
     CLI_RUNNING_INFO_NODE * pCurNode = gpCriListHead->next;
+    if(NULL == pCurNode)
+        printf("wjl_test : NULL == pCurNode\n");
     while(pCurNode != NULL)
     {
-        if(pCurNode->info.ipValue == ipValue)
+        printf("wjl_test : current ctrlSockId = %d\n", pCurNode->info.ctrlSockId);
+        if(pCurNode->info.ctrlSockId == ctrlSockId)
         {
             moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "This client being found!\n");
 
@@ -1771,6 +1785,8 @@ static void * doAcceptThr(void * args)
                     else
                         moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "criInsertNewCliInfo succeed!\n");
 
+                    criDump();
+
                     ret = cliMgrInsertNewCli(ip, port, cliSockId);
                     if(ret < 0)
                     {
@@ -1791,8 +1807,8 @@ static void * doAcceptThr(void * args)
                     }
                     else
                     {
-                        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "startThread succeed.\n");
-                        criRefreshCtrlThrInfo(clientAddr.sin_addr.s_addr, thId);
+                        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "startThread succeed.\n");                
+                        criRefreshCtrlThrInfo(cliSockId, thId);
                     }
 
                     continue;

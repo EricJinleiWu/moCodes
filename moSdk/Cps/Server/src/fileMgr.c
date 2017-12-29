@@ -212,9 +212,16 @@ static int getSubDirFilelist(const int filetype)
     FM_FILEINFO_NODE *pHeadNode = gDirFileList.pFileList[filetype];
     if(pHeadNode == NULL)
     {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
-            "filetype=%d, pHeadNode == NULL, check for why!\n", filetype);
-        return -3;
+        moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, 
+            "filetype=%d, pHeadNode == NULL, malloc for it!\n", filetype);
+        pHeadNode = (FM_FILEINFO_NODE *)malloc(sizeof(FM_FILEINFO_NODE) * 1);
+        if(NULL == pHeadNode)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "malloc failed! errno=%d, desc=[%s]\n",
+                errno, strerror(errno));
+            return -2;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "malloc succeed.\n");
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Find the header pointer!\n");
 
