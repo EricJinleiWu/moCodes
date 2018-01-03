@@ -205,7 +205,7 @@ int cliMgrRefreshHeartbeat(const int ctrlSockId)
         pCurNode = pCurNode->next;
     }
     moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot find this client!\n");
-    pthread_mutex_lock(&gMutex);
+    pthread_mutex_unlock(&gMutex);
     return -1;
 }
 
@@ -330,7 +330,7 @@ int cliMgrSetState(const int ctrlSockId, CLIMGR_CLI_STATE state)
     }
 
     moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot find this node!\n");
-    pthread_mutex_lock(&gMutex);
+    pthread_mutex_unlock(&gMutex);
     return -2;
 }
 
@@ -344,14 +344,14 @@ int cliMgrGetState(const int ctrlSockId, CLIMGR_CLI_STATE *state)
         {
             moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Find this client!\n");
             *state = pCurNode->info.state;
-            pthread_mutex_lock(&gMutex);
+            pthread_mutex_unlock(&gMutex);
             return 0;
         }
         pCurNode = pCurNode->next;
     }
     
     moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot find this node!\n");
-    pthread_mutex_lock(&gMutex);
+    pthread_mutex_unlock(&gMutex);
     return -1;
 }
 

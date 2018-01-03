@@ -95,14 +95,25 @@ static int getFileList()
         fprintf(stderr, "moCpsCli_sendRequest failed! ret=%d\n", ret);
         return -1;
     }
+    printf("send getFileList ok, and recv response ok.\n");
     if(!isRightFormatResp(&resp))
     {
         fprintf(stderr, "The response donot int right format!\n");
         return -2;
     }
+    printf("check response format ok. bodyLen = %d\n", resp.basicInfo.bodyLen);
     //dump the files info to the format I like ^_^
+
+//    printf("\n");
+//    int i = 0;
+//    for(i = 0; i < resp.basicInfo.bodyLen; i++)
+//    {
+//        printf("%d, ", *(resp.pBody + i));
+//    }
+//    printf("\n\n");
+    
     int len = 0;
-    while(len <= resp.basicInfo.bodyLen)
+    while(len < resp.basicInfo.bodyLen)
     {
         MOCPS_BASIC_FILEINFO curFileInfo;
         memset(&curFileInfo, 0x00, sizeof(MOCPS_BASIC_FILEINFO));
@@ -112,6 +123,8 @@ static int getFileList()
 
         len += sizeof(MOCPS_BASIC_FILEINFO);
     }
+    printf("Dump ok.\n");
+
     return 0;
 }
 

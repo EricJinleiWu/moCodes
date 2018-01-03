@@ -56,8 +56,8 @@ typedef enum
 
 typedef enum
 {
-    MOCPS_REQUEST_TYPE_NEED_RESPONSE,
-    MOCPS_REQUEST_TYPE_NOTNEED_RESPONSE
+    MOCPS_REQUEST_TYPE_NOTNEED_RESPONSE,
+    MOCPS_REQUEST_TYPE_NEED_RESPONSE
 }MOCPS_REQUEST_TYPE;
 
 typedef struct
@@ -65,7 +65,7 @@ typedef struct
 	char mark[16];		//MOCPS_CLIENT
 	MOCPS_REQUEST_TYPE isNeedResp;	//1, need response
 	MOCPS_CMDID cmdId;
-    char res[4];    //reserved
+    unsigned char res[4];    //reserved
 }MOCPS_CTRL_REQUEST_BASIC;
 
 typedef struct
@@ -176,13 +176,13 @@ int writen(const int sockId, const char* buf, const int len);
 /*
     Split a int value to char[4];
 */
-int splitInt2Char(const int src, char dst[4]);
+int splitInt2Char(const int src, unsigned char dst[4]);
 
 /*
     Merge char[4] to a int value; 
     it is reverse process to splitInt2Char;
 */
-int mergeChar2Int(const char src[4], int *dst);
+int mergeChar2Int(const unsigned char src[4], int *dst);
 
 /*
     Kill the thread with Id @thId;
@@ -200,6 +200,15 @@ void threadExitSigCallback(int sigNo);
 */
 int threadRegisterSignal(sigset_t * pSet);
 
+/*
+    In some conditions, we need a value can divide other one, for example,
+        in DES, we need length can divide 8;
+    So we need get a value, nearest to @srcValue, and can divide @div;
+
+    return 0- if failed;
+    return 0+ if succeed, ret is the value you needed;
+*/
+int getNearestDivValue(const int srcValue, const int div);
 
 #ifdef __cplusplus
 }

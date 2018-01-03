@@ -42,7 +42,7 @@ int main(int argc, char **argv)
         return -4;
     }
 
-    sleep(6);
+    sleep(60);
 
     ret = moCpsServ_stopRunning();
     if(ret < 0)

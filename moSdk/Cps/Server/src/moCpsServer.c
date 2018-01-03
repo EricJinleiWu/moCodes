@@ -91,12 +91,12 @@ static void criDump();
 static void * criCheckThr(void * args)
 {
     args = args;
-    struct timeval tm;
-    tm.tv_sec = 1;
-    tm.tv_usec = 0;
 
     while(1)
     {
+        struct timeval tm;
+        tm.tv_sec = 1;
+        tm.tv_usec = 0;
         int ret = select(0, NULL, NULL, NULL, &tm);
         if(ret < 0)
         {
@@ -117,19 +117,23 @@ static void * criCheckThr(void * args)
             if(pCurNode->info.ctrlThrState == THREAD_STATE_DELETING)
             {
                 killThread(pCurNode->info.ctrlThrId);
-            }
-            pCurNode->info.ctrlThrState = THREAD_STATE_DELETED;
+                pCurNode->info.ctrlThrState = THREAD_STATE_DELETED;
                 
-            if(pCurNode->info.dataThrState == THREAD_STATE_DELETING)
-            {
-                killThread(pCurNode->info.dataThrId);
+                if(pCurNode->info.dataThrState == THREAD_STATE_DELETING)
+                {
+                    killThread(pCurNode->info.dataThrId);
+                    pCurNode->info.dataThrState = THREAD_STATE_DELETED;
+                }
+                
+                pPreNode->next = pCurNode->next;
+                free(pCurNode);
+                pCurNode = NULL;
+                pCurNode = pPreNode->next;
             }
-            pCurNode->info.dataThrState = THREAD_STATE_DELETED;
-
-            pPreNode->next = pCurNode->next;
-            free(pCurNode);
-            pCurNode = NULL;
-            pCurNode = pPreNode->next;
+            else
+            {
+                pCurNode = pCurNode->next;
+            }
         }
         
         pthread_mutex_unlock(&gCriMutex);
@@ -264,9 +268,8 @@ static int criInsertNewCliInfo(const char * ip, const int sockId, const int ctrl
     pNewNode->next = gpCriListHead->next;
     gpCriListHead->next = pNewNode;
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "New node being inserted after head node!\n");
-    
+
     pthread_mutex_unlock(&gCriMutex);
-    criDump();
     return 0;
 }
 
@@ -391,14 +394,9 @@ static int criRefreshCtrlThrInfo(const int ctrlSockId, const pthread_t thId)
 
     pthread_mutex_lock(&gCriMutex);
 
-    printf("wjl_test : ctrlSockId = %d\n",ctrlSockId);
-
     CLI_RUNNING_INFO_NODE * pCurNode = gpCriListHead->next;
-    if(NULL == pCurNode)
-        printf("wjl_test : NULL == pCurNode\n");
     while(pCurNode != NULL)
     {
-        printf("wjl_test : current ctrlSockId = %d\n", pCurNode->info.ctrlSockId);
         if(pCurNode->info.ctrlSockId == ctrlSockId)
         {
             moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "This client being found!\n");
@@ -523,12 +521,16 @@ static void criDump()
     do
     {
         if(NULL == gpCriListHead)
+        {
+            printf("Head node is NULL!\n");
             break;
+        }
     
         pthread_mutex_lock(&gCriMutex);
 
         int cnt = 0;
         CLI_RUNNING_INFO_NODE * pCurNode = gpCriListHead->next;
+        
         while(pCurNode != NULL)
         {
             printf("\t IP=[%s], ctrlPort=%d, dataPort=%d, ctrlThreadId=%u, dataThreadId=%u, " \
@@ -538,6 +540,7 @@ static void criDump()
                 pCurNode->info.ctrlThrState, pCurNode->info.dataThrState,
                 pCurNode->info.cryptInfo.cryptAlgoNo);
             cnt++;
+            pCurNode = pCurNode->next;
         }
         printf("\t In summary, %d nodes here.\n", cnt);
         
@@ -729,25 +732,8 @@ static int initSocket(const char *ip, const int port)
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Create socket succeed! gSockId=%d\n", gSockId);
 
-    //2.bind to port
-    struct sockaddr_in servAddr;
-    memset(&servAddr, 0x00, sizeof(struct sockaddr_in));
-    servAddr.sin_family = AF_INET;
-    servAddr.sin_addr.s_addr = inet_addr(ip);
-    servAddr.sin_port = htons(port);
-    int ret = bind(gSockId, (struct sockaddr *)&servAddr, sizeof(struct sockaddr));
-    if(ret < 0)
-    {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "bind failed! ret=%d, errno=%d, desc=[%s]\n",
-            ret, errno, strerror(errno));
-        close(gSockId);
-        gSockId = MOCPS_INVALID_SOCKID;
-        return -4;
-    }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "bind succeed.\n");
-
-    //3.set attributes
-    ret = setSockAttr(gSockId);
+    //2.set attributes
+    int ret = setSockAttr(gSockId);
     if(ret < 0)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "setSockAttr failed! ret = %d\n", ret);
@@ -757,6 +743,23 @@ static int initSocket(const char *ip, const int port)
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Set socket attributes succeed.\n");
 
+    //3.bind to port
+    struct sockaddr_in servAddr;
+    memset(&servAddr, 0x00, sizeof(struct sockaddr_in));
+    servAddr.sin_family = AF_INET;
+    servAddr.sin_addr.s_addr = inet_addr(ip);
+    servAddr.sin_port = htons(port);
+    ret = bind(gSockId, (struct sockaddr *)&servAddr, sizeof(struct sockaddr));
+    if(ret < 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "bind failed! ret=%d, errno=%d, desc=[%s]\n",
+            ret, errno, strerror(errno));
+        close(gSockId);
+        gSockId = MOCPS_INVALID_SOCKID;
+        return -5;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "bind succeed.\n");
+
     //4.set listen backlog
     ret = listen(gSockId, LISTEN_BACKLOG);
     if(ret < 0)
@@ -765,7 +768,7 @@ static int initSocket(const char *ip, const int port)
             ret, errno, strerror(errno));
         close(gSockId);
         gSockId = MOCPS_INVALID_SOCKID;
-        return -5;
+        return -6;
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "listen succeed!\n");
 
@@ -963,7 +966,9 @@ static int genRightKeyAgreeResp(MOCPS_KEYAGREE_RESPONSE *pResp)
     pResp->mark[MOCPS_MARK_MAXLEN - 1] = 0x00;
 
     memset(&pResp->cryptInfo, 0x00, sizeof(MOCPS_CRYPT_INFO));
-    pResp->cryptInfo.cryptAlgoNo = rand() % (MOCPS_CRYPT_ALGO_MAX - 1) + 1;
+    pResp->cryptInfo.cryptAlgoNo = MOCPS_CRYPT_ALGO_DES/*rand() % (MOCPS_CRYPT_ALGO_MAX - 1) + 1*/;
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "To this client, algoNo=%d, will be set.\n", 
+        pResp->cryptInfo.cryptAlgoNo);
     switch(pResp->cryptInfo.cryptAlgoNo)
     {
         case MOCPS_CRYPT_ALGO_DES:
@@ -1004,7 +1009,8 @@ static int doKeyAgree(const int ctrlSockId, char *recvBuf, int recvLen)
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL!\n");
         return -1;
     }
-
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Start read request now.\n");
+    
     int readLen = readn(ctrlSockId, recvBuf, recvLen);
     if(readLen != recvLen)
     {
@@ -1076,7 +1082,7 @@ static int doDecryptWithDes(char * pCipher, const int len, char * pPlain, const 
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL.\n");
         return -1;
     }
-
+#if 0
     unsigned int plainLen = 0;
     int ret = moCrypt_DES_ECB(MOCRYPT_METHOD_DECRYPT, (unsigned char *)pCipher,
         (unsigned int)len, (unsigned char *)cryptInfo.cryptKey.desKey, MOCRYPT_DES_KEYLEN,
@@ -1086,6 +1092,9 @@ static int doDecryptWithDes(char * pCipher, const int len, char * pPlain, const 
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES_ECB failed! ret = %d\n", ret);
         return -2;
     }
+#else
+    memcpy(pPlain, pCipher, len);
+#endif
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES_ECB succeed.\n");
     return 0;
 }
@@ -1097,7 +1106,7 @@ static int doDecryptWithDes3(char * pCipher, const int len, char * pPlain, const
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL.\n");
         return -1;
     }
-
+#if 0
     unsigned int plainLen = 0;
     int ret = moCrypt_DES3_ECB(MOCRYPT_METHOD_DECRYPT, (unsigned char *)pCipher,
         (unsigned int)len, (unsigned char *)cryptInfo.cryptKey.desKey, MOCRYPT_DES_KEYLEN,
@@ -1107,6 +1116,9 @@ static int doDecryptWithDes3(char * pCipher, const int len, char * pPlain, const
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES3_ECB failed! ret = %d\n", ret);
         return -2;
     }
+#else
+    memcpy(pPlain, pCipher, len);
+#endif
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES3_ECB succeed.\n");
     return 0;
 }
@@ -1124,7 +1136,7 @@ static int doDecryptWithRc4(char * pCipher, const int len, char * pPlain, const 
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL.\n");
         return -1;
     }
-
+#if 0
     strncpy(pPlain, pCipher, len);
     int ret = moCrypt_RC4_cryptString((unsigned char *)cryptInfo.cryptKey.rc4Key,
         (unsigned int)len, (unsigned char *)pPlain, len);
@@ -1133,6 +1145,9 @@ static int doDecryptWithRc4(char * pCipher, const int len, char * pPlain, const 
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_RC4_cryptString failed! ret = %d\n", ret);
         return -2;
     }
+#else
+    memcpy(pPlain, pCipher, len);
+#endif
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCrypt_RC4_cryptString succeed.\n");
     return 0;
 }
@@ -1145,6 +1160,7 @@ static int doEncryptWithDes(char * pPlain, const int len, char * pCipher, const 
         return -1;
     }
 
+#if 0
     unsigned int cipherLen = 0;
     int ret = moCrypt_DES_ECB(MOCRYPT_METHOD_ENCRYPT, (unsigned char *)pPlain,
         (unsigned int)len, (unsigned char *)cryptInfo.cryptKey.desKey, MOCRYPT_DES_KEYLEN,
@@ -1154,6 +1170,9 @@ static int doEncryptWithDes(char * pPlain, const int len, char * pCipher, const 
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES_ECB failed! ret = %d\n", ret);
         return -2;
     }
+#else
+    memcpy(pCipher, pPlain, len);
+#endif
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES_ECB succeed.\n");
     return 0;
 }
@@ -1165,7 +1184,7 @@ static int doEncryptWithDes3(char * pPlain, const int len, char * pCipher, const
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL.\n");
         return -1;
     }
-
+#if 0
     unsigned int cipherLen = 0;
     int ret = moCrypt_DES3_ECB(MOCRYPT_METHOD_ENCRYPT, (unsigned char *)pPlain,
         (unsigned int)len, (unsigned char *)cryptInfo.cryptKey.desKey, MOCRYPT_DES_KEYLEN,
@@ -1175,6 +1194,9 @@ static int doEncryptWithDes3(char * pPlain, const int len, char * pCipher, const
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES3_ECB failed! ret = %d\n", ret);
         return -2;
     }
+#else
+    memcpy(pCipher, pPlain, len);
+#endif
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES3_ECB succeed.\n");
     return 0;
 }
@@ -1192,7 +1214,7 @@ static int doEncryptWithRc4(char * pPlain, const int len, char * pCipher, const 
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Input param is NULL.\n");
         return -1;
     }
-
+#if 0
     strncpy(pCipher, pPlain, len);
     int ret = moCrypt_RC4_cryptString((unsigned char *)cryptInfo.cryptKey.rc4Key,
         (unsigned int)len, (unsigned char *)pCipher, len);
@@ -1201,6 +1223,9 @@ static int doEncryptWithRc4(char * pPlain, const int len, char * pCipher, const 
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_RC4_cryptString failed! ret = %d\n", ret);
         return -2;
     }
+#else
+    memcpy(pCipher, pPlain, len);
+#endif
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCrypt_RC4_cryptString succeed.\n");
     return 0;
 }
@@ -1312,7 +1337,8 @@ static int doRequestByebye(const int ctrlSockId)
     return 0;
 }
 
-static int doRequestSendDataport(const int ctrlSockId, const MOCPS_CTRL_REQUEST req)
+static int doRequestSendDataport(const int ctrlSockId, const MOCPS_CTRL_REQUEST req, 
+    const MOCPS_CRYPT_INFO cryptInfo)
 {
     int dataport = 0;
     int ret = mergeChar2Int(req.basicInfo.res, &dataport);
@@ -1330,6 +1356,29 @@ static int doRequestSendDataport(const int ctrlSockId, const MOCPS_CTRL_REQUEST 
         return -2;
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "criSetDataSockPort succeed.\n");
+
+    //send a response to client
+    MOCPS_CTRL_RESPONSE_BASIC respBasic;
+    memset(&respBasic, 0x00, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
+    respBasic.bodyLen = 0;
+    respBasic.cmdId = MOCPS_CMDID_SEND_DATAPORT;
+    strcpy(respBasic.mark, MOCPS_MARK_SERVER);
+    moUtils_Check_getCrc((char *)&respBasic, sizeof(MOCPS_CTRL_RESPONSE_BASIC) - sizeof(MOUTILS_CHECK_CRCVALUE),
+        MOUTILS_CHECK_CRCMETHOD_32, &respBasic.crc32);
+       
+    MOCPS_CTRL_RESPONSE_BASIC cipher;
+    memset(&cipher, 0x00, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
+    doEncrypt((char *)&respBasic, sizeof(MOCPS_CTRL_RESPONSE_BASIC), (char *)&cipher, cryptInfo);
+    
+    int writeLen = writen(ctrlSockId, (char *)&cipher, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
+    if(writeLen != sizeof(MOCPS_CTRL_RESPONSE_BASIC))
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "writen failed! writeLen=%d, len=%d\n",
+            writeLen, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
+        return -4;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "send response basic info succeed.\n");
+    
     return 0;
 }
 
@@ -1342,44 +1391,46 @@ static int doRequestGetFileinfo(const int ctrlSockId, const MOCPS_CRYPT_INFO cry
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "fmGetFileinfoLength failed! ret = %d\n", ret);
         return -1;
     }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "fmGetFileinfoLength succeed.\n");
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "fmGetFileinfoLength succeed. len = %d\n", len);
     
     char * pBody = NULL;
+    if(len > 0)
+    {
+        while(1)
+        {    
+            pBody = (char *)malloc(sizeof(char) * len);
+            if(NULL == pBody)
+            {
+                moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Malloc failed! errno=%d, desc=[%s]\n",
+                    errno, strerror(errno));
+                return -2;
+            }
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Malloc succeed.\n");
         
-    while(1)
-    {    
-        pBody = (char *)malloc(sizeof(char) * len);
-        if(NULL == pBody)
-        {
-            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Malloc failed! errno=%d, desc=[%s]\n",
-                errno, strerror(errno));
-            return -2;
-        }
-        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Malloc succeed.\n");
-
-        ret = fmGetFileinfo(pBody, len);
-        if(ret < 0) //failed, cannot recovery, return error
-        {
-            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "fmGetFileinfo failed! ret = %d\n", ret);
-            free(pBody);
-            pBody = NULL;
-            return -3;
-        }
-        else if(ret == 0)
-        {
-            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "fmGetFileinfo succeed!\n");
-            break;
-        }
-        else    //body length changed, get body again
-        {
-            moLoggerWarn(MOCPS_MODULE_LOGGER_NAME, "fmGetFileinfo find length changed! get it again!\n");
-            free(pBody);
-            pBody = NULL;
-            len = ret;
-            continue;
+            ret = fmGetFileinfo(pBody, len);
+            if(ret < 0) //failed, cannot recovery, return error
+            {
+                moLoggerError(MOCPS_MODULE_LOGGER_NAME, "fmGetFileinfo failed! ret = %d\n", ret);
+                free(pBody);
+                pBody = NULL;
+                return -3;
+            }
+            else if(ret == 0)
+            {
+                moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "fmGetFileinfo succeed!\n");
+                break;
+            }
+            else    //body length changed, get body again
+            {
+                moLoggerWarn(MOCPS_MODULE_LOGGER_NAME, "fmGetFileinfo find length changed! get it again!\n");
+                free(pBody);
+                pBody = NULL;
+                len = ret;
+                continue;
+            }
         }
     }
-
+    
     MOCPS_CTRL_RESPONSE_BASIC respBasic;
     memset(&respBasic, 0x00, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
     respBasic.cmdId = MOCPS_CMDID_GETFILEINFO;
@@ -1403,31 +1454,34 @@ static int doRequestGetFileinfo(const int ctrlSockId, const MOCPS_CRYPT_INFO cry
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "send response basic info succeed.\n");
 
     //encrypt to body
-    char * pCipherBody = NULL;
-    pCipherBody = (char *)malloc(sizeof(char) * len);
-    if(NULL == pCipherBody)
+    if(pBody != NULL)
     {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Malloc failed! errno=%d, desc=[%s]\n",
-            errno, strerror(errno));
+        char * pCipherBody = NULL;
+        pCipherBody = (char *)malloc(sizeof(char) * len);
+        if(NULL == pCipherBody)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Malloc failed! errno=%d, desc=[%s]\n",
+                errno, strerror(errno));
+            free(pBody);
+            pBody = NULL;
+            return -5;
+        }
+        doEncrypt(pBody, len, pCipherBody, cryptInfo);
+        
+        writeLen = writen(ctrlSockId, pCipherBody, len);
+        if(writeLen != len)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "writen failed! writeLen=%d, len=%d\n",
+                writeLen, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
+            return -5;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "send fileinfo body info succeed.\n");
+        
+        free(pCipherBody);
+        pCipherBody = NULL;
         free(pBody);
         pBody = NULL;
-        return -5;
     }
-    doEncrypt(pBody, len, pCipherBody, cryptInfo);
-    
-    writeLen = writen(ctrlSockId, pCipherBody, len);
-    if(writeLen != len)
-    {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "writen failed! writeLen=%d, len=%d\n",
-            writeLen, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
-        return -5;
-    }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "send fileinfo body info succeed.\n");
-
-    free(pCipherBody);
-    pCipherBody = NULL;
-    free(pBody);
-    pBody = NULL;
 
     return 0;
 }
@@ -1458,7 +1512,7 @@ static int doRequest(const int ctrlSockId, const MOCPS_CTRL_REQUEST req, const M
             ret = doRequestByebye(ctrlSockId);
             break;
         case MOCPS_CMDID_SEND_DATAPORT:
-            ret = doRequestSendDataport(ctrlSockId, req);
+            ret = doRequestSendDataport(ctrlSockId, req, cryptInfo);
             break;
         case MOCPS_CMDID_GETFILEINFO:
             ret = doRequestGetFileinfo(ctrlSockId, cryptInfo);
@@ -1598,14 +1652,6 @@ static void * doCtrlRequestThr(void * args)
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "threadRegisterSignal failed! ret=%d\n", ret);
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "threadRegisterSignal succeed.\n");
-    
-    fd_set rFds;
-    FD_ZERO(&rFds);
-    FD_SET(ctrlSockId, &rFds);
-    
-    struct timeval tm;
-    tm.tv_sec = 0;
-    tm.tv_usec = 0;
 
     MOCPS_CTRL_REQUEST recvReq;
     memset(&recvReq, 0x00, sizeof(MOCPS_CTRL_REQUEST));
@@ -1613,17 +1659,18 @@ static void * doCtrlRequestThr(void * args)
     int recvLen = sizeof(MOCPS_CTRL_REQUEST);
 
     struct timespec tmInterval;
-    tmInterval.tv_sec = THREAD_TIME_INTEVAL;
-    tmInterval.tv_nsec = 0;  
+    tmInterval.tv_sec = 0;
+    tmInterval.tv_nsec = 10 * 1000;  
+
+    printf("wjl_test : pthread_self = %u\n", pthread_self());
 
     while(1)
     {
         int ret = sigtimedwait(&set, NULL, &tmInterval);
         if(ret < 0)
         {
-            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "sigtimedwait failed! errno=%d, desc=[%s]\n",
-                errno, strerror(errno));
-            break;
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "In timeInterval, donot recv any signal. " \
+                "We think this means timeout, donot an error.\n");
         }
         else
         {
@@ -1639,18 +1686,28 @@ static void * doCtrlRequestThr(void * args)
                     ret);
             }
         }
-        
+    
+        fd_set rFds;
+        FD_ZERO(&rFds);
+        FD_SET(ctrlSockId, &rFds);
+        struct timeval tm;
+        tm.tv_sec = THREAD_TIME_INTEVAL;
+        tm.tv_usec = 0;
         ret = select(ctrlSockId + 1, &rFds, NULL, NULL, &tm);
-        /*if(ret < 0)
+        if(ret < 0)
         {
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "select failed! ret=%d, errno=%d, desc=[%s]\n",
                 ret, errno, strerror(errno));
             continue;
         }
-        else */if(ret == 0)
+        else if(ret == 0)
+        {
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "select timeout.\n");            
             continue;
+        }
         else
         {
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Recv a request!\n");
             //get state, if state less than KEYAGREED, means this request must be KEYAGEED, and 
             //in plain text, cannot in cipher text
             CLIMGR_CLI_STATE state = 0;
@@ -1665,6 +1722,7 @@ static void * doCtrlRequestThr(void * args)
 
             if(state < CLIMGR_CLI_STATE_KEYAGREED)
             {
+                moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Will do keyAgree now.\n");
                 ret = doKeyAgree(ctrlSockId, recvBuf, recvLen);
                 if(ret < 0)
                 {
@@ -1677,6 +1735,7 @@ static void * doCtrlRequestThr(void * args)
             }
             else
             {
+                moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Will do simple request now.\n");
                 ret = doSimpleRequest(ctrlSockId, recvBuf, recvLen);
                 if(ret < 0)
                 {
@@ -1688,8 +1747,9 @@ static void * doCtrlRequestThr(void * args)
             }
         }
     }
-
-    return NULL;
+    printf("wjl_test : jump out!\n");
+    pthread_exit(NULL);
+//    return NULL;
 }
 
 static int startCtrlThread(const int sockId, pthread_t *thId)
@@ -1864,9 +1924,9 @@ int moCpsServ_stopRunning()
 */
 void moCpsServ_dump()
 {
-    criDump();
-    cliMgrDump();
-    fmDump();
+//    criDump();
+//    cliMgrDump();
+//    fmDump();
 }
 
 

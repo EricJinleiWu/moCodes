@@ -84,6 +84,8 @@ static void crmmUnInit();
 static char * crmmGet();
 static int crmmMaxSize();
 
+static int getRespFromServer(const MOCPS_CMDID cmdId, MOCPS_CTRL_RESPONSE * pCtrlResp);
+
 
 /*
     Parse the @pConfFilepath, get its values
@@ -211,6 +213,7 @@ static int encryptWithAes(const MOCPS_CTRL_REQUEST req, char *pCipher)
 
 static int encryptWithDes(const MOCPS_CTRL_REQUEST req, char *pCipher)
 {
+#if 0
     unsigned int cipherLen = 0;
     int ret = moCrypt_DES_ECB(MOCRYPT_METHOD_ENCRYPT,
         (unsigned char *)&req, sizeof(MOCPS_CTRL_REQUEST),
@@ -221,12 +224,16 @@ static int encryptWithDes(const MOCPS_CTRL_REQUEST req, char *pCipher)
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES_ECB failed, ret = %d\n", ret);
         return -1;
     }
+#else
+    memcpy(pCipher, (char *)&req, sizeof(MOCPS_CTRL_REQUEST));
+#endif
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES_ECB succeed.\n");    
     return 0;
 }
 
 static int encryptWithDes3(const MOCPS_CTRL_REQUEST req, char *pCipher)
 {
+#if 0
     unsigned int cipherLen = 0;
     int ret = moCrypt_DES3_ECB(MOCRYPT_METHOD_ENCRYPT,
         (unsigned char *)&req, sizeof(MOCPS_CTRL_REQUEST),
@@ -237,12 +244,16 @@ static int encryptWithDes3(const MOCPS_CTRL_REQUEST req, char *pCipher)
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES3_ECB failed, ret = %d\n", ret);
         return -1;
     }
+#else
+    memcpy(pCipher, (char *)&req, sizeof(MOCPS_CTRL_REQUEST));
+#endif
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES3_ECB succeed.\n");    
     return 0;
 }
 
 static int encryptWithRc4(const MOCPS_CTRL_REQUEST req, char *pCipher)
 {
+#if 0
     memcpy(pCipher, (char *)&req, sizeof(MOCPS_CTRL_REQUEST));
     int ret = moCrypt_RC4_cryptString((unsigned char *)&gCryptInfo.cryptKey, 
         gCryptInfo.keyLen, (unsigned char *)pCipher, sizeof(MOCPS_CTRL_REQUEST));
@@ -251,6 +262,9 @@ static int encryptWithRc4(const MOCPS_CTRL_REQUEST req, char *pCipher)
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_RC4_cryptString failed, ret = %d\n", ret);
         return -1;
     }
+#else
+    memcpy(pCipher, (char *)&req, sizeof(MOCPS_CTRL_REQUEST));
+#endif
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCrypt_RC4_cryptString succeed.\n");    
     return 0;
 }
@@ -309,6 +323,7 @@ static int decryptWithAes(const char *pCipher, char * pPlain, const int len)
 
 static int decryptWithDes(const char *pCipher, char * pPlain, const int len)
 {
+#if 0
     unsigned int plainLen = 0;
     int ret = moCrypt_DES_ECB(MOCRYPT_METHOD_DECRYPT,
         (unsigned char *)pCipher, len,
@@ -319,12 +334,16 @@ static int decryptWithDes(const char *pCipher, char * pPlain, const int len)
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES_ECB failed, ret = %d\n", ret);
         return -1;
     }
+#else
+    memcpy(pPlain, pCipher, len);
+#endif
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES_ECB succeed.\n");    
     return 0;
 }
 
 static int decryptWithDes3(const char *pCipher, char * pPlain, const int len)
 {
+#if 0
     unsigned int plainLen = 0;
     int ret = moCrypt_DES3_ECB(MOCRYPT_METHOD_DECRYPT,
         (unsigned char *)pCipher, len,
@@ -335,12 +354,16 @@ static int decryptWithDes3(const char *pCipher, char * pPlain, const int len)
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES3_ECB failed, ret = %d\n", ret);
         return -1;
     }
+#else
+    memcpy(pPlain, pCipher, len);
+#endif
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCrypt_DES3_ECB succeed.\n");    
     return 0;
 }
 
 static int decryptWithRc4(const char *pCipher, char * pPlain, const int len)
 {
+#if 0
     memcpy((char *)pPlain, (char *)pCipher, len);
     int ret = moCrypt_RC4_cryptString((unsigned char *)&gCryptInfo.cryptKey, 
         gCryptInfo.keyLen, (unsigned char *)pPlain, len);
@@ -349,6 +372,9 @@ static int decryptWithRc4(const char *pCipher, char * pPlain, const int len)
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moCrypt_RC4_cryptString failed, ret = %d\n", ret);
         return -1;
     }
+#else
+    memcpy(pPlain, pCipher, len);
+#endif
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "moCrypt_RC4_cryptString succeed.\n");    
     return 0;
 }
@@ -882,7 +908,7 @@ static int sendDataport2Server(const int dataport)
     memset(&req, 0x00, sizeof(MOCPS_CTRL_REQUEST));
     strncpy(req.basicInfo.mark, MOCPS_MARK_CLIENT, MOCPS_MARK_MAXLEN);
     req.basicInfo.mark[MOCPS_MARK_MAXLEN - 1] = 0x00;
-    req.basicInfo.isNeedResp = MOCPS_REQUEST_TYPE_NOTNEED_RESPONSE;
+    req.basicInfo.isNeedResp = MOCPS_REQUEST_TYPE_NEED_RESPONSE;
     req.basicInfo.cmdId = MOCPS_CMDID_SEND_DATAPORT;
     splitInt2Char(dataport, req.basicInfo.res);
     moUtils_Check_getCrc((char *)&req.basicInfo, sizeof(MOCPS_CTRL_REQUEST_BASIC),
@@ -921,6 +947,19 @@ static int sendDataport2Server(const int dataport)
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "sendDataport ok.\n");
     free(pCipher);
     pCipher = NULL;
+
+    //should recv response from moCpsServer
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Need response from server, get it now.\n");
+    MOCPS_CTRL_RESPONSE resp;
+    memset(&resp, 0x00, sizeof(MOCPS_CTRL_RESPONSE));
+    ret = getRespFromServer(MOCPS_CMDID_SEND_DATAPORT, &resp);
+    if(ret < 0)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "getRespFromServer failed! ret = %d\n", ret);
+        return -4;
+    }
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "getRespFromServer ok.\n");
+    
     return 0;
 }
 
@@ -1084,13 +1123,6 @@ static int recvBody(const int blkLen, char *pBlk)
 static void * recvDataThr(void * args)
 {
     args = args;
-
-    fd_set rFdSet;
-    FD_ZERO(&rFdSet);
-    FD_SET(gDataSockId, &rFdSet);
-    struct timeval tm;
-    tm.tv_sec = THREAD_TIME_INTEVAL;
-    tm.tv_usec = 0;
     
     RECVDATA_STATE recvState = RECVDATA_STATE_RECVHEAD;
     MOCPS_DATA_RESPONSE_HEADER header;
@@ -1101,6 +1133,13 @@ static void * recvDataThr(void * args)
     {
         if(gRecvdataThrRunningFlag)
         {
+            fd_set rFdSet;
+            FD_ZERO(&rFdSet);
+            FD_SET(gDataSockId, &rFdSet);
+
+            struct timeval tm;
+            tm.tv_sec = THREAD_TIME_INTEVAL;
+            tm.tv_usec = 0;
             ret = select(gDataSockId + 1, &rFdSet, NULL, NULL, &tm);
             if(ret < 0)
             {
@@ -1118,12 +1157,13 @@ static void * recvDataThr(void * args)
                 if(recvState == RECVDATA_STATE_RECVHEAD)
                 {
                     memset(&header, 0x00, sizeof(MOCPS_DATA_RESPONSE_HEADER));
-                    ret = recvHeadAndCheck(&header);    //TODO, read from server, decrypt, parse, save to local memory
+                    ret = recvHeadAndCheck(&header);
                     if(ret < 0)
                     {
+                        //Server closed!!
                         moLoggerError(MOCPS_MODULE_LOGGER_NAME,
                             "recvHeadAndCheck failed! ret = %d\n", ret);
-                        continue;
+                        exit(-1);
                     }
                     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Recv head ok.\n");
                     //change state, to recv body
@@ -1712,6 +1752,8 @@ static int getRespFromServer(const MOCPS_CMDID cmdId, MOCPS_CTRL_RESPONSE * pCtr
         break;
     }
 
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "resp mark=[%s], cmdId=%d, body len = %d\n", 
+        pCtrlResp->basicInfo.mark, pCtrlResp->basicInfo.cmdId, pCtrlResp->basicInfo.bodyLen);
     //Then, we must get the body
     if(pCtrlResp->basicInfo.bodyLen == 0)
     {
@@ -1726,16 +1768,15 @@ static int getRespFromServer(const MOCPS_CMDID cmdId, MOCPS_CTRL_RESPONSE * pCtr
     }
     else
     {
-        int ret = readn(gCtrlSockId, crmmGet(), pCtrlResp->basicInfo.bodyLen);
+        pCtrlResp->pBody = crmmGet();
+        int ret = readn(gCtrlSockId, pCtrlResp->pBody, pCtrlResp->basicInfo.bodyLen);
         if(ret < 0)
         {
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "recvRespBody failed! ret = %d\n", ret);
             return -10;
         }
         moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "recvRespBody ok.\n");
-        pCtrlResp->pBody = crmmGet();
     }
-    
     return 0;
 }
 

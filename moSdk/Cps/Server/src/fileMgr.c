@@ -77,6 +77,8 @@ static int gCheckDirThrRunning = 0;
 
 static void unInitDirfileList();
 
+static void freeDirfileList(const int filetype);
+
 
 /*
     Check input path being a directory or not;
@@ -169,11 +171,12 @@ static int getFileInfo(const char *pDirpath, const char *pFilename, const int fi
 
     char filepath[FILEPATH_MAXLEN] = {0x00};
     memset(filepath, 0x00, FILEPATH_MAXLEN);
-    sprintf(filepath, pDirpath, pFilename);
+    sprintf(filepath, "%s/%s", pDirpath, pFilename);
     filepath[FILEPATH_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "filepath=[%s]\n", filepath);
 
     struct stat curStat;
+    memset(&curStat, 0x00, sizeof(struct stat));
     int ret = stat(filepath, &curStat);
     if(ret < 0)
     {
@@ -212,18 +215,12 @@ static int getSubDirFilelist(const int filetype)
     FM_FILEINFO_NODE *pHeadNode = gDirFileList.pFileList[filetype];
     if(pHeadNode == NULL)
     {
-        moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, 
-            "filetype=%d, pHeadNode == NULL, malloc for it!\n", filetype);
-        pHeadNode = (FM_FILEINFO_NODE *)malloc(sizeof(FM_FILEINFO_NODE) * 1);
-        if(NULL == pHeadNode)
-        {
-            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "malloc failed! errno=%d, desc=[%s]\n",
-                errno, strerror(errno));
-            return -2;
-        }
-        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "malloc succeed.\n");
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
+            "filetype=%d, pHeadNode == NULL, check for why!\n", filetype);
+        return -2;
     }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Find the header pointer!\n");
+    else
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Find the header pointer!\n");
 
     //3.looply get files in this sub dir, and set its info to list
     DIR *pSubDir = opendir(subdirpath);
@@ -284,6 +281,7 @@ static int getSubDirFilelist(const int filetype)
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Get file info list ok!\n");
     closedir(pSubDir);
     pSubDir = NULL;
+    
     return 0;
 }
 
@@ -433,6 +431,18 @@ static int initDirfileList(const char *pDirpath)
     for(i = 0; i < MOCPS_FILETYPE_MAX; i++)
     {
         gDirFileList.pFileList[i] = NULL;
+        gDirFileList.pFileList[i] = (FM_FILEINFO_NODE *)malloc(sizeof(FM_FILEINFO_NODE) * 1);
+        if(gDirFileList.pFileList[i] == NULL)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "malloc failed! errno=%d, desc=[%s]\n",
+                errno, strerror(errno));
+            int j = 0;
+            for(j = 0; j < i; j++)
+            {
+                free(gDirFileList.pFileList[i]);
+                gDirFileList.pFileList[i] = NULL;
+            }
+        }
         gDirFileList.fileNum[i] = 0x00;
     }
     
@@ -441,6 +451,11 @@ static int initDirfileList(const char *pDirpath)
     if(ret < 0)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "getSubdirExistState failed! ret = %d\n", ret);
+        int filetype = 0;
+        for(filetype = 0; filetype < MOCPS_FILETYPE_MAX; filetype++)
+        {
+            freeDirfileList(filetype);
+        }
         return -1;
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "getSubdirExistState ok.\n");
@@ -567,17 +582,24 @@ static int initDirfileInfo()
     int filetype = 0;
     for(filetype = 0; filetype < MOCPS_FILETYPE_MAX; filetype++)
     {
-        i = 0;
+        int startOffset = 0;
+        for(i = 0; i < filetype; i++)
+        {
+            startOffset += gDirFileList.fileNum[i];
+        }
+        startOffset *= sizeof(MOCPS_BASIC_FILEINFO);
+        
         FM_FILEINFO_NODE * pCurNode = gDirFileList.pFileList[filetype];
-        for(; i < gDirFileList.fileNum[filetype]; i++)
+        for(i= 0; i < gDirFileList.fileNum[filetype]; i++)
         {
             pCurNode = pCurNode->next;
             memcpy(
-                gDirFileInfo.pFileInfo + (filetype == 0 ? 0 : gDirFileList.fileNum[filetype - 1] + i) * sizeof(MOCPS_BASIC_FILEINFO),
+                gDirFileInfo.pFileInfo + startOffset + (i * sizeof(MOCPS_BASIC_FILEINFO)),
                 (char *)&pCurNode->info.basicInfo, sizeof(MOCPS_BASIC_FILEINFO));
         }
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "set all file info ok.\n");
+    
     return 0;
 }
 
@@ -999,9 +1021,7 @@ void fmDump()
     
     do
     {
-        printf("\t FileList info(dirpath=[%s], fileNumber=%d) : \n",
-            gDirFileList.dirPath, gDirFileList.fileNum);
-        printf("\t All files info here:\n");
+        printf("\t FileList info(dirpath=[%s]) : \n", gDirFileList.dirPath);
 
         pthread_mutex_lock(&gDirFileList.mutex);
         int i = 0;
@@ -1015,6 +1035,7 @@ void fmDump()
                 printf("\t\t FileType=[%s], fileName=[%s], fileSie=%lld, typeId=%d, readHdrNum=%d\n", 
                     gSubDirName[i], pCurNode->info.basicInfo.filename, pCurNode->info.basicInfo.size, 
                     pCurNode->info.basicInfo.type, pCurNode->info.readHdrNum);
+                pCurNode = pCurNode->next;
             }
             printf("\t\t In summary, %d files of this type.\n", cnt);
         }

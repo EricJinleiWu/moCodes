@@ -87,21 +87,18 @@ int writen(const int sockId, const char* buf, const int len)
 	return (len - left);
 }
 
-int splitInt2Char(const int src, char dst[4])
+int splitInt2Char(const int src, unsigned char dst[4])
 {
     int i = 0;
     int tmp = src;
     for(; i < 4; i++)
     {
-        dst[i] = tmp % 0xff;
-        tmp /= 0xff;
+        dst[i] = (char)(tmp >> (8 * i));
     }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "src=%d(0x%x), dst=[%d(0x%x), %d(0x%x), %d(0x%x), %d(0x%x)]\n",
-        src, src, dst[0], dst[0], dst[1], dst[1], dst[2], dst[2], dst[3], dst[3]);
     return 0;
 }
 
-int mergeChar2Int(const char src[4], int *dst)
+int mergeChar2Int(const unsigned char src[4], int *dst)
 {
     int i = 0;
     int ret = 0;
@@ -111,8 +108,6 @@ int mergeChar2Int(const char src[4], int *dst)
         ret += tmp << (8 * i);
     }
     *dst = ret;
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "src=[%d(0x%x), %d(0x%x), %d(0x%x), %d(0x%x)], dst=%d(0x%x)\n",
-        src[0], src[0], src[1], src[1], src[2], src[2], src[3], src[3], *dst, *dst);
     return 0;
 }
 
@@ -123,47 +118,58 @@ int mergeChar2Int(const char src[4], int *dst)
 */
 int killThread(const pthread_t thId)
 {
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "The thread being stopped with ID=%lu\n", (unsigned long int)thId);
-    //check this thread running or not now.
-    int ret = pthread_kill(thId, 0);
-    if(ret != 0)
+    if(thId > 0)
     {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pthread_kill failed! ret=%d\n", ret);
-        if(ret == ESRCH)
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "wjl_test : The thread being stopped with ID=%u\n", thId);
+        //check this thread running or not now.
+        int ret = pthread_kill(thId, 0);
+        if(ret != 0)
         {
-            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Thread donot running now! cannot stop it!\n");
-            return -1;
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pthread_kill failed! ret=%d\n", ret);
+            if(ret == ESRCH)
+            {
+                moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Thread donot running now! cannot stop it!\n");
+                return -1;
+            }
+            else if(ret == EINVAL)
+            {
+                moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Invalid signal!\n");
+                return -2;
+            }
+            else
+            {
+                moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Other error! ret = %d\n", ret);
+                return -3;
+            }
         }
-        else if(ret == EINVAL)
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "This thread still running, can stop it now.\n");
+        
+        //send signal to stop it
+        ret = pthread_kill(thId, MOCPS_STOP_THR_SIG);
+        if(ret != 0)
         {
-            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Invalid signal!\n");
-            return -2;
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pthread_kill failed! ret = %d\n", ret);
+            return -4;
         }
-        else
-        {
-            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Other error! ret = %d\n", ret);
-            return -3;
-        }
-    }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "This thread still running, can stop it now.\n");
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "pthread_kill succeed.\n");
 
-    //send signal to stop it
-    ret = pthread_kill(thId, MOCPS_STOP_THR_SIG);
-    if(ret != 0)
-    {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pthread_kill failed! ret = %d\n", ret);
-        return -4;
+        sleep(2);
+        
+        //wait the thread stopped
+        ret = pthread_join(thId, NULL);
+        if(ret != 0)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pthread_join failed! ret = %d, errno=%d, desc=[%s]\n", 
+                ret, errno, strerror(errno));
+            return -5;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "pthread_join succeed!\n");
     }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "pthread_kill succeed.\n");
-
-    //wait the thread stopped
-    ret = pthread_join(thId, NULL);
-    if(ret != 0)
+    else
     {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pthread_join failed! ret = %d\n", ret);
-        return -5;
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Input thread id==0, will do nothing to it.\n");
     }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "pthread_join succeed!\n");
+    
 
     return 0;
 }
@@ -171,7 +177,7 @@ int killThread(const pthread_t thId)
 void threadExitSigCallback(int sigNo)
 {
     moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, 
-        "Thread (id=%lu) recv the stopped signal(sigNo=%d), will stop now!\n",
+        "Thread (id=%u) recv the stopped signal(sigNo=%d), will stop now!\n",
         pthread_self(), sigNo);
 }
 
@@ -199,6 +205,38 @@ int threadRegisterSignal(sigset_t * pSet)
     sigaddset(pSet, MOCPS_STOP_THR_SIG);
 
     return 0;
+}
+
+/*
+    Check for params;
+    get value;
+*/
+int getNearestDivValue(const int srcValue, const int div)
+{
+    if(srcValue < div)
+    {
+        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "srcValue=%u, div=%u, error params!\n",
+            srcValue, div);
+        return -1;
+    }
+
+    int ret = 0;
+    int mod = srcValue % div;
+    if(mod == 0)
+    {
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "srcValue(%u) can divide div(%u) directly!\n",
+            srcValue, div);
+        ret = srcValue;
+    }
+    else
+    {
+        ret = srcValue + (div - mod);
+        
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "srcValue=%d, div=%d, mod=%d, ret=%d\n",
+            srcValue, div, mod, ret);
+    }
+    
+    return ret;
 }
 
 
