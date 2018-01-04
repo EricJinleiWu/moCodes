@@ -375,6 +375,7 @@ void cliMgrDump()
                 pCurNode->info.addr, pCurNode->info.ctrlPort, pCurNode->info.ctrlSockId, 
                 pCurNode->info.lastHeartbeatTime, pCurNode->info.state);
             cnt++;
+            pCurNode = pCurNode->next;
         }
         printf("\t In summary, %d nodes here.\n", cnt);
         

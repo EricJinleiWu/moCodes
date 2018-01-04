@@ -120,7 +120,7 @@ int killThread(const pthread_t thId)
 {
     if(thId > 0)
     {
-        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "wjl_test : The thread being stopped with ID=%u\n", thId);
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "The thread being stopped with ID=%u\n", thId);
         //check this thread running or not now.
         int ret = pthread_kill(thId, 0);
         if(ret != 0)
@@ -152,15 +152,13 @@ int killThread(const pthread_t thId)
             return -4;
         }
         moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "pthread_kill succeed.\n");
-
-        sleep(2);
         
         //wait the thread stopped
         ret = pthread_join(thId, NULL);
         if(ret != 0)
         {
-            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pthread_join failed! ret = %d, errno=%d, desc=[%s]\n", 
-                ret, errno, strerror(errno));
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pthread_join failed! ret = %d, desc=[%s], errno=%d, desc=[%s]\n", 
+                ret, strerror(ret), errno, strerror(errno));
             return -5;
         }
         moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "pthread_join succeed!\n");
@@ -170,7 +168,6 @@ int killThread(const pthread_t thId)
         moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Input thread id==0, will do nothing to it.\n");
     }
     
-
     return 0;
 }
 
@@ -187,6 +184,7 @@ void threadExitSigCallback(int sigNo)
 */
 int threadRegisterSignal(sigset_t * pSet)
 {
+#if 0    
     struct sigaction actions;
     memset(&actions, 0x00, sizeof(struct sigaction));
     sigemptyset(&actions.sa_mask);
@@ -203,6 +201,14 @@ int threadRegisterSignal(sigset_t * pSet)
 
     sigemptyset(pSet);
     sigaddset(pSet, MOCPS_STOP_THR_SIG);
+#else
+    sigset_t set;
+    sigemptyset(&set);
+    sigemptyset(pSet);
+    sigaddset(&set, SIGALRM);
+    sigprocmask(SIG_BLOCK, &set, pSet);
+    signal(SIGALRM, threadExitSigCallback);
+#endif
 
     return 0;
 }

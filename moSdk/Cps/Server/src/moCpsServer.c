@@ -125,6 +125,16 @@ static void * criCheckThr(void * args)
                     pCurNode->info.dataThrState = THREAD_STATE_DELETED;
                 }
                 
+                int ret = cliMgrDeleteCli(pCurNode->info.ctrlSockId);
+                if(ret < 0)
+                {
+                    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "cliMgrDeleteCli failed! ret = %d\n", ret);
+                }
+                else
+                {
+                    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "cliMgrDeleteCli succeed.\n");
+                }
+                
                 pPreNode->next = pCurNode->next;
                 free(pCurNode);
                 pCurNode = NULL;
@@ -275,6 +285,8 @@ static int criInsertNewCliInfo(const char * ip, const int sockId, const int ctrl
 
 /*
     If @ctrlSockId donot exist, return 0, too.
+    we just set this node state to deleting;
+    delete the node, will be done in thread criCheckThr;
 */
 static int criDeleteCliInfo(const int ctrlSockId)
 {
@@ -293,6 +305,8 @@ static int criDeleteCliInfo(const int ctrlSockId)
         if(pCurNode->info.ctrlSockId == ctrlSockId)
         {
             moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Find this client!\n");
+            pCurNode->info.ctrlThrState = THREAD_STATE_DELETING;
+            pCurNode->info.dataThrState = THREAD_STATE_DELETING;
             break;
         }
         pPreNode = pCurNode;
@@ -304,15 +318,7 @@ static int criDeleteCliInfo(const int ctrlSockId)
         pthread_mutex_unlock(&gCriMutex);
         return 0;
     }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "find client! start delete it now!\n");
-
-    //stop its thread firstly
-    killThread(pCurNode->info.ctrlThrId);
-    killThread(pCurNode->info.dataThrId);
-
-    pPreNode->next = pCurNode->next;
-    free(pCurNode);
-    pCurNode = NULL;
+    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "find client! and set its state to deleting, wait for delete later!\n");
 
     pthread_mutex_unlock(&gCriMutex);
     return 0;
@@ -1318,19 +1324,11 @@ static int doRequestHeartbeat(const int ctrlSockId)
 */
 static int doRequestByebye(const int ctrlSockId)
 {
-    int ret = cliMgrDeleteCli(ctrlSockId);
-    if(ret < 0)
-    {
-        moLoggerError(MOCPS_MODULE_LOGGER_NAME, "cliMgrDeleteCli failed! ret = %d\n", ret);
-        return -1;
-    }
-    moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "cliMgrDeleteCli succeed.\n");
-
-    ret = criDeleteCliInfo(ctrlSockId);
+    int ret = criDeleteCliInfo(ctrlSockId);
     if(ret < 0)
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "criDeleteCliInfo failed! ret = %d\n", ret);
-        return -2;
+        return -1;
     }
     moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "criDeleteCliInfo succeed.\n");
 
@@ -1659,45 +1657,70 @@ static void * doCtrlRequestThr(void * args)
     int recvLen = sizeof(MOCPS_CTRL_REQUEST);
 
     struct timespec tmInterval;
-    tmInterval.tv_sec = 0;
-    tmInterval.tv_nsec = 10 * 1000;  
-
-    printf("wjl_test : pthread_self = %u\n", pthread_self());
-
+    tmInterval.tv_sec = THREAD_TIME_INTEVAL;
+    tmInterval.tv_nsec = 0;  
+    struct timespec tmInterval1;
+    tmInterval1.tv_sec = 0;
+    tmInterval1.tv_nsec = 0;  
+    
     while(1)
     {
-        int ret = sigtimedwait(&set, NULL, &tmInterval);
-        if(ret < 0)
-        {
-            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "In timeInterval, donot recv any signal. " \
-                "We think this means timeout, donot an error.\n");
-        }
-        else
-        {
-            if(ret == MOCPS_STOP_THR_SIG)
-            {
-                moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, "recv stop signal! thread should exit now!\n");
-                break;
-            }
-            else
-            {
-                //cannot running to this branch
-                moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, "recv a signal = %d, will not deal with it!\n",
-                    ret);
-            }
-        }
+//        int ret = sigtimedwait(&set, NULL, &tmInterval);
+//        if(ret < 0)
+//        {
+//            if(errno == EAGAIN)
+//            {
+//                moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "In timeInterval, donot recv any signal. " \
+//                    "And errno=%d, means timeout, donot an error.\n", errno);
+//            }
+//            else
+//            {
+//                moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
+//                    "sigtimedwait failed, and errno=%d(%s), thread will exit now.\n",
+//                    errno, strerror(errno));
+//                break;
+//            }
+//        }
+//        else
+//        {
+//            if(ret == MOCPS_STOP_THR_SIG)
+//            {
+//                moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, "recv stop signal! thread should exit now!\n");
+//                break;
+//            }
+//            else
+//            {
+//                //cannot running to this branch
+//                moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, "recv a signal = %d, will not deal with it!\n",
+//                    ret);
+//            }
+//        }
     
         fd_set rFds;
         FD_ZERO(&rFds);
         FD_SET(ctrlSockId, &rFds);
-        struct timeval tm;
-        tm.tv_sec = THREAD_TIME_INTEVAL;
-        tm.tv_usec = 0;
-        ret = select(ctrlSockId + 1, &rFds, NULL, NULL, &tm);
+//        struct timeval tm;
+//        tm.tv_sec = THREAD_TIME_INTEVAL;
+//        tm.tv_usec = 0;
+        int ret = pselect(ctrlSockId + 1, &rFds, NULL, NULL, &tmInterval, &set);
         if(ret < 0)
         {
-            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "select failed! ret=%d, errno=%d, desc=[%s]\n",
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "pselect failed! ret=%d, errno=%d, desc=[%s]\n",
                 ret, errno, strerror(errno));
+            if(errno == EINTR)
+            {
+                moLoggerError(MOCPS_MODULE_LOGGER_NAME, "errno==EINTR, we should exit this ctrl thread now.\n");
+                break;
+//                moLoggerInfo(MOCPS_MODULE_LOGGER_NAME, "errno==EINTR, should check the signal now!\n");
+//                ret = sigtimedwait(&set, NULL, &tmInterval1);
+//                printf("wjl_test : sigtimedwait ret = %d, MOCPS_STOP_THR_SIG=%d, SIGALRM=%d, errno=%d, desc=[%s]\n",
+//                    ret, MOCPS_STOP_THR_SIG, SIGALRM, errno, strerror(errno));
+//                if(ret == MOCPS_STOP_THR_SIG)
+//                {
+//                    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Recv the exit signal, Thread will exit now!\n");
+//                    break;
+//                }
+            }
             continue;
         }
         else if(ret == 0)
@@ -1715,6 +1738,8 @@ static void * doCtrlRequestThr(void * args)
             if(ret < 0)
             {
                 moLoggerError(MOCPS_MODULE_LOGGER_NAME, "cliMgrGetState failed! ret=%d\n", ret);
+                moLoggerError(MOCPS_MODULE_LOGGER_NAME, "This client donot in our control, this thread should exit!\n");
+//                break;
                 continue;
             }
             moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "ctrlSockId=%d, state=%d\n", 
@@ -1727,7 +1752,10 @@ static void * doCtrlRequestThr(void * args)
                 if(ret < 0)
                 {
                     moLoggerError(MOCPS_MODULE_LOGGER_NAME, "doKeyAgree failed! ret = %d\n", ret);
+                    moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
+                        "This client cannot transport with Server succeed, should delete it.\n");
                     continue;
+//                    break;
                 }
                 moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "doKeyAgree succeed.\n");
                 cliMgrSetState(ctrlSockId, CLIMGR_CLI_STATE_KEYAGREED);
@@ -1747,9 +1775,8 @@ static void * doCtrlRequestThr(void * args)
             }
         }
     }
-    printf("wjl_test : jump out!\n");
+    
     pthread_exit(NULL);
-//    return NULL;
 }
 
 static int startCtrlThread(const int sockId, pthread_t *thId)
@@ -1924,9 +1951,9 @@ int moCpsServ_stopRunning()
 */
 void moCpsServ_dump()
 {
-//    criDump();
-//    cliMgrDump();
-//    fmDump();
+    criDump();
+    cliMgrDump();
+    fmDump();
 }
 
 

@@ -2,17 +2,19 @@
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
+#include <sys/time.h>
+#include <time.h>
+#include <sys/types.h>
 
 static void signalExitFunc(int sigNo)
 {
 	printf("Recv sigNo = %d\n", sigNo);
 	printf("will exit this thread! thId = %u\n", pthread_self());
-	return ;
 }
 
 static void * thrFunc(void * args)
 {
-#if 1
+#if 0
 	struct sigaction actions;
 	memset(&actions, 0x00, sizeof(struct sigaction));
 	sigemptyset(&actions.sa_mask);
@@ -24,56 +26,64 @@ static void * thrFunc(void * args)
 		ret, errno, strerror(errno));
 #endif
 	printf("Thread start now.\n");
+    
+    sigset_t set, orgSet;
+    sigemptyset(&set);
+    sigemptyset(&orgSet);
+    sigaddset(&set, SIGALRM);
+    sigprocmask(SIG_BLOCK, &set, &orgSet);
+    signal(SIGALRM, signalExitFunc);
 
-	sigset_t set;
-	sigemptyset(&set);
-	sigaddset(&set, SIGALRM);
-    	//sigprocmask(SIG_SETMASK,&set,NULL);
-
-	struct timespec tm;
-	tm.tv_sec = 1;
-	tm.tv_nsec = 0;
 	while(1)
 	{
-	ret = sigtimedwait(&set, NULL, &tm);
-	printf("sigtimedwait return %d\n", ret);
-	if(ret < 0)
-	{
-		if(errno == EAGAIN)
-		{
-			printf("Donot recv signal in timeout, loop.\n");
-			continue;
-		}
-		else
-		{
-			printf("errno = %d(%s), exit!\n", errno, strerror(errno));
-			break;
-		}
+    	struct timespec tm;
+    	tm.tv_sec = 1;
+    	tm.tv_nsec = 0;
+    	struct timespec tm1;
+    	tm1.tv_sec = 0;
+    	tm1.tv_nsec = 0;
+        
+        int ret = pselect(0, NULL, NULL, NULL, &tm, &orgSet);
+        if(ret < 0)
+        {
+            printf("ret=%d, errno=%d, desc=[%s]\n", ret, errno, strerror(errno));
+            if(errno == EINTR)
+            {
+                printf("signal check now.\n");
+                ret = sigtimedwait(&set, NULL, &tm1);
+                if(ret == SIGALRM)
+//                if(!gThrRunning)
+                {
+                    printf("Thread will exit now!\n");
+                    break;
+                }
+            }
+            break;
+        }
+        else if(ret == 0)
+        {
+            printf("timeout.\n");
+            if(errno == EINTR)
+            {
+                printf("signal check now.\n");
+                ret = sigtimedwait(&set, NULL, &tm1);
+                if(ret == SIGALRM)
+//                if(!gThrRunning)
+                {
+                    printf("Thread will exit now!\n");
+                    break;
+                }
+            }
+            continue;
+        }
+        else
+        {
+            printf("ret > 0.");
+            continue;
+        }
 	}
-	else
-	{
-		printf("Get a signal = %d\n", ret);
-		if(ret == SIGALRM)
-		{
-			printf("SIGALRM get, exit!\n");
-			return NULL;
-		}
-	}
-	}
-
-#if 0
-	int leftSeconds = sleep(10);
-	int cnt = 0;
-	while(1)
-	{
-		cnt++;
-		sleep(1);
-		printf("cnt = %d\n", cnt);
-	}
-
-	//printf("Thread stop now. leftSeconds = %d\n", leftSeconds);
-	printf("Thread stop now.\n");
-#endif
+//    pthread_exit(NULL);
+    return NULL;
 }
 
 int main(int argc, char **argv)
@@ -88,6 +98,9 @@ int main(int argc, char **argv)
 	printf("start kill this thread.\n");
 
 	pthread_kill(thId, SIGALRM);
+    ret = pthread_join(thId, NULL);
+    printf("pthread_join ret=%d, errno=%d, desc=[%s]\n",
+        ret, errno, strerror(errno));
 
 	printf("kill over.\n");
 	sleep(4);
