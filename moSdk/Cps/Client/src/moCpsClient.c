@@ -1697,30 +1697,47 @@ static int getRespFromServer(const MOCPS_CMDID cmdId, MOCPS_CTRL_RESPONSE * pCtr
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "select timeout!\n");
             return -4;
         }
-        else
+        //just read this socket, because we donot monitor other sockets....haha, so FD_ISSET is not necessary
+        char * pCipher = (char * )&basicRespCipher;
+        int readLen = readn(gCtrlSockId, pCipher, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
+        if(readLen != sizeof(MOCPS_CTRL_RESPONSE_BASIC))
         {
-            if(FD_ISSET(gCtrlSockId, &rFdSet))
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "readn failed! readLen=%d, size=%d\n",
+                readLen, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
+            return -5;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Read cipher response from server succeed.\n");
+
+        //find the MARK position
+        int pos = moUtils_Search_BF((unsigned char *)pCipher, sizeof(MOCPS_CTRL_RESPONSE_BASIC),
+            (unsigned char *)MOCPS_MARK_SERVER, strlen(MOCPS_MARK_SERVER));
+        if(pos < 0)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "moUtils_Search_BF failed! ret = %d\n", ret);
+            return -6;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Find the MARK, its position is %d\n", pos);
+        if(pos != 0)
+        {
+            //move the MARK to the beginning firstly
+            memmove(pCipher, pCipher + pos, sizeof(MOCPS_CTRL_RESPONSE_BASIC) - pos);
+
+            //read the bytes then
+            readLen = readn(gCtrlSockId, pCipher + sizeof(MOCPS_CTRL_RESPONSE_BASIC) - pos, pos);
+            if(readLen != pos)
             {
-                int readLen = readn(gCtrlSockId, (char *)&basicRespCipher, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
-                if(readLen != sizeof(MOCPS_CTRL_RESPONSE_BASIC))
-                {
-                    moLoggerError(MOCPS_MODULE_LOGGER_NAME, "readn failed! readLen=%d, size=%d\n",
-                        readLen, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
-                    return -5;
-                }
-                moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Read cipher response from server succeed.\n");
+                moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
+                    "readn for left context failed! readLen=%d, pos=%d\n",
+                    readLen, pos);
+                return -7;
             }
-            else
-            {
-                moLoggerError(MOCPS_MODULE_LOGGER_NAME, "Donot the socket we need!\n");
-                return -6;
-            }
+            moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "readn for left context succeed.\n");
         }
         
         //2.decrypt the cipher to plain
         MOCPS_CTRL_RESPONSE_BASIC basicRespPlain;
         memset(&basicRespPlain, 0x00, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
-        ret = doDecrypt2Resp((const char *)&basicRespCipher, (char *)&basicRespPlain, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
+        ret = doDecrypt2Resp(pCipher, (char *)&basicRespPlain, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
         if(ret < 0)
         {
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "doDecrypt2Resp failed! ret = %d\n", ret);
@@ -1734,7 +1751,7 @@ static int getRespFromServer(const MOCPS_CMDID cmdId, MOCPS_CTRL_RESPONSE * pCtr
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "This donot the response we need! " \
                 "cmdId we needed is %d, pCtrlResp->basicInfo.cmdId = %d", 
                 cmdId, basicRespPlain.cmdId);
-            continue;
+            return -8;
         }
         moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "Get the response we need!\n");
 
@@ -1744,7 +1761,7 @@ static int getRespFromServer(const MOCPS_CMDID cmdId, MOCPS_CTRL_RESPONSE * pCtr
             MOUTILS_CHECK_CRCMETHOD_32, basicRespPlain.crc32)) != 0)
         {
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "CRC check failed! ret = %d\n", ret);
-            return -8;
+            return -9;
         }
         moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "CRC check ok!\n");
         memcpy(&pCtrlResp->basicInfo, &basicRespPlain, sizeof(MOCPS_CTRL_RESPONSE_BASIC));
@@ -1764,18 +1781,42 @@ static int getRespFromServer(const MOCPS_CMDID cmdId, MOCPS_CTRL_RESPONSE * pCtr
     {
         moLoggerError(MOCPS_MODULE_LOGGER_NAME, "bodyLen=%d, too larger! The max we allowed is %d\n",
             pCtrlResp->basicInfo.bodyLen, crmmMaxSize());
-        return -9;
+        return -10;
     }
     else
     {
-        pCtrlResp->pBody = crmmGet();
-        int ret = readn(gCtrlSockId, pCtrlResp->pBody, pCtrlResp->basicInfo.bodyLen);
+        char * pBodyCipher = (char *)malloc(pCtrlResp->basicInfo.bodyLen);
+        if(NULL == pBodyCipher)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, 
+                "malloc for pBodyCipher failed! errno=%d, desc=[%s], size=%d\n",
+                errno, strerror(errno), pCtrlResp->basicInfo.bodyLen);
+            return -11;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "malloc succeed.\n");
+        
+        int ret = readn(gCtrlSockId, pBodyCipher, pCtrlResp->basicInfo.bodyLen);
         if(ret < 0)
         {
             moLoggerError(MOCPS_MODULE_LOGGER_NAME, "recvRespBody failed! ret = %d\n", ret);
-            return -10;
+            free(pBodyCipher);
+            pBodyCipher = NULL;
+            return -12;
         }
         moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "recvRespBody ok.\n");
+        
+        pCtrlResp->pBody = crmmGet();
+        ret = doDecrypt2Resp(pBodyCipher, pCtrlResp->pBody, pCtrlResp->basicInfo.bodyLen);
+        if(ret < 0)
+        {
+            moLoggerError(MOCPS_MODULE_LOGGER_NAME, "doDecrypt2Resp failed! ret=%d\n", ret);
+            free(pBodyCipher);
+            pBodyCipher = NULL;
+            return -13;
+        }
+        moLoggerDebug(MOCPS_MODULE_LOGGER_NAME, "decrypt to cipher pBody succeed.\n");
+        free(pBodyCipher);
+        pBodyCipher = NULL;
     }
     return 0;
 }
