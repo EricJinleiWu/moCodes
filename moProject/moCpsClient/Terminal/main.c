@@ -17,6 +17,7 @@ typedef enum
 {
     ORDER_TYPE_HELP,
     ORDER_TYPE_GETFILELIST,
+    ORDER_TYPE_GETFILE,
     ORDER_TYPE_QUIT,
     ORDER_TYPE_MAX
 }ORDER_TYPE;
@@ -25,6 +26,7 @@ static char gOrderNames[ORDER_TYPE_MAX][ORDER_MAX_LEN] =
     {
         "help", 
         "getFileList", 
+        "getFile",
         "quit"
     };
 
@@ -32,6 +34,7 @@ static char gOrderAbbrNames[ORDER_TYPE_MAX][ORDER_ABBR_MAX_LEN] =    /*Abbreviat
     {
         "h", 
         "gfl", 
+        "gf",
         "q"
     };
 
@@ -60,16 +63,83 @@ static void showHelp()
     printf("help(h) : show help infomation;\n");
 
     printf("getFileList(gfl) : get all files in moCpsServer;\n");
+    printf("getFile(gf) : get the file from moCpsServer to local;\n");
     //TODO, others
     
     printf("quit(q) : quit from this tool;\n");
 }
 
+static char gIsRecvAllData = 0;
+static char gIsRecvStopSignal = 0;  //The moCpsClient will send a signal when file being sent yet
+
+typedef struct _DATA_NODE
+{
+    int length;
+    char data[MOCPS_DATA_BODY_CHUNK_MAXSIZE];
+    struct _DATA_NODE * next;
+}DATA_NODE;
+
+//donot head node, the first node
+static DATA_NODE * pDataList = NULL;
+static pthread_mutex_t gDataListMutex = PTHREAD_MUTEX_INITIALIZER;
+
+/*
+    if length ==0, data == NULL, means the file being recved yet!
+*/
 static int recvData(const char * data, const int length)
 {
-    //TODO
+    pthread_mutex_lock(&gDataListMutex);
+
+    if(NULL == data && 0 == length)
+        gIsRecvStopSignal = 1;
+    
+    if(NULL == pDataList)
+    {
+        //The first chunk
+        pDataList = (DATA_NODE *)malloc(sizeof(DATA_NODE) * 1);
+        if(NULL == pDataList)
+        {
+            printf("malloc for data node failed! errno=%d, desc=[%s]\n",
+                errno, strerror(errno));
+            pthread_mutex_unlock(&gDataListMutex);
+            return -1;
+        }
+        pDataList->length = length;
+        memcpy(pDataList->data, data, length);
+        pDataList->next = NULL;
+        pthread_mutex_unlock(&gDataListMutex);
+    }
+    else
+    {
+        DATA_NODE * pPreNode = pDataList;
+        DATA_NODE * pCurNode = pDataList->next;
+        while(NULL != pCurNode)
+        {
+            pPreNode = pCurNode;
+            pCurNode = pCurNode->next;
+        }
+        pCurNode = (DATA_NODE *)malloc(sizeof(DATA_NODE) * 1);
+        if(NULL == pDataList)
+        {
+            printf("malloc for data node failed! errno=%d, desc=[%s]\n",
+                errno, strerror(errno));
+            pthread_mutex_unlock(&gDataListMutex);
+            return -2;
+        }
+        pCurNode->length = length;
+        memcpy(pCurNode->data, data, length);
+        pCurNode->next = NULL;
+        pPreNode->next = pCurNode;
+        pthread_mutex_unlock(&gDataListMutex);
+    }
     printf("recv data!\n");
     return 0;
+}
+
+static void * writeFileThr(void * args)
+{
+    args = args;
+
 }
 
 static int isRightFormatResp(MOCPS_CTRL_RESPONSE * pResp)
@@ -89,7 +159,7 @@ static int getFileList()
 {
     MOCPS_CTRL_RESPONSE resp;
     memset(&resp, 0x00, sizeof(MOCPS_CTRL_RESPONSE));
-    int ret = moCpsCli_sendRequest(MOCPS_CMDID_GETFILEINFO, MOCPS_REQUEST_TYPE_NEED_RESPONSE, &resp);
+    int ret = moCpsCli_getFileList(&resp);
     if(ret < 0)
     {
         fprintf(stderr, "moCpsCli_sendRequest failed! ret=%d\n", ret);
@@ -128,6 +198,34 @@ static int getFileList()
     return 0;
 }
 
+static int getFile()
+{
+    MOCPS_CTRL_RESPONSE resp;
+    memset(&resp, 0x00, sizeof(MOCPS_CTRL_RESPONSE));
+    int ret = moCpsCli_sendRequest(MOCPS_CMDID_GETDATA, MOCPS_REQUEST_TYPE_NEED_RESPONSE, &resp);
+    if(ret < 0)
+    {
+        fprintf(stderr, "moCpsCli_sendRequest failed! ret=%d\n", ret);
+        return -1;
+    }
+    printf("send getFileList ok, and recv response ok.\n");
+    if(!isRightFormatResp(&resp))
+    {
+        fprintf(stderr, "The response donot int right format!\n");
+        return -2;
+    }
+    printf("check response format ok. bodyLen = %d\n", resp.basicInfo.bodyLen);
+
+    while(gIsRecvAllData != 1)
+        sleep(1);
+
+    gIsRecvAllData  = 0;
+    gIsRecvStopSignal = 0;
+
+    printf("All data being recved!\n");
+    return 0;
+}
+
 static int doOrder(ORDER_TYPE order)
 {
     int ret = 0;
@@ -138,6 +236,9 @@ static int doOrder(ORDER_TYPE order)
             break;
         case ORDER_TYPE_GETFILELIST:
             ret = getFileList();
+            break;
+        case ORDER_TYPE_GETFILE:
+            ret = getFile();
             break;
         default:
             printf("order=%d, currently, donot do it.\n", order);
