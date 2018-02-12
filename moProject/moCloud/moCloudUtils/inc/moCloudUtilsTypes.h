@@ -7,6 +7,10 @@ extern "C" {
 
 #include <pthread.h>
 
+#include "moCrypt.h"
+#include "moLogger.h"
+#include "moUtils.h"
+
 #define MOCLOUD_MODULE_LOGGER_NAME    "MOCLOUD"
 
 #define MOCLOUD_MARK_MAXLEN   16
@@ -168,7 +172,7 @@ typedef struct
 typedef struct
 {
     size_t size; //in bytes
-    char name[FILENAME_MAXLEN];
+    char name[MOCLOUD_FILENAME_MAXLEN];
     MOCLOUD_FILETYPE type;
 }MOCLOUD_BASIC_FILEINFO;
 

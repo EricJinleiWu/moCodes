@@ -11,7 +11,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <signal.h>
 
+#include "moCloudUtilsTypes.h"
 #include "moCloudUtils.h"
 #include "moLogger.h"
 
@@ -124,24 +126,17 @@ int mergeChar2Int(const unsigned char src[4], int *dst)
 int startThread(pthread_t * pThId, pthread_attr_t * attr, 
     void * (*start_routine)(void *), void * arg)
 {
-    int ret = 0;
     pthread_attr_t *attr_p = attr;
-    pthread_attr_t attr_l ;
-    
-    if(!attr)
+    pthread_attr_setstacksize(attr_p, MOCLOUD_THR_STACK_SIZE);
+    int ret = pthread_create(pThId, attr_p, start_routine, arg);
+    if(ret != 0)
     {
-        ///default :EPRIORITY_DEF
-        attr_p = &attr_l ;
-        lthread_set_schprio(attr_p,EPRIORITY_DEF);
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "pthread_create failed! ret=%d, errno=%d, desc=[%s]\n\n", 
+            ret, errno, strerror(errno));
     }
-    pthread_attr_setstacksize(attr_p, STACK_SIZE_LIMITS);
-    pthread_attr_setdetachstate(attr_p,PTHREAD_CREATE_DETACHED);
-
-    ret = pthread_create(thread, attr_p, start_routine, arg);
-    if(ret)
-    {
-        THREAD_DBG1("kitThreadNonResidentCreate(): create thread %s failed\n", name);
-    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+        "pthread_create succeed! threadId=%ld\n", *pThId);
 
     return ret;
 }
@@ -180,7 +175,7 @@ int killThread(const pthread_t thId)
         moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "This thread still running, can stop it now.\n");
         
         //send signal to stop it
-        ret = pthread_kill(thId, MOCPS_STOP_THR_SIG);
+        ret = pthread_kill(thId, MOCLOUD_STOP_THR_SIG);
         if(ret != 0)
         {
             moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "pthread_kill failed! ret = %d\n", ret);
@@ -201,7 +196,7 @@ int killThread(const pthread_t thId)
     else
     {
         moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
-            "Input thread id = %d, invalid value, will do nothing to it.\n", thId);
+            "Input thread id = %ld, invalid value, will do nothing to it.\n", thId);
     }
     
     return 0;
@@ -226,7 +221,7 @@ int threadRegisterSignal(sigset_t * pSet)
     sigemptyset(&actions.sa_mask);
     actions.sa_flags = 0;
     actions.sa_handler = threadExitSigCallback;
-    int ret = sigaction(MOCPS_STOP_THR_SIG, &actions, NULL);
+    int ret = sigaction(MOCLOUD_STOP_THR_SIG, &actions, NULL);
     if(ret != 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "sigaction failed! " \
@@ -236,7 +231,7 @@ int threadRegisterSignal(sigset_t * pSet)
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "sigaction succeed.\n");
 
     sigemptyset(pSet);
-    sigaddset(pSet, MOCPS_STOP_THR_SIG);
+    sigaddset(pSet, MOCLOUD_STOP_THR_SIG);
 #else
     sigset_t set;
     sigemptyset(&set);

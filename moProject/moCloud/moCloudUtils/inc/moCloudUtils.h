@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#define MOCLOUD_THR_STACK_SIZE   (4 * 1024 * 1024)
+
 /* 
     Check input @pIp is a valid ip address or not;
     A valid ip address in format like aaa.bbb.ccc.ddd;
