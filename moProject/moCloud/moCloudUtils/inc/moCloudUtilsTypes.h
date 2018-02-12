@@ -31,6 +31,11 @@ extern "C" {
 #define MOCLOUD_FILENAME_MAXLEN 256
 #define MOCLOUD_FILEPATH_MAXLEN (DIRPATH_MAXLEN + FILENAME_MAXLEN)
 
+#define MOCLOUD_USERNAME_MAXLEN 32
+#define MOCLOUD_PASSWD_MINLEN   6
+#define MOCLOUD_PASSWD_MAXLEN   16
+
+
 /*
     We use a signal to stop our threads;
     this signal I choosed SIGALRM;
@@ -104,6 +109,15 @@ typedef enum
     MOCLOUD_FILETYPE_MAX
 }MOCLOUD_FILETYPE;
 
+typedef enum
+{
+    MOCLOUD_FILE_STATE_NORMAL,  //Normal state, can read, download, play;
+    MOCLOUD_FILE_STATE_UPLOADING,   //uploading by someone, cannot do any operations;
+    MOCLOUD_FILE_STATE_DELETING,    //deleting by admin, file cannot do any operations;
+    MOCLOUD_FILE_STATE_DOWNLOADING, //someones downloading it;
+    MOCLOUD_FILE_STATE_MAX
+}MOCLOUD_FILE_STATE;
+
 /*
     The struct for keyagree reqeust from client to server;
 */
@@ -171,9 +185,13 @@ typedef struct
 */
 typedef struct
 {
-    size_t size; //in bytes
-    char name[MOCLOUD_FILENAME_MAXLEN];
-    MOCLOUD_FILETYPE type;
+    size_t filesize; //in bytes
+    char filename[MOCLOUD_FILENAME_MAXLEN];
+    MOCLOUD_FILETYPE filetype;
+
+    MOCLOUD_FILE_STATE state;
+
+    char ownerName[MOCLOUD_USERNAME_MAXLEN];
 }MOCLOUD_BASIC_FILEINFO;
 
 
