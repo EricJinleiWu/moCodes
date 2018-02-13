@@ -16,13 +16,12 @@ extern "C" {
     6.get memory for ctrl orders, data must have another, but when we exec them, just do it then.
 
     @pCfgFilepath : the config file path;
-    @pSockId : the socket id being set here.
 
     return : 
         0 : succeed;
         0-: failed;
 */
-int moCloudClient_init(const char * pCfgFilepath, int * pSockId);
+int moCloudClient_init(const char * pCfgFilepath);
 
 /*
     Do uninit to moCloudClient;
@@ -57,15 +56,18 @@ int moCloudClient_signIn(const char * pUsrName, const char * pPasswd);
 /*
     These functions to get files info;
 
-    @pAllFileInfo save the results, in format of an array, array length being defined by @pNum;
+    @pAllFileInfo save the results, its a list, being malloced here;
+    So, its important for caller, to call moCloudClient_freeFilesInfo to free memory!!!
 
     return : 
         0 : succeed;
         0-: failed;
 */
-int moCloudClient_getAllFileInfo(MOCLOUD_BASIC_FILEINFO * pAllFileInfo, int * pNum);
+int moCloudClient_getAllFileInfo(MOCLOUD_BASIC_FILEINFO * pAllFileInfo);
 int moCloudClient_getOneTypeFileInfo(
-    const MOCLOUD_FILETYPE type, MOCLOUD_BASIC_FILEINFO * pOneTypeFileInfo, int * pNum);
+    const MOCLOUD_FILETYPE type, MOCLOUD_BASIC_FILEINFO * pOneTypeFileInfo);
+
+void moCloudClient_freeFilesInfo(MOCLOUD_BASIC_FILEINFO * pOneTypeFileInfo);
 
 #if 0
 int moCloudClient_startUploadFile();
