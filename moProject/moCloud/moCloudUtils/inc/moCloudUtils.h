@@ -15,10 +15,20 @@ extern "C" {
 int isValidIpAddr(const char * pIp);
 
 /*
+    The @port should in [1024, 65535] if the process is popular process;
+*/
+int isValidUserPort(const int port);
+
+/*
     Set the socket(with id @sockId) to nonBlock mode;
     return 0 if succeed, 0- if failed.
 */
 int setSock2NonBlock(const int sockId);
+
+/*
+    Set a socket to reusable;
+*/
+int setSockReusable(const int sockId);
 
 /*
     Read function with socket;

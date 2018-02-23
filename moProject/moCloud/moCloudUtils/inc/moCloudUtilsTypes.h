@@ -23,7 +23,7 @@ extern "C" {
 #define MOCLOUD_INVALID_SOCKID    (-1)
 #define MOCLOUD_INVALID_PORT      (0)
 
-#define MOCLOUD_INVALID_THR_ID    0
+#define MOCLOUD_INVALID_THR_ID    (-1)
 
 //#define MOCLOUD_DATA_BODY_CHUNK_MAXSIZE   (1024 * 1024)   //1M
 
@@ -106,7 +106,8 @@ typedef enum
     MOCLOUD_FILETYPE_AUDIO,  //audio, can play in player, has suffix with ".mp3" and so on
     MOCLOUD_FILETYPE_PIC,    //picture, has suffix with ".jpg" and so on
     MOCLOUD_FILETYPE_OTHERS,  //other files, can be read in common file mode
-    MOCLOUD_FILETYPE_MAX
+    MOCLOUD_FILETYPE_ALL,   //all types
+    MOCLOUD_FILETYPE_MAX    //max value, to limit the range
 }MOCLOUD_FILETYPE;
 
 typedef enum
@@ -117,6 +118,13 @@ typedef enum
     MOCLOUD_FILE_STATE_DOWNLOADING, //someones downloading it;
     MOCLOUD_FILE_STATE_MAX
 }MOCLOUD_FILE_STATE;
+
+typedef enum
+{
+    MOCLOUD_HEARTBEAT_RET_FAILED,
+    MOCLOUD_HEARTBEAT_RET_OK,
+    MOCLOUD_HEARTBEAT_RET_FILELIST_CHANGED
+}MOCLOUD_HEARTBEAT_RET;
 
 /*
     The struct for keyagree reqeust from client to server;

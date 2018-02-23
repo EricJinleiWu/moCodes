@@ -31,25 +31,25 @@ static int tst_All(void)
 
     char username[MOCLOUD_USERNAME_MAXLEN] = "test";
     char passwd[MOCLOUD_PASSWD_MAXLEN] = "123456";
-    ret = moCloudClient_signIn(username, passwd);
-    if(ret != 0)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME,
-            "moCloudClient_signIn failed! ret=%d\n", ret);
-        moCloudClient_unInit();
-        return -2;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "moCloudClient_signIn SUCCEED.\n");
-
     ret = moCloudClient_signUp(username, passwd);
     if(ret != 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME,
             "moCloudClient_signUp failed! ret=%d\n", ret);
         moCloudClient_unInit();
-        return -3;
+        return -2;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "moCloudClient_signUp SUCCEED.\n");
+
+    ret = moCloudClient_logIn(username, passwd);
+    if(ret != 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME,
+            "moCloudClient_logIn failed! ret=%d\n", ret);
+        moCloudClient_unInit();
+        return -3;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "moCloudClient_logIn SUCCEED.\n");
 
     //to check heartbeat ok or not;
     sleep(30);
@@ -67,6 +67,17 @@ static int tst_All(void)
     dumpAllFileInfo(pAllFileInfo);
 
     moCloudClient_freeFilesInfo(pAllFileInfo);
+    
+
+    ret = moCloudClient_logOut(username, passwd);
+    if(ret != 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME,
+            "moCloudClient_logOut failed! ret=%d\n", ret);
+        moCloudClient_unInit();
+        return -3;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "moCloudClient_logOut SUCCEED.\n");
     
     moCloudClient_unInit();
     return 0;

@@ -24,6 +24,25 @@ int isValidIpAddr(const char * pIp)
     return ((pIp == NULL) || (inet_aton(pIp, &addr) == 0)) ? 0 : 1;
 }
 
+int isValidUserPort(const int port)
+{
+    return (port >= 1024 && port <= 65535) ? 1 : 0;
+}
+
+int setSockReusable(const int sockId)
+{
+    //Set this socket can be reused
+    int on = 1;
+    int ret = setsockopt(sockId, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    if(ret != 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "setsockopt failed! ret = %d, errno = %d, desc = [%s]\n", ret, errno, strerror(errno));
+        return -1;
+    }
+    return 0;
+}
+
 int setSock2NonBlock(const int sockId)
 {
     if(sockId < 0)
