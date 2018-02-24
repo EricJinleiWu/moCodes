@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <semaphore.h>
 
 #include "moCloudUtilsTypes.h"
 #include "moCloudUtils.h"
@@ -54,7 +55,21 @@ static pthread_t gHeartbeatThrId = MOCLOUD_INVALID_THR_ID;
 
 static pthread_mutex_t gFilelistMutex = PTHREAD_MUTEX_INITIALIZER;
 static CLI_STATE gCliState = CLI_STATE_IDLE;
-static MOCLOUD_BASIC_FILEINFO *gpFilelist[MOCLOUD_FILETYPE_ALL];
+static MOCLOUD_BASIC_FILEINFO_NODE * gpFilelist[MOCLOUD_FILETYPE_ALL];
+static char gCurLoginUsername[MOCLOUD_USERNAME_MAXLEN] = {0x00};
+static char gCurLoginPassword[MOCLOUD_PASSWD_MAXLEN] = {0x00};
+static sem_t gRefreshFilelistSem;
+static pthread_t gRefreshFilelistThId = MOCLOUD_INVALID_THR_ID;
+static int gStopRefreshFilelistThr = 0; //when this value set to 1, then stop refresh filelist thread
+//To assure, which type of filelist should be refreshed this time
+//being set by heartbeat thread
+static MOCLOUD_FILETYPE gRefreshFilelistType = MOCLOUD_FILETYPE_MAX;    
+
+#define RSA_PRIV_KEYLEN 128
+const static char RSA_PRIV_KEY[RSA_PRIV_KEYLEN] = {
+    //TODO, real value needed
+    0x00
+};
 
 #define CFG_ITEM_SECTION_SERVER         "servInfo"
 #define CFG_ITEM_ATTR_SERVIP            "servIp"
@@ -172,6 +187,38 @@ static void dumpCfgInfo(const CFG_INFO cfgInfo)
         cfgInfo.clientIp, cfgInfo.clientCtrlPort, cfgInfo.clientDataPort);
     
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Dump the config info end now.\n");
+}
+
+static int freeLocalFilelist(const MOCLOUD_FILETYPE type)
+{
+    if(type >= MOCLOUD_FILETYPE_MAX)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input type=%d, invalid!\n", type);
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "type=%d\n", type);
+
+    pthread_mutex_lock(&gFilelistMutex);
+    
+    int curType = 0;
+    for(curType = (type == MOCLOUD_FILETYPE_ALL ? MOCLOUD_FILETYPE_VIDEO : type);
+        curType < (type == MOCLOUD_FILETYPE_ALL ? MOCLOUD_FILETYPE_ALL : type + 1);
+        curType++)
+    {
+        MOCLOUD_BASIC_FILEINFO_NODE * pCurNode = gpFilelist[curType];
+        while(pCurNode != NULL)
+        {
+            MOCLOUD_BASIC_FILEINFO_NODE * pNextNode = pCurNode->next;
+            free(pCurNode);
+            pCurNode = pNextNode;
+        }
+        gpFilelist[curType] = NULL;
+    }
+
+    pthread_mutex_unlock(&gFilelistMutex);
+
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Free resource ok.\n");
+    return 0;
 }
 
 /*
@@ -468,6 +515,7 @@ static int getCipherRequestInfo(const MOCLOUD_CTRL_REQUEST * pReq,
     3.do check;
     
     @pRespHeader is the header value;
+    @cmdId is the cmd id of this request;
 
     return : 
         0 : succeed;
@@ -678,7 +726,7 @@ static int getCipherKeyAgreeReq(const MOCLOUD_KEYAGREE_REQUEST * pReq, char * pC
     }
     
     int ret = moCloudUtilsCrypt_getCipherTxtLen(
-        gCryptInfo.cryptAlgoNo, sizeof(MOCLOUD_KEYAGREE_REQUEST), pCipherLen);
+        MOCLOUD_CRYPT_ALGO_RSA, sizeof(MOCLOUD_KEYAGREE_REQUEST), pCipherLen);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -698,8 +746,14 @@ static int getCipherKeyAgreeReq(const MOCLOUD_KEYAGREE_REQUEST * pReq, char * pC
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
         "plainLen=%d, cipherLen=%d, malloc for cipher reqeust ok.\n", 
         sizeof(MOCLOUD_CTRL_REQUEST), (*pCipherLen));
+
+    MOCLOUD_CRYPT_INFO cryptInfo;
+    memset(&cryptInfo, 0x00, sizeof(MOCLOUD_CRYPT_INFO));
+    cryptInfo.cryptAlgoNo = MOCLOUD_CRYPT_ALGO_RSA;
+    memcpy(cryptInfo.cryptKey.rsaKey, RSA_PRIV_KEY, RSA_PRIV_KEYLEN);
+    cryptInfo.keyLen = RSA_PRIV_KEYLEN;
     ret = moCloudUtilsCrypt_doCrypt(MOCRYPT_METHOD_ENCRYPT,
-        gCryptInfo, (char *)pReq, sizeof(MOCLOUD_KEYAGREE_REQUEST),
+        cryptInfo, (char *)pReq, sizeof(MOCLOUD_KEYAGREE_REQUEST),
         pCipherReq, pCipherLen);
     if(ret < 0)
     {
@@ -946,7 +1000,7 @@ static int getRespBody(char * pRespBody, const int bodyLen)
 static int setFilelistValue(const char * pRespBody, 
     const int bodyLen, const MOCLOUD_FILETYPE type)
 {
-    if(type < 0 || type >= MOCLOUD_FILETYPE_MAX || NULL == pRespBody)
+    if(type < MOCLOUD_FILETYPE_VIDEO || type >= MOCLOUD_FILETYPE_MAX || NULL == pRespBody)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "Input param donot valid. type=%d\n", type);
@@ -954,9 +1008,61 @@ static int setFilelistValue(const char * pRespBody,
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "type=%d\n", type);
 
-    //TODO, exec it
+    freeLocalFilelist(type);
 
-    return 0;
+    pthread_mutex_lock(&gFilelistMutex);
+
+    int ret = 0;
+    MOCLOUD_BASIC_FILEINFO * pCurInfo = NULL;
+    int readLen = 0;
+    while(readLen + sizeof(MOCLOUD_BASIC_FILEINFO) <= bodyLen)
+    {
+        pCurInfo = pRespBody + readLen;
+        if(pCurInfo->filetype >= MOCLOUD_FILETYPE_MAX || 
+            (type != MOCLOUD_FILETYPE_ALL && pCurInfo->filetype != type))
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "pCurInfo.filetype=%d, MOCLOUD_FILETYPE_MAX=%d, input type=%d, invalid!!\n", 
+                pCurInfo->filetype, MOCLOUD_FILETYPE_MAX, type);
+        }
+        else
+        {
+            MOCLOUD_BASIC_FILEINFO_NODE * pNewNode = NULL;
+            pNewNode = (MOCLOUD_BASIC_FILEINFO_NODE *)malloc(sizeof(MOCLOUD_BASIC_FILEINFO_NODE) * 1);
+            if(pNewNode == NULL)
+            {
+                //malloc failed, donot do last info, just return an error, and clear resources
+                moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                    "malloc failed! errno=%d, desc=[%s]\n", errno, strerror(errno));
+                ret = -2;
+                break;
+            }
+            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc new node succeed.\n");
+
+            memcpy(&pNewNode->info, pCurInfo, sizeof(MOCLOUD_BASIC_FILEINFO));
+            pNewNode->next = NULL;
+
+            if(gpFilelist[pCurInfo->filetype] == NULL)
+            {
+                gpFilelist[pCurInfo->filetype] = pNewNode;
+            }
+            else
+            {
+                pNewNode->next = gpFilelist[pCurInfo->filetype];
+                gpFilelist[pCurInfo->filetype] = pNewNode;
+            }
+        }
+
+        readLen += sizeof(MOCLOUD_BASIC_FILEINFO);
+    }
+
+    if(ret < 0)
+    {
+        //should free resources being malloced because some error ocurred
+        freeLocalFilelist(type);
+    }
+
+    return ret;
 }
 
 /*
@@ -1006,6 +1112,17 @@ static int refreshFilelist(const MOCLOUD_FILETYPE type)
         return -4;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getCipherRequestInfo for getFilelist succeed.\n");
+
+    ret = writen(gCtrlSockId, pCipherReq, cipherLen);
+    if(ret != cipherLen)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Send cipher request to server failed. " \
+            "ret=%d, cipherLen=%d\n", ret, cipherLen);
+        free(pCipherReq);
+        pCipherReq = NULL;
+        pthread_mutex_unlock(&gFilelistMutex);
+        return -5;
+    }
 
     MOCLOUD_CTRL_RESPONSE respHeader;
     memset(&respHeader, 0x00, sizeof(MOCLOUD_CTRL_RESPONSE));
@@ -1067,17 +1184,8 @@ static int doHeartbeatResp(const MOCLOUD_CTRL_RESPONSE resp)
             break;
         case MOCLOUD_HEARTBEAT_RET_FILELIST_CHANGED:
             moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Heartbeat ok, and file list being changed!\n");
-            ret = refreshFilelist(resp.bodyLen);    //bodyLen being used to assure which type of files being changed;
-            if(ret < 0)
-            {
-                moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "refreshFilelist failed! ret=%d\n", ret);
-                ret = -1;
-            }
-            else
-            {
-                moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "refreshFilelist succeed.\n");
-                ret = 0;
-            }
+            gRefreshFilelistType = resp.bodyLen;
+            sem_post(&gRefreshFilelistSem);
             break;
         default:
             moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "heartbeat return %d, its wrong value!\n", resp.ret);
@@ -1234,6 +1342,79 @@ static int stopHeartbeatThr()
 }
 
 /*
+    This thread will recv a signal, then to refresh @gFilelist automatically;
+    Currently, when send heartbeat to server, and server response to us, tell us
+        the file list has been changed, then we should refresh our @gFilelist;
+*/
+static void * refreshFilelistThr(void * args)
+{
+    while(1)
+    {
+        sem_wait(&gRefreshFilelistSem);
+        
+        if(gStopRefreshFilelistThr)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "gStopRefreshFilelistThr = %d, should exit this thread now!\n", 
+                gStopRefreshFilelistThr);
+            break;
+        }
+
+        int curType = gRefreshFilelistType;
+        int ret = refreshFilelist(curType);
+        if(ret < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "refreshFilelist failed! ret=%d, type=%d\n", ret, curType);
+        }
+        else
+        {
+            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "refreshFilelist succeed.\n");
+        }
+    }
+    
+    pthread_exit(NULL);
+}
+
+static int startRefreshFilelistThr()
+{
+    int ret = sem_init(&gRefreshFilelistSem, 0, 0);
+    if(ret != 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "sem_init failed! " \
+            "ret=%d, errno=%d, desc=[%s]\n", ret, errno, strerror(errno));
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "sem_init succeed.\n");
+
+    ret = pthread_create(&gRefreshFilelistThId, NULL, refreshFilelistThr, NULL);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "create thread refreshFilelistThr failed! ret=%d, errno=%d, desc=[%s]\n",
+            ret, errno, strerror(errno));
+        sem_destroy(&gRefreshFilelistSem);
+        gRefreshFilelistThId = MOCLOUD_INVALID_THR_ID;
+        return -2;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "create thread refreshFilelistThr succeed.\n");
+
+    gStopRefreshFilelistThr = 0;
+    
+    return 0;
+}
+
+static int stopRefreshFilelistThr()
+{
+    if(gRefreshFilelistThId != MOCLOUD_INVALID_THR_ID)
+    {
+        gStopRefreshFilelistThr = 1;
+        pthread_join(gRefreshFilelistThId, NULL);
+    }
+    return 0;
+}
+
+/*
     1.read config file, get client ip(and port, not neccessary), get server ip and port;
     2.create socket;
     3.connect to server;
@@ -1317,12 +1498,27 @@ int moCloudClient_init(const char * pCfgFilepath)
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "key agree succeed.\n");
 
+    ret = startRefreshFilelistThr();
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "startHeartbeatThr failed! ret=%d\n", ret);
+        disConnectToServer();
+        destroyCtrlSocket();
+        memset(&gCfgInfo, 0x00, sizeof(CFG_INFO));
+        memset(&gCryptInfo, 0x00, sizeof(MOCLOUD_CRYPT_INFO));
+        pthread_mutex_unlock(&gMutex);
+        return MOCLOUDCLIENT_ERR_START_HEARTBEAT_THR;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "key agree succeed.\n");
+
     //5.start heartbeat thread
     ret = startHeartbeatThr();
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "startHeartbeatThr failed! ret=%d\n", ret);
+        stopRefreshFilelistThr();
         disConnectToServer();
         destroyCtrlSocket();
         memset(&gCfgInfo, 0x00, sizeof(CFG_INFO));
@@ -1353,6 +1549,7 @@ void moCloudClient_unInit()
     pthread_mutex_lock(&gMutex);
     
     stopHeartbeatThr();
+    stopRefreshFilelistThr();
     disConnectToServer();
     destroyCtrlSocket();
     destroyDataSocket();
@@ -1372,8 +1569,8 @@ void moCloudClient_unInit()
     Sign up to server;
 
     1.generate request;
-    2.do encrypt;
-    3.send to server, wait for response header:
+    2.do encrypt to head;
+    3.send to server(include head and body, body donot encrypt), wait for response header:
         3.1.timeout;
         3.2.cmdId;
     4.do decrypt;
@@ -1381,11 +1578,87 @@ void moCloudClient_unInit()
 
     return :
         0 : succeed;
-        0-: failed;
+        0-: failed for internal error in client;
+        0+: failed from server, like duplicated username, and so on;
 */
 int moCloudClient_signUp(const char * pUsrName, const char * pPasswd)
 {
-    return 0;
+    if(NULL == pUsrName || NULL == pPasswd)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is NULL.\n");
+        return MOCLOUDCLIENT_ERR_INPUT_NULL;
+    }
+
+    if(strlen(pUsrName) == 0 || strlen(pUsrName) > MOCLOUD_USERNAME_MAXLEN || 
+        strlen(pUsrName) < MOCLOUD_PASSWD_MINLEN || strlen(pUsrName) > MOCLOUD_PASSWD_MAXLEN)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "username length=[%d], valid range [0, %d]; passwd length=%d, valid range [%d, %d]\n",
+            strlen(pUsrName), MOCLOUD_USERNAME_MAXLEN, strlen(pPasswd),
+            MOCLOUD_PASSWD_MINLEN, MOCLOUD_PASSWD_MAXLEN);
+        return MOCLOUDCLIENT_ERR_INPUT_INVALID;
+    }
+
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+        "username=[%s], length=%d; passwd=[%s], length=%d\n",
+        pUsrName, strlen(pUsrName), pPasswd, strlen(pPasswd));
+
+    char body[(MOCLOUD_USERNAME_MAXLEN + MOCLOUD_PASSWD_MAXLEN) * 2] = {0x00};
+    memset(body, 0x00, (MOCLOUD_USERNAME_MAXLEN + MOCLOUD_PASSWD_MAXLEN) * 2);
+    sprintf(body, MOCLOUD_USER_PASSWD_FORMAT, pUsrName, pPasswd);
+
+    MOCLOUD_CTRL_REQUEST request;
+    memset(&request, 0x00, sizeof(MOCLOUD_CTRL_REQUEST));
+    int bodyLen = strlen(body);
+    genRequest(&request, MOCLOUD_REQUEST_TYPE_NEED_RESPONSE, MOCLOUD_CMDID_SIGNUP, bodyLen);
+
+    //get cipher value to request header
+    char * pCipherReq = NULL;
+    int cipherLen = 0;
+    int ret = getCipherRequestInfo(&request, pCipherReq, &cipherLen);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "getCipherRequestInfo failed! ret=%d\n", ret);
+        return MOCLOUDCLIENT_ERR_INTERNAL_ERROR;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getCipherRequestInfo succeed.\n");
+
+    //send request header in cipher, and request body in plain
+    ret = writen(gCtrlSockId, pCipherReq, cipherLen);
+    if(ret != cipherLen)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request header failed! " \
+            "ret=%d, cipherLen=%d\n", ret, cipherLen);
+        free(pCipherReq);
+        pCipherReq = NULL;
+        return MOCLOUDCLIENT_ERR_SEND_REQUEST;
+    }
+    free(pCipherReq);
+    pCipherReq = NULL;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request header succed.\n");
+    
+    ret = writen(gCtrlSockId, body, bodyLen);
+    if(ret != cipherLen)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request body failed! " \
+            "ret=%d, bodyLen=%d\n", ret, bodyLen);
+        return MOCLOUDCLIENT_ERR_SEND_REQUEST;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request body succed.\n");
+
+    //wait for response
+    MOCLOUD_CTRL_RESPONSE resp;
+    memset(&resp, 0x00, sizeof(MOCLOUD_CTRL_RESPONSE));
+    ret = getRespHeader(&resp, MOCLOUD_CMDID_SIGNUP);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader failed! ret=%d\n", ret);
+        return MOCLOUDCLIENT_ERR_GETRESP_FAILED;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader succeed, signUp ret=%d.\n", resp.ret);
+
+    return resp.ret;
 }
 
 /*
@@ -1393,7 +1666,7 @@ int moCloudClient_signUp(const char * pUsrName, const char * pPasswd)
 
     1.generate request;
     2.do encrypt;
-    3.send to server, wait for response header;
+    3.send to server(header in cipher, body in plain), wait for response header;
         3.1.timeout;
         3.2.cmdId;
     4.do decrypt;
@@ -1401,11 +1674,108 @@ int moCloudClient_signUp(const char * pUsrName, const char * pPasswd)
 
     return : 
         0 : succeed;
-        0-: failed;
+        0-: failed for internal error in client;
+        0+: failed from server, like user has been login yet, and so on;
 */
 int moCloudClient_logIn(const char * pUsrName, const char * pPasswd)
 {
-    return 0;
+    if(NULL == pUsrName || NULL == pPasswd)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is NULL.\n");
+        return MOCLOUDCLIENT_ERR_INPUT_NULL;
+    }
+
+    if(strlen(pUsrName) == 0 || strlen(pUsrName) > MOCLOUD_USERNAME_MAXLEN || 
+        strlen(pUsrName) < MOCLOUD_PASSWD_MINLEN || strlen(pUsrName) > MOCLOUD_PASSWD_MAXLEN)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "username length=[%d], valid range [0, %d]; passwd length=%d, valid range [%d, %d]\n",
+            strlen(pUsrName), MOCLOUD_USERNAME_MAXLEN, strlen(pPasswd),
+            MOCLOUD_PASSWD_MINLEN, MOCLOUD_PASSWD_MAXLEN);
+        return MOCLOUDCLIENT_ERR_INPUT_INVALID;
+    }
+
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+        "username=[%s], length=%d; passwd=[%s], length=%d\n",
+        pUsrName, strlen(pUsrName), pPasswd, strlen(pPasswd));
+
+    char body[(MOCLOUD_USERNAME_MAXLEN + MOCLOUD_PASSWD_MAXLEN) * 2] = {0x00};
+    memset(body, 0x00, (MOCLOUD_USERNAME_MAXLEN + MOCLOUD_PASSWD_MAXLEN) * 2);
+    sprintf(body, MOCLOUD_USER_PASSWD_FORMAT, pUsrName, pPasswd);
+
+    MOCLOUD_CTRL_REQUEST request;
+    memset(&request, 0x00, sizeof(MOCLOUD_CTRL_REQUEST));
+    int bodyLen = strlen(body);
+    genRequest(&request, MOCLOUD_REQUEST_TYPE_NEED_RESPONSE, MOCLOUD_CMDID_LOGIN, bodyLen);
+
+    //get cipher value to request header
+    char * pCipherReq = NULL;
+    int cipherLen = 0;
+    int ret = getCipherRequestInfo(&request, pCipherReq, &cipherLen);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "getCipherRequestInfo failed! ret=%d\n", ret);
+        return MOCLOUDCLIENT_ERR_INTERNAL_ERROR;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getCipherRequestInfo succeed.\n");
+
+    //send request header in cipher, and request body in plain
+    ret = writen(gCtrlSockId, pCipherReq, cipherLen);
+    if(ret != cipherLen)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request header failed! " \
+            "ret=%d, cipherLen=%d\n", ret, cipherLen);
+        free(pCipherReq);
+        pCipherReq = NULL;
+        return MOCLOUDCLIENT_ERR_SEND_REQUEST;
+    }
+    free(pCipherReq);
+    pCipherReq = NULL;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request header succed.\n");
+    
+    ret = writen(gCtrlSockId, body, bodyLen);
+    if(ret != cipherLen)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request body failed! " \
+            "ret=%d, bodyLen=%d\n", ret, bodyLen);
+        return MOCLOUDCLIENT_ERR_SEND_REQUEST;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request body succed.\n");
+
+    //wait for response
+    MOCLOUD_CTRL_RESPONSE resp;
+    memset(&resp, 0x00, sizeof(MOCLOUD_CTRL_RESPONSE));
+    ret = getRespHeader(&resp, MOCLOUD_CMDID_LOGIN);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader failed! ret=%d\n", ret);
+        return MOCLOUDCLIENT_ERR_GETRESP_FAILED;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader succeed, signUp ret=%d.\n", resp.ret);
+
+    if(resp.ret == MOCLOUD_LOGIN_RET_OK)
+    {
+        memset(gCurLoginUsername, 0x00, MOCLOUD_USERNAME_MAXLEN);
+        strcpy(gCurLoginUsername, pUsrName);
+        memset(gCurLoginPassword, 0x00, MOCLOUD_PASSWD_MAXLEN);
+        strcpy(gCurLoginPassword, pPasswd);
+
+        gCliState = CLI_STATE_LOGIN;
+
+        //should refresh file list info automatically
+        ret = refreshFilelist(MOCLOUD_FILETYPE_ALL);
+        if(ret < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "refreshFilelist failed! ret=%d\n", ret);
+        }
+        else
+        {
+            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "refreshFilelist succeed.\n");
+        }
+    }
+
+    return resp.ret;
 }
 
 /*
@@ -1419,49 +1789,176 @@ int moCloudClient_logIn(const char * pUsrName, const char * pPasswd)
         4.2.cmdId;
     5.do decrypt;
     6.paser response header, get result;
+
+    return : 
+        0 : succeed;
+        0-: failed for internal error in client;
+        0+: failed from server, like user donot login yet, and so on;
 */
 int moCloudClient_logOut()
 {
-    return 0;
+    char body[(MOCLOUD_USERNAME_MAXLEN + MOCLOUD_PASSWD_MAXLEN) * 2] = {0x00};
+    memset(body, 0x00, (MOCLOUD_USERNAME_MAXLEN + MOCLOUD_PASSWD_MAXLEN) * 2);
+    sprintf(body, MOCLOUD_USER_PASSWD_FORMAT, gCurLoginUsername, gCurLoginPassword);
+
+    MOCLOUD_CTRL_REQUEST request;
+    memset(&request, 0x00, sizeof(MOCLOUD_CTRL_REQUEST));
+    int bodyLen = strlen(body);
+    genRequest(&request, MOCLOUD_REQUEST_TYPE_NEED_RESPONSE, MOCLOUD_CMDID_LOGOUT, bodyLen);
+
+    //get cipher value to request header
+    char * pCipherReq = NULL;
+    int cipherLen = 0;
+    int ret = getCipherRequestInfo(&request, pCipherReq, &cipherLen);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "getCipherRequestInfo failed! ret=%d\n", ret);
+        return MOCLOUDCLIENT_ERR_INTERNAL_ERROR;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getCipherRequestInfo succeed.\n");
+
+    //send request header in cipher, and request body in plain
+    ret = writen(gCtrlSockId, pCipherReq, cipherLen);
+    if(ret != cipherLen)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request header failed! " \
+            "ret=%d, cipherLen=%d\n", ret, cipherLen);
+        free(pCipherReq);
+        pCipherReq = NULL;
+        return MOCLOUDCLIENT_ERR_SEND_REQUEST;
+    }
+    free(pCipherReq);
+    pCipherReq = NULL;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request header succed.\n");
+    
+    ret = writen(gCtrlSockId, body, bodyLen);
+    if(ret != cipherLen)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request body failed! " \
+            "ret=%d, bodyLen=%d\n", ret, bodyLen);
+        return MOCLOUDCLIENT_ERR_SEND_REQUEST;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request body succed.\n");
+
+    //wait for response
+    MOCLOUD_CTRL_RESPONSE resp;
+    memset(&resp, 0x00, sizeof(MOCLOUD_CTRL_RESPONSE));
+    ret = getRespHeader(&resp, MOCLOUD_CMDID_LOGOUT);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader failed! ret=%d\n", ret);
+        return MOCLOUDCLIENT_ERR_GETRESP_FAILED;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader succeed, signUp ret=%d.\n", resp.ret);
+
+    if(resp.ret == MOCLOUD_LOGOUT_RET_OK)
+    {
+        memset(gCurLoginUsername, 0x00, MOCLOUD_USERNAME_MAXLEN);
+        memset(gCurLoginPassword, 0x00, MOCLOUD_PASSWD_MAXLEN);
+        gCliState = CLI_STATE_NOT_LOGIN;
+    }
+
+    return resp.ret;
+
 }
 
 /*
     These functions to get files info;
 
-    1.generate a request;
-    2.do encrypt;
-    3.send to server;
-    4.wait response header from server:
-        4.1.timeout;
-        4.2.cmdId;
-    5.do decrypt;
-    6.parse response header, get response body length;
-    7.get response body from server:
-        7.1.timeout;
-    8.get file info;
-    9.make a list start with @pAllFileInfo, save files info to it;
+    To decrease the time being used, we will getFilelist in 2 cases : 
+        1.When logIn, we do it automatically;
+        2.When recv heartbeat response, we find server tell us its filelist being changed,
+            we just refresh the filelist this time;
+    After getFilelist, we will set it to local param @gFilelistinfo;
 
+    When users call this function, we just set values to @pFilelist, donot get again.
+    @pFilelist will malloc memory in this function, and its important to you to free it 
+        by calling moCloudClient_freeFilelist(), or memory leakage will appeared;
+    
     return : 
         0 : succeed, if @pAllFileInfo == NULL, means donot have any file in server;
         0-: failed;
 */
-int moCloudClient_getAllFileInfo(MOCLOUD_BASIC_FILEINFO * pAllFileInfo)
+int moCloudClient_getFilelist(MOCLOUD_BASIC_FILEINFO_NODE * pFilelist, const MOCLOUD_FILETYPE type)
 {
-    return 0;
-}
+    if(NULL != pFilelist || type >= MOCLOUD_FILETYPE_MAX || type < MOCLOUD_FILETYPE_VIDEO)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is invalid!\n");
+        return MOCLOUDCLIENT_ERR_INPUT_INVALID;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "type=%d\n", type);
 
-int moCloudClient_getOneTypeFileInfo(
-    const MOCLOUD_FILETYPE type, MOCLOUD_BASIC_FILEINFO * pOneTypeFileInfo)
-{
-    return 0;
+    int ret = 0;
+    int curType = 0;
+    
+    pthread_mutex_lock(&gFilelistMutex);
+
+    for(curType = (type == MOCLOUD_FILETYPE_ALL ? MOCLOUD_FILETYPE_VIDEO : type); 
+        curType < (type == MOCLOUD_FILETYPE_ALL ? MOCLOUD_FILETYPE_ALL : type + 1); 
+        curType++)
+    {
+        MOCLOUD_BASIC_FILEINFO_NODE * pCurNode = gpFilelist[curType];
+        while(pCurNode != NULL)
+        {
+            MOCLOUD_BASIC_FILEINFO_NODE * pNewNode = NULL;                    
+            pNewNode = (MOCLOUD_BASIC_FILEINFO_NODE *)malloc(sizeof(MOCLOUD_BASIC_FILEINFO_NODE) * 1);
+            if(pNewNode == NULL)
+            {
+                moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "malloc failed! " \
+                    "errno=%d, errno=[%s]\n", errno, strerror(errno));
+                ret = MOCLOUDCLIENT_ERR_MALLOC_FAILED;
+                break;
+            }
+            memcpy(&pNewNode->info, &pCurNode->info, sizeof(MOCLOUD_BASIC_FILEINFO));
+            pNewNode->next = NULL;
+        
+            if(pFilelist == NULL)
+            {
+                //The first node of this list
+                pFilelist = pNewNode;
+            }
+            else
+            {
+                pNewNode->next = pFilelist;
+                pFilelist = pNewNode;
+            }
+            
+            pCurNode = pCurNode->next;
+        }        
+    }
+    
+    pthread_mutex_unlock(&gFilelistMutex);
+    
+    if(ret < 0)
+    {
+        //We should free all memory being malloced when error occured
+        MOCLOUD_BASIC_FILEINFO_NODE * pCurNode = pFilelist;
+        while(pCurNode != NULL)
+        {
+            MOCLOUD_BASIC_FILEINFO_NODE * pNextNode = pCurNode->next;
+            free(pCurNode);
+            pCurNode = pNextNode;
+        }
+        pFilelist = NULL;
+    }
+
+    return ret;
 }
 
 /*
     free memory being malloced as a list;
 */
-void moCloudClient_freeFilesInfo(MOCLOUD_BASIC_FILEINFO * pFilesInfo)
+void moCloudClient_freeFilelist(MOCLOUD_BASIC_FILEINFO_NODE * pFilelist)
 {
-    ;
+    MOCLOUD_BASIC_FILEINFO_NODE * pCurNode = pFilelist;
+    while(pCurNode != NULL)
+    {
+        MOCLOUD_BASIC_FILEINFO_NODE * pNextNode = pCurNode->next;
+        free(pCurNode);
+        pCurNode = pNextNode;
+    }
+    pFilelist = NULL;    
 }
 
 

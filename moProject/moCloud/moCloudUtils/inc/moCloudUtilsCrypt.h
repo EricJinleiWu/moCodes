@@ -45,6 +45,7 @@ int moCloudUtilsCrypt_doCrypt(
     char * pDst,
     int * pDstLen);
 
+
 #ifdef __cplusplus
 }
 #endif

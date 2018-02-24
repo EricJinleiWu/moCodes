@@ -13,9 +13,16 @@
 #include "moCloudUtilsCrypt.h"
 #include "moCloudClientLib.h"
 
-static void dumpAllFileInfo(MOCLOUD_BASIC_FILEINFO * pAllFileInfo)
+static void dumpAllFileInfo(MOCLOUD_BASIC_FILEINFO_NODE * pAllFileInfo)
 {
-    ;
+    MOCLOUD_BASIC_FILEINFO_NODE * pCurNode = pAllFileInfo;
+    while(pCurNode != NULL)
+    {
+        printf("Current file : name=[%s], size=%d, type=%d, state=%d\n",
+            pCurNode->info.filename, pCurNode->info.filesize, pCurNode->info.filetype, pCurNode->info.state);
+        
+        pCurNode = pCurNode->next;
+    }
 }
 
 static int tst_All(void)
@@ -54,8 +61,8 @@ static int tst_All(void)
     //to check heartbeat ok or not;
     sleep(30);
 
-    MOCLOUD_BASIC_FILEINFO * pAllFileInfo = NULL;
-    ret = moCloudClient_getAllFileInfo(pAllFileInfo);
+    MOCLOUD_BASIC_FILEINFO_NODE * pAllFileInfo = NULL;
+    ret = moCloudClient_getFilelist(pAllFileInfo, MOCLOUD_FILETYPE_ALL);
     if(ret != 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME,
@@ -66,7 +73,7 @@ static int tst_All(void)
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "moCloudClient_getAllFileInfo SUCCEED.\n");
     dumpAllFileInfo(pAllFileInfo);
 
-    moCloudClient_freeFilesInfo(pAllFileInfo);
+    moCloudClient_freeFilelist(pAllFileInfo);
     
 
     ret = moCloudClient_logOut(username, passwd);
