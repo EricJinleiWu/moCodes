@@ -1018,12 +1018,12 @@ static int setFilelistValue(const char * pRespBody,
     while(readLen + sizeof(MOCLOUD_BASIC_FILEINFO) <= bodyLen)
     {
         pCurInfo = pRespBody + readLen;
-        if(pCurInfo->filetype >= MOCLOUD_FILETYPE_MAX || 
-            (type != MOCLOUD_FILETYPE_ALL && pCurInfo->filetype != type))
+        if(pCurInfo->key.filetype >= MOCLOUD_FILETYPE_MAX || 
+            (type != MOCLOUD_FILETYPE_ALL && pCurInfo->key.filetype != type))
         {
             moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
                 "pCurInfo.filetype=%d, MOCLOUD_FILETYPE_MAX=%d, input type=%d, invalid!!\n", 
-                pCurInfo->filetype, MOCLOUD_FILETYPE_MAX, type);
+                pCurInfo->key.filetype, MOCLOUD_FILETYPE_MAX, type);
         }
         else
         {
@@ -1042,14 +1042,14 @@ static int setFilelistValue(const char * pRespBody,
             memcpy(&pNewNode->info, pCurInfo, sizeof(MOCLOUD_BASIC_FILEINFO));
             pNewNode->next = NULL;
 
-            if(gpFilelist[pCurInfo->filetype] == NULL)
+            if(gpFilelist[pCurInfo->key.filetype] == NULL)
             {
-                gpFilelist[pCurInfo->filetype] = pNewNode;
+                gpFilelist[pCurInfo->key.filetype] = pNewNode;
             }
             else
             {
-                pNewNode->next = gpFilelist[pCurInfo->filetype];
-                gpFilelist[pCurInfo->filetype] = pNewNode;
+                pNewNode->next = gpFilelist[pCurInfo->key.filetype];
+                gpFilelist[pCurInfo->key.filetype] = pNewNode;
             }
         }
 

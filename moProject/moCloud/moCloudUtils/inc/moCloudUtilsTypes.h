@@ -219,18 +219,22 @@ typedef struct
 	MOUTILS_CHECK_CRCVALUE crc32;
 }MOCLOUD_CTRL_RESPONSE;
 
+typedef struct
+{
+    MOCLOUD_FILETYPE filetype;
+    char filename[MOCLOUD_FILENAME_MAXLEN];
+}MOCLOUD_FILEINFO_KEY;
+
 /*
     The basic info for a file;
 */
 typedef struct
 {
+    MOCLOUD_FILEINFO_KEY key;
+    
     size_t filesize; //in bytes
-    char filename[MOCLOUD_FILENAME_MAXLEN];
-    MOCLOUD_FILETYPE filetype;
-
+    char ownerName[MOCLOUD_USERNAME_MAXLEN];    //who upload this file
     MOCLOUD_FILE_STATE state;
-
-    char ownerName[MOCLOUD_USERNAME_MAXLEN];
 }MOCLOUD_BASIC_FILEINFO;
 
 typedef struct _MOCLOUD_BASIC_FILEINFO_NODE

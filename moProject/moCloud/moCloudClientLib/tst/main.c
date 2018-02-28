@@ -19,7 +19,7 @@ static void dumpAllFileInfo(MOCLOUD_BASIC_FILEINFO_NODE * pAllFileInfo)
     while(pCurNode != NULL)
     {
         printf("Current file : name=[%s], size=%d, type=%d, state=%d\n",
-            pCurNode->info.filename, pCurNode->info.filesize, pCurNode->info.filetype, pCurNode->info.state);
+            pCurNode->info.key.filename, pCurNode->info.filesize, pCurNode->info.key.filetype, pCurNode->info.state);
         
         pCurNode = pCurNode->next;
     }
