@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include <signal.h>
+
 #define MOCLOUD_THR_STACK_SIZE   (4 * 1024 * 1024)
 
 /* 

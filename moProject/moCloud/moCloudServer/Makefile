@@ -22,7 +22,9 @@ INCDIRS = -I$(UTILS_INCDIR) \
 		-I$(MO_SDK_INC_DIR)
 
 # System lib path
-LDFLAGS = -lpthread -lrt -ldl
+LDFLAGS = -lpthread -lrt -ldl \
+          -L$(MO_SDK_RELEASE_DIR) -lMoCrypto -lMoLogger -lMoUtils
+
 
 #Cflags
 CFLAGS	= -g -ggdb -MMD -Wall -W
@@ -42,7 +44,7 @@ TARGET = $(TARGET_DIR)/moCloudServer.$(DVRGW_SUFFIX)
 APP: DEPENDS $(TARGET)
 $(TARGET): $(MAIN_OBJS)
 	@echo ">>> compiling $(TARGET) ..."
-	$(CC) -o $@ $^ $(INCDIRS) $(LDFLAGS)
+	$(CXX) -o $@ $^ $(INCDIRS) $(LDFLAGS)
 	ln -s moCloudServer.$(DVRGW_SUFFIX) $(TARGET_DIR)/moCloudServer
       
 DEPENDS:
@@ -53,10 +55,10 @@ DEPENDS:
 # src --> obj.
 $(PROGRAM_OBJ_DIR)/%.o: $(UTILS_SRCDIR)/%.cpp
 	@echo ">>> compiling $< ..."
-	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
+	$(CXX) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
 $(PROGRAM_OBJ_DIR)/%.o: $(SRCDIR)/%.cpp
 	@echo ">>> compiling $< ..."
-	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
+	$(CXX) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
 	
 clean:
 	@rm -rf $(PROGRAM_OBJ_DIR)
