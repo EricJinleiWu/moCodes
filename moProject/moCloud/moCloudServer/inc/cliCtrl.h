@@ -78,6 +78,16 @@ public:
 private:
     virtual int doKeyAgree();
     virtual int doCtrlRequest();
+    virtual int getCryptInfo4Cli(MOCLOUD_CRYPT_INFO & cryptInfo);
+    virtual int getKeyAgreeReqFromCli();
+    virtual int sendKeyAgreeResp(MOCLOUD_CRYPT_INFO & cryptInfo);
+
+    virtual int getCtrlReq(MOCLOUD_CTRL_REQUEST & req);
+    virtual bool isHaveBody(MOCLOUD_CTRL_REQUEST & req);
+    virtual int getCtrlReqBody(const int bodyLen, char * pBody);
+    virtual int doRequest(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
+        MOCLOUD_CTRL_RESPONSE & resp);
+    virtual int sendCtrlResp2Cli(MOCLOUD_CTRL_RESPONSE & resp);
 
 private:
     CLI_STATE mState;
@@ -92,6 +102,8 @@ private:
     int mFilelistChangedValue;
 
     CliData * pCliData;
+
+    MOCLOUD_CRYPT_INFO mCryptInfo;
 };
 
 #endif
