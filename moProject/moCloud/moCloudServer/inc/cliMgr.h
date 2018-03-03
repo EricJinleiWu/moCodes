@@ -27,13 +27,13 @@ public:
     virtual MOCLOUD_FILETYPE getChangedFiletype();
 
 public:
-    virtual int insertCliCtrl(const CliCtrl & cliCtrl);
+    virtual int insertCliCtrl(CliCtrl * cliCtrl);
 
 private:
     vector<MOCLOUD_FILETYPE> mChangedTypeVector;
     pthread_mutex_t mChangedTypeVectorLock;
     sem_t mSem;
-    list<CliCtrl> mCliCtrlList;
+    list<CliCtrl *> mCliCtrlList;
     pthread_mutex_t mCliCtrlListLock;
 };
 

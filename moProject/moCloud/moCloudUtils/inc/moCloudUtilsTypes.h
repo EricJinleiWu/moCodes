@@ -108,11 +108,11 @@ typedef enum
 
 typedef enum
 {
-    MOCLOUD_FILETYPE_VIDEO,  //video, can play in player, has suffix with ".mp4" and so on
-    MOCLOUD_FILETYPE_AUDIO,  //audio, can play in player, has suffix with ".mp3" and so on
-    MOCLOUD_FILETYPE_PIC,    //picture, has suffix with ".jpg" and so on
-    MOCLOUD_FILETYPE_OTHERS,  //other files, can be read in common file mode
-    MOCLOUD_FILETYPE_ALL,   //all types
+    MOCLOUD_FILETYPE_VIDEO = 1,  //video, can play in player, has suffix with ".mp4" and so on
+    MOCLOUD_FILETYPE_AUDIO = 2,  //audio, can play in player, has suffix with ".mp3" and so on
+    MOCLOUD_FILETYPE_PIC = 4,    //picture, has suffix with ".jpg" and so on
+    MOCLOUD_FILETYPE_OTHERS = 8,  //other files, can be read in common file mode
+    MOCLOUD_FILETYPE_ALL = 15,   //all types
     MOCLOUD_FILETYPE_MAX    //max value, to limit the range
 }MOCLOUD_FILETYPE;
 

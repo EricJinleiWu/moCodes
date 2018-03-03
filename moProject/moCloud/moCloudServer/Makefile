@@ -33,7 +33,7 @@ CFLAGS	= -g -ggdb -MMD -Wall -W
 PROGRAM_OBJ_DIR = ./obj
 
 # source file obj
-MAIN_OBJS = $(patsubst $(UTILS_SRCDIR)/%.cpp, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(UTILS_SRCDIR)/*.cpp))
+MAIN_OBJS = $(patsubst $(UTILS_SRCDIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(UTILS_SRCDIR)/*.c))
 MAIN_OBJS += $(patsubst $(SRCDIR)/%.cpp, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(SRCDIR)/*.cpp))
 
 #target is a lib
@@ -53,9 +53,9 @@ DEPENDS:
 	@mkdir -p $(TARGET_DIR)
 
 # src --> obj.
-$(PROGRAM_OBJ_DIR)/%.o: $(UTILS_SRCDIR)/%.cpp
+$(PROGRAM_OBJ_DIR)/%.o: $(UTILS_SRCDIR)/%.c
 	@echo ">>> compiling $< ..."
-	$(CXX) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
+	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
 $(PROGRAM_OBJ_DIR)/%.o: $(SRCDIR)/%.cpp
 	@echo ">>> compiling $< ..."
 	$(CXX) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@

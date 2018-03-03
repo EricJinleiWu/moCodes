@@ -2,6 +2,7 @@
 #define __CLI_CTRL_H__
 
 #include "moThread.h"
+#include "moCloudUtilsTypes.h"
 
 using namespace std;
 
@@ -13,7 +14,37 @@ typedef enum
     CLI_STATE_KEYAGREED,
     CLI_STATE_LOGIN,
     CLI_STATE_INVALID,
+    CLI_STATE_MAX
 }CLI_STATE;
+
+class CliData : public MoThread
+{
+public:
+    CliData(const int sockId, const int port, const string & ip);
+    ~CliData();
+
+public:
+    virtual void run();
+
+public:
+    /*
+        read file being defined by @fileKey;
+        start from @offset, read, util @stopRead() called or to the end of file;
+    */
+    virtual int startRead(const MOCLOUD_FILEINFO_KEY & fileKey, const size_t offset);
+
+    /*
+        When stop/pause, this function called;
+    */
+    virtual int stopRead(const MOCLOUD_FILEINFO_KEY & fileKey);
+
+    virtual void dump();
+
+private:
+    int mSockId;
+    int mPort;
+    string mIp;
+};
 
 class CliCtrl : public MoThread
 {
@@ -33,29 +64,34 @@ public:
 public:
     virtual void setFilelistChangedFlag();
     virtual void clearFilelistChangedFlag();
-    virtual int setDataSockInfo(const int & dataSockId, const int dataPort);
+    virtual int setState(const CLI_STATE state);
+    virtual int setFilelistChangeValue(const int value);
 
 public:
     virtual CLI_STATE getState();
     virtual int getCtrlSockId();
-    virtual int getDataSockId();
     virtual string getIp();
     virtual int getCtrlPort();
-    virtual int getDataPort();
     virtual int getFilelistChangedFlag();
+    virtual int getFilelistChangedValue();
+
+private:
+    virtual int doKeyAgree();
+    virtual int doCtrlRequest();
 
 private:
     CLI_STATE mState;
     
     int mCtrlSockId;
-    int mDataSockId;
 
     string mIp;
 
     int mCtrlPort;
-    int mDataPort;
     
     bool mIsFilelistChanged;
+    int mFilelistChangedValue;
+
+    CliData * pCliData;
 };
 
 #endif

@@ -1,4 +1,4 @@
-DIRS=Crypto Logger Utils Sort Cps
+DIRS=Crypto Logger Utils Sort
 
 all:
 	for i in $(DIRS); do \

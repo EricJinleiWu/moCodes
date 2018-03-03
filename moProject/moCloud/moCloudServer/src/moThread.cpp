@@ -71,6 +71,7 @@ bool MoThread::getRunState()
 int MoThread::stop()
 {
     mIsRun = false;
+    return 0;
 }
 
 int MoThread::join()

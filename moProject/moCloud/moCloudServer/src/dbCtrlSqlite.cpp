@@ -39,9 +39,8 @@ DbCtrlSqlite & DbCtrlSqlite::operator = (const DbCtrlSqlite & other)
     mDbName = other.mDbName;
     mUserinfoTableName = other.mUserinfoTableName;
     mFileinfoTableName = other.mFileinfoTableName;
+    return *this;
 }
-
-
 
 int DbCtrlSqlite::insertUserinfo(const DB_USERINFO & info)
 {

@@ -39,6 +39,7 @@ DbCtrlMysql & DbCtrlMysql::operator = (const DbCtrlMysql & other)
     mDbName = other.mDbName;
     mUserinfoTableName = other.mUserinfoTableName;
     mFileinfoTableName = other.mFileinfoTableName;
+    return *this;
 }
 
 
