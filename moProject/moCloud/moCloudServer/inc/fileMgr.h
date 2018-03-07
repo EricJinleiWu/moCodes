@@ -20,6 +20,12 @@ typedef enum
     DB_USER_ROLE_ADMIN
 }DB_USER_ROLE;
 
+typedef enum
+{
+    USED_DB_TYPE_SQLITE,
+    USED_DB_TYPE_MYSQL
+}USED_DB_TYPE;
+
 typedef struct
 {
     string username;
@@ -59,14 +65,17 @@ public:
     virtual int getUserinfo(const string & username, DB_USERINFO & info) = 0;
     //@username should valid, will modify its value to @info
     virtual int modifyUserinfo(const string & username, DB_USERINFO & info) = 0;
+    
+    virtual bool userLogin(const string & username, const string & passwd) = 0;
+    virtual bool userLogout(const string & username) = 0;
 
     //@info.type & @info.name to be the key of this table
     virtual int insertFileinfo(const DB_FILEINFO & info) = 0;
-    virtual int deleteFileinfo(const MOCLOUD_FILETYPE & filetype, const string & filename) = 0;
+    virtual int deleteFileinfo(const MOCLOUD_FILEINFO_KEY & key) = 0;
     //@info.type & @info.name should valid
     virtual int getFileinfo(DB_FILEINFO & info) = 0;
     //username should valid, will modify its value to @info
-    virtual int modifyFileinfo(const MOCLOUD_FILETYPE & filetype, const string & filename, DB_FILEINFO & info) = 0;  
+    virtual int modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO & info) = 0;  
 
     virtual int getFilelist(const MOCLOUD_FILETYPE & filetype, list<DB_FILEINFO> & filelist) = 0;
     virtual int getFilelist(const MOCLOUD_FILETYPE & filetype, 
@@ -92,6 +101,9 @@ public:
     virtual int getUserinfo(const string & username, DB_USERINFO & info);
     //@username should valid, will modify its value to @info
     virtual int modifyUserinfo(const string & username, DB_USERINFO & info);
+    
+    virtual bool userLogin(const string & username, const string & passwd);
+    virtual bool userLogout(const string & username);
 
     //@info.type & @info.name to be the key of this table
     virtual int insertFileinfo(const DB_FILEINFO & info);
@@ -106,8 +118,8 @@ public:
         map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
     
 public:
-    bool isUserExist(const string & username);
-    bool isFileExist(const MOCLOUD_FILEINFO_KEY & key);
+    virtual bool isUserExist(const string & username);
+    virtual bool isFileExist(const MOCLOUD_FILEINFO_KEY & key);
 
 private:
     string mDbName;
@@ -135,6 +147,11 @@ public:
     //@username should valid, will modify its value to @info
     virtual int modifyUserinfo(const string & username, DB_USERINFO & info);
 
+
+    virtual bool userLogin(const string & username, const string & passwd);
+    virtual bool userLogout(const string & username);
+
+
     //@info.type & @info.name to be the key of this table
     virtual int insertFileinfo(const DB_FILEINFO & info);
     virtual int deleteFileinfo(const MOCLOUD_FILEINFO_KEY & key);
@@ -148,8 +165,8 @@ public:
         map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
     
 public:
-    bool isUserExist(const string & username);
-    bool isFileExist(const MOCLOUD_FILEINFO_KEY & key);
+    virtual bool isUserExist(const string & username);
+    virtual bool isFileExist(const MOCLOUD_FILEINFO_KEY & key);
 
 private:
     string mDbName;
@@ -185,11 +202,12 @@ public:
 
     virtual int modifyDirpath(const string & newDirpath);
 
-//public:
-//    static FileMgr * getInstance() {return FileMgr::pFileMgr;}
+public:
+    virtual DbCtrl * getDbCtrlHdl();
 
 private:
     string mDirpath;
+    DbCtrl * mpDbCtrl;
 };
 
 #if 1

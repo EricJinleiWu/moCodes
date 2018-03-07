@@ -10,25 +10,54 @@ using namespace std;
 
 #include "fileMgr.h"
 
+static USED_DB_TYPE gDbType = USED_DB_TYPE_SQLITE;
+
+
 FileMgr::FileMgr() : mDirpath("")
 {
-    ;
+    if(gDbType == USED_DB_TYPE_SQLITE)
+    {
+        mpDbCtrl = new DbCtrlSqlite;
+        //DbCtrlSqlite *p = dynamic_cast<DbCtrlSqlite *>(mpDbCtrl);
+    }
+    else if(gDbType == USED_DB_TYPE_MYSQL)
+    {
+        mpDbCtrl = new DbCtrlMysql;
+    }
+    else
+    {
+        mpDbCtrl = NULL;
+    }
 }
 
 FileMgr::FileMgr(const string & dirpath) : mDirpath(dirpath)
 {
-    ;
+    if(gDbType == USED_DB_TYPE_SQLITE)
+    {
+        mpDbCtrl = new DbCtrlSqlite;
+        //DbCtrlSqlite *p = dynamic_cast<DbCtrlSqlite *>(mpDbCtrl);
+    }
+    else if(gDbType == USED_DB_TYPE_MYSQL)
+    {
+        mpDbCtrl = new DbCtrlMysql;
+    }
+    else
+    {
+        mpDbCtrl = NULL;
+    }
 }
 
 FileMgr::FileMgr(const FileMgr & other) : mDirpath(other.mDirpath)
 {
-    ;
 }
 
 
 FileMgr::~FileMgr()
 {
-    ;
+    if(mpDbCtrl != NULL)
+    {
+        delete mpDbCtrl;
+    }
 }
 
 FileMgr & FileMgr::operator=(const FileMgr & other)
@@ -78,6 +107,11 @@ int FileMgr::modifyDirpath(const string & newDirpath)
 {
     //TODO,
     return 0;
+}
+
+DbCtrl * FileMgr::getDbCtrlHdl()
+{
+    return mpDbCtrl;
 }
 
 FileMgr * FileMgrSingleton::pFileMgr = new FileMgr();

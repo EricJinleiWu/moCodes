@@ -1093,7 +1093,9 @@ static int refreshFilelist(const MOCLOUD_FILETYPE type)
 
     MOCLOUD_CTRL_REQUEST req;
     memset(&req, 0x00, sizeof(MOCLOUD_CTRL_REQUEST));
-    int ret = genRequest(&req, MOCLOUD_REQUEST_TYPE_NEED_RESPONSE, MOCLOUD_CMDID_GETFILELIST, type);  //bodyLen means the type of files
+    int ret = genRequest(&req, MOCLOUD_REQUEST_TYPE_NEED_RESPONSE, MOCLOUD_CMDID_GETFILELIST, 0);  
+    //when getFileList, additionalInfo.cInfo[0] means the type
+    req.addInfo.cInfo[0] = type;
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "genRequest for getFilelist failed! ret=%d\n", ret);
@@ -1184,7 +1186,7 @@ static int doHeartbeatResp(const MOCLOUD_CTRL_RESPONSE resp)
             break;
         case MOCLOUD_HEARTBEAT_RET_FILELIST_CHANGED:
             moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Heartbeat ok, and file list being changed!\n");
-            gRefreshFilelistType = resp.bodyLen;
+            gRefreshFilelistType = resp.addInfo.cInfo[0];
             sem_post(&gRefreshFilelistSem);
             break;
         default:

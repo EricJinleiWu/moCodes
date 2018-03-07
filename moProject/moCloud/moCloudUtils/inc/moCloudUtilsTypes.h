@@ -156,6 +156,14 @@ typedef enum
     MOCLOUD_LOGOUT_RET_OTHERS
 }MOCLOUD_LOGOUT_RET;
 
+typedef enum
+{
+    MOCLOUD_GETFILELIST_ERR_OK,
+    MOCLOUD_GETFILELIST_ERR_DONOT_LOGIN,
+    MOCLOUD_GETFILELIST_ERR_TYPE_INVALID,
+    MOCLOUD_GETFILELIST_ERR_OTHERS,
+}MOCLOUD_GETFILELIST_ERR;
+
 /*
     The struct for keyagree reqeust from client to server;
 */
@@ -195,6 +203,15 @@ typedef struct
 }MOCLOUD_KEYAGREE_RESPONSE;
 
 /*
+    The additional info of ctrl request;
+*/
+typedef union
+{
+    int iInfo[4];
+    char cInfo[16];
+}MOCLOUD_ADDITIONAL_INFO;
+
+/*
     The struct for ctrl orders;
     like getFileList, sendHeartBeat, sendbyebye, and so on;
 */
@@ -203,6 +220,7 @@ typedef struct
     char mark[MOCLOUD_MARK_MAXLEN]; //"MOCLOUD_CLIENT"
     MOCLOUD_REQUEST_TYPE isNeedResp;
     MOCLOUD_CMDID cmdId;
+    MOCLOUD_ADDITIONAL_INFO addInfo;
     int bodyLen;    //If donot have body, this set to 0; else, after this request, send a body in this length;
     MOUTILS_CHECK_CRCVALUE crc32;
 }MOCLOUD_CTRL_REQUEST;
@@ -215,6 +233,7 @@ typedef struct
 	char mark[MOCLOUD_MARK_MAXLEN];		//"MOCLOUD_SERVER"
 	MOCLOUD_CMDID cmdId;
     int ret;    //The ret for this order
+    MOCLOUD_ADDITIONAL_INFO addInfo;
 	int bodyLen;
 	MOUTILS_CHECK_CRCVALUE crc32;
 }MOCLOUD_CTRL_RESPONSE;

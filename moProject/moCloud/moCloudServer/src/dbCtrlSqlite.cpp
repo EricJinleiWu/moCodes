@@ -115,3 +115,16 @@ bool DbCtrlSqlite::isFileExist(const MOCLOUD_FILEINFO_KEY & key)
     return 0;
 }
 
+bool DbCtrlSqlite::userLogin(const string & username, const string & passwd)
+{
+    //TODO
+    return true;
+}
+
+bool DbCtrlSqlite::userLogout(const string & username)
+{
+    //TODO
+    return true;
+}
+
+

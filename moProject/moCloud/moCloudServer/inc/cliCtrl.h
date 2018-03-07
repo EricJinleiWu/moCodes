@@ -77,17 +77,31 @@ public:
 
 private:
     virtual int doKeyAgree();
-    virtual int doCtrlRequest();
     virtual int getCryptInfo4Cli(MOCLOUD_CRYPT_INFO & cryptInfo);
     virtual int getKeyAgreeReqFromCli();
     virtual int sendKeyAgreeResp(MOCLOUD_CRYPT_INFO & cryptInfo);
 
-    virtual int getCtrlReq(MOCLOUD_CTRL_REQUEST & req);
-    virtual bool isHaveBody(MOCLOUD_CTRL_REQUEST & req);
+    virtual int doCtrlRequest(bool & isGetReq);
+    virtual int getCtrlReq(MOCLOUD_CTRL_REQUEST & req, bool & isGetReq);
     virtual int getCtrlReqBody(const int bodyLen, char * pBody);
     virtual int doRequest(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
         MOCLOUD_CTRL_RESPONSE & resp);
     virtual int sendCtrlResp2Cli(MOCLOUD_CTRL_RESPONSE & resp);
+
+private:
+    virtual int doHeartBeat(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp);
+    virtual int doSignUp(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
+        MOCLOUD_CTRL_RESPONSE & resp);
+    virtual int doLogIn(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
+        MOCLOUD_CTRL_RESPONSE & resp);
+    virtual int doLogOut(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
+        MOCLOUD_CTRL_RESPONSE & resp);
+    virtual int doByebye(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp);
+    virtual int doGetFilelist(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp);
+
+    virtual int getUserPasswd(const char * pBody, string & username, string & passwd);
+    virtual int genResp(const int ret, const MOCLOUD_CMDID cmdId, MOCLOUD_CTRL_RESPONSE & resp);
+    virtual int sendRespBody(const MOCLOUD_CTRL_RESPONSE & resp);
 
 private:
     CLI_STATE mState;
@@ -104,6 +118,8 @@ private:
     CliData * pCliData;
 
     MOCLOUD_CRYPT_INFO mCryptInfo;
+
+    time_t mLastHeartbeatTime;
 };
 
 #endif
