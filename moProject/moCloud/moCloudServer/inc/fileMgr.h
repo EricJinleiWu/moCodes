@@ -77,8 +77,8 @@ public:
     //username should valid, will modify its value to @info
     virtual int modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO & info) = 0;  
 
-    virtual int getFilelist(const MOCLOUD_FILETYPE & filetype, list<DB_FILEINFO> & filelist) = 0;
-    virtual int getFilelist(const MOCLOUD_FILETYPE & filetype, 
+    virtual int getFilelist(const int filetype, list<DB_FILEINFO> & filelist) = 0;
+    virtual int getFilelist(const int filetype, 
         map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap) = 0;
 };
 
@@ -113,8 +113,8 @@ public:
     //username should valid, will modify its value to @info
     virtual int modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO & info);
 
-    virtual int getFilelist(const MOCLOUD_FILETYPE & filetype, list<DB_FILEINFO> & filelist);
-    virtual int getFilelist(const MOCLOUD_FILETYPE & filetype, 
+    virtual int getFilelist(const int filetype, list<DB_FILEINFO> & filelist);
+    virtual int getFilelist(const int filetype, 
         map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
     
 public:
@@ -160,8 +160,8 @@ public:
     //username should valid, will modify its value to @info
     virtual int modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO & info);
 
-    virtual int getFilelist(const MOCLOUD_FILETYPE & filetype, list<DB_FILEINFO> & filelist);
-    virtual int getFilelist(const MOCLOUD_FILETYPE & filetype, 
+    virtual int getFilelist(const int filetype, list<DB_FILEINFO> & filelist);
+    virtual int getFilelist(const int filetype, 
         map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
     
 public:
@@ -196,8 +196,8 @@ public:
     virtual int writeFile(const MOCLOUD_FILEINFO_KEY & key, const size_t & offset,
         const size_t length, char * pData);
 
-    virtual int getFilelist(const MOCLOUD_FILETYPE & filetype, list<DB_FILEINFO> & filelist);
-    virtual int getFilelist(const MOCLOUD_FILETYPE & filetype, 
+    virtual int getFilelist(const int filetype, list<DB_FILEINFO> & filelist);
+    virtual int getFilelist(const int filetype, 
         map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
 
     virtual int modifyDirpath(const string & newDirpath);

@@ -94,14 +94,14 @@ private:
         MOCLOUD_CTRL_RESPONSE & resp);
     virtual int doLogIn(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
         MOCLOUD_CTRL_RESPONSE & resp);
-    virtual int doLogOut(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
-        MOCLOUD_CTRL_RESPONSE & resp);
+    virtual int doLogOut(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp);
     virtual int doByebye(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp);
     virtual int doGetFilelist(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp);
 
     virtual int getUserPasswd(const char * pBody, string & username, string & passwd);
     virtual int genResp(const int ret, const MOCLOUD_CMDID cmdId, MOCLOUD_CTRL_RESPONSE & resp);
     virtual int sendRespBody(const MOCLOUD_CTRL_RESPONSE & resp);
+    virtual int sendFilelistBody(const int filetype);
 
 private:
     CLI_STATE mState;

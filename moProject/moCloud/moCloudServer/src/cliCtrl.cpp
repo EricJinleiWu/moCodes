@@ -55,9 +55,9 @@ void CliData::dump()
 CliCtrl::CliCtrl() : 
     MoThread(), 
     mState(CLI_STATE_IDLE), 
-    mCtrlSockId(MOCLOUD_INVALID_SOCKID), //mDataSockId(MOCLOUD_INVALID_SOCKID), 
+    mCtrlSockId(MOCLOUD_INVALID_SOCKID),
     mIp("127.0.0.1"), 
-    mCtrlPort(MOCLOUD_INVALID_PORT), //mDataPort(MOCLOUD_INVALID_PORT), 
+    mCtrlPort(MOCLOUD_INVALID_PORT),
     mIsFilelistChanged(false),
     mLastHeartbeatTime(0)
 {
@@ -66,9 +66,9 @@ CliCtrl::CliCtrl() :
 CliCtrl::CliCtrl(const string & thrName) : 
     MoThread(thrName), 
     mState(CLI_STATE_IDLE), 
-    mCtrlSockId(MOCLOUD_INVALID_SOCKID), //mDataSockId(MOCLOUD_INVALID_SOCKID), 
+    mCtrlSockId(MOCLOUD_INVALID_SOCKID),
     mIp("127.0.0.1"), 
-    mCtrlPort(MOCLOUD_INVALID_PORT), //mDataPort(MOCLOUD_INVALID_PORT), 
+    mCtrlPort(MOCLOUD_INVALID_PORT),
     mIsFilelistChanged(false),
     mLastHeartbeatTime(0)
 {
@@ -78,9 +78,9 @@ CliCtrl::CliCtrl(const string & ip, const int ctrlSockId, const int ctrlSockPort
     const string & thrName) :
     MoThread(thrName), 
     mState(CLI_STATE_IDLE), 
-    mCtrlSockId(ctrlSockId), //mDataSockId(MOCLOUD_INVALID_SOCKID), 
+    mCtrlSockId(ctrlSockId),
     mIp(ip), 
-    mCtrlPort(ctrlSockPort), //mDataPort(MOCLOUD_INVALID_PORT), 
+    mCtrlPort(ctrlSockPort),
     mIsFilelistChanged(false),
     mLastHeartbeatTime(0)
 {
@@ -598,7 +598,7 @@ int CliCtrl::doRequest(MOCLOUD_CTRL_REQUEST & req, const char * pBody,
         ret = doLogIn(req, pBody, resp);
         break;
     case MOCLOUD_CMDID_LOGOUT:
-        ret = doLogOut(req, pBody, resp);
+        ret = doLogOut(req, resp);
         break;
     case MOCLOUD_CMDID_BYEBYE:
         ret = doByebye(req, resp);
@@ -618,7 +618,66 @@ int CliCtrl::doRequest(MOCLOUD_CTRL_REQUEST & req, const char * pBody,
 
 int CliCtrl::getUserPasswd(const char * pBody, string & username, string & passwd)
 {
-    //TODO
+    if(NULL == pBody)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is NULL.\n");
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "pBody=[%s]\n", pBody);
+
+    //#define MOCLOUD_USER_PASSWD_FORMAT  "username=%s, password=%s"
+    string body(pBody);
+    string symbUsername("username=");
+    string symbPasswd(", password=");
+    //1."username=" must at the beginning of this string
+    unsigned int pos1 = body.find(symbUsername);
+    if(pos1 == string::npos)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "Donot find symbol [%s] in body [%s]!\n", 
+            symbUsername.c_str(), pBody);
+        return -2;
+    }
+    if(pos1 != 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "symbol [%s] donont in beginning of body [%s]!\n", 
+            symbUsername.c_str(), pBody);
+        return -3;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Find username symbol at the beginning.\n");
+
+    //2.get ", password=" from body, must donot at the end of this string
+    unsigned int pos2 = body.find(symbPasswd);
+    if(pos2 == string::npos)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "Donot find symbol [%s] in body [%s]!\n", 
+            symbPasswd.c_str(), pBody);
+        return -4;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Find username symbol at the beginning.\n");
+
+    //get username firstly
+    username = string(body, symbUsername.length(), pos2);
+    if(username.length() > MOCLOUD_USERNAME_MAXLEN)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "Username=[%s], length=%d, larger than max value %d we allowed.\n",
+            username.c_str(), username.length(), MOCLOUD_USERNAME_MAXLEN);
+        return -5;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Username=[%s]\n", username.c_str());
+    
+    passwd = string(body, pos2 + symbPasswd.length(), body.length());
+    if(passwd.length() < MOCLOUD_PASSWD_MINLEN || passwd.length() > MOCLOUD_PASSWD_MAXLEN)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "passwd=[%s], length=[%d], donot in our valid range [%d, %d]\n",
+            passwd.c_str(), passwd.length(), MOCLOUD_PASSWD_MINLEN, MOCLOUD_PASSWD_MAXLEN);
+        return -6;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "passwd=[%s]\n", passwd.c_str());
     return 0;
 }
 
@@ -779,11 +838,8 @@ int CliCtrl::doLogIn(MOCLOUD_CTRL_REQUEST & req, const char * pBody,
     return 0;
 }
 
-int CliCtrl::doLogOut(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
-    MOCLOUD_CTRL_RESPONSE & resp)    
+int CliCtrl::doLogOut(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp)    
 {
-    int ret = MOCLOUD_LOGIN_RET_OK;
-    
     if(getState() != CLI_STATE_LOGIN)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -794,35 +850,6 @@ int CliCtrl::doLogOut(MOCLOUD_CTRL_REQUEST & req, const char * pBody,
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Will logout now.\n");
 
-#if 0
-    //check the format 
-    string username, passwd;
-    ret = getUserPasswd(pBody, username, passwd);
-    if(ret < 0)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "getUserPasswd failed! ret=%d, body=[%s]\n", ret, pBody);
-        if(req.isNeedResp)
-            genResp(MOCLOUD_LOGOUT_RET_OTHERS, MOCLOUD_CMDID_LOGOUT, resp);
-        return -2;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
-        "body=[%s], username=[%s], passwd=[%s]\n", 
-        pBody, username.c_str(), passwd.c_str());
-
-    ret = FileMgrSingleton::getInstance()->getDbCtrlHdl()->userLogout(username);
-    if(ret < 0)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "userLogout failed! username=[%s], ret=%d\n",
-            username.c_str(), ret);
-        if(req.isNeedResp)
-            genResp(ret, MOCLOUD_CMDID_LOGOUT, resp);
-        return -3;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
-        "userLogout succeed, username=[%s].\n", username.c_str());
-#endif
     setState(CLI_STATE_KEYAGREED);
     if(req.isNeedResp)
         genResp(0, MOCLOUD_CMDID_LOGOUT, resp);
@@ -943,7 +970,59 @@ int CliCtrl::sendCtrlResp2Cli(MOCLOUD_CTRL_RESPONSE & resp)
 
 int CliCtrl::sendRespBody(const MOCLOUD_CTRL_RESPONSE & resp)
 {
-    //TODO,
+    int ret = 0;
+    if(resp.cmdId == MOCLOUD_CMDID_GETFILELIST)
+    {
+        ret = sendFilelistBody(resp.addInfo.cInfo[0]);
+    }
+
+    return ret;
+}
+
+int CliCtrl::sendFilelistBody(const int filetype)
+{
+    list<DB_FILEINFO> dbFilelist;
+    int ret = FileMgrSingleton::getInstance()->getFilelist(filetype, dbFilelist);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getFilelist from db failed! ret=%d\n", ret);
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getFilelist from db succeed.\n");
+
+    int length = dbFilelist.size() * sizeof(MOCLOUD_BASIC_FILEINFO);
+    char * pBody = NULL;
+    pBody = (char * )malloc(sizeof(char) * length);
+    if(NULL == pBody)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "malloc failed! length=%d, errno=%d, desc=[%s]\n", 
+            length, errno, strerror(errno));
+        return -2;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc succeed.\n");
+
+    char * pPos = pBody;
+    for(list<DB_FILEINFO>::iterator it = dbFilelist.begin(); it != dbFilelist.end(); it++)
+    {
+        memcpy(pPos, &(it->basicInfo), sizeof(MOCLOUD_BASIC_FILEINFO));
+        pPos += sizeof(MOCLOUD_BASIC_FILEINFO);
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "pBody being generated.\n");
+
+    int writeLen = writen(mCtrlSockId, pBody, length);
+    if(writeLen != length)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "send filelist body to client failed! writeLen=%d, length=%d\n",
+            writeLen, length);
+        free(pBody);
+        pBody = NULL;
+        return -3;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send filelist body to client succeed.\n");
+    free(pBody);
+    pBody = NULL;
     return 0;
 }
 

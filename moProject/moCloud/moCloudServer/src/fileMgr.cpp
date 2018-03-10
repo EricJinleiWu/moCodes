@@ -90,13 +90,13 @@ int FileMgr::writeFile(const MOCLOUD_FILEINFO_KEY & key, const size_t & offset,
     return 0;
 }
 
-int FileMgr::getFilelist(const MOCLOUD_FILETYPE & filetype, list<DB_FILEINFO> & filelist)
+int FileMgr::getFilelist(const int filetype, list<DB_FILEINFO> & filelist)
 {
     //TODO
     return 0;
 }
 
-int FileMgr::getFilelist(const MOCLOUD_FILETYPE & filetype, 
+int FileMgr::getFilelist(const int filetype, 
         map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap)
 {
     //TODO

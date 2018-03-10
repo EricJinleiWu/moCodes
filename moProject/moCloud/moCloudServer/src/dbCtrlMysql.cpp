@@ -92,13 +92,13 @@ int DbCtrlMysql::modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO & 
     return 0;
 }
 
-int DbCtrlMysql::getFilelist(const MOCLOUD_FILETYPE & filetype, list<DB_FILEINFO> & filelist)
+int DbCtrlMysql::getFilelist(const int filetype, list<DB_FILEINFO> & filelist)
 {
     //TODO, 
     return 0;
 }
 
-int DbCtrlMysql::getFilelist(const MOCLOUD_FILETYPE & filetype, 
+int DbCtrlMysql::getFilelist(const int filetype, 
         map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap)       
 {
     //TODO, 
