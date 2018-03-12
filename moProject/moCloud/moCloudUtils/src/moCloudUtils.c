@@ -154,8 +154,11 @@ int startThread(pthread_t * pThId, pthread_attr_t * attr,
             "pthread_create failed! ret=%d, errno=%d, desc=[%s]\n\n", 
             ret, errno, strerror(errno));
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
-        "pthread_create succeed! threadId=%ld\n", *pThId);
+    else
+    {
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+                "pthread_create succeed! threadId=%ld\n", *pThId);
+    }
 
     return ret;
 }

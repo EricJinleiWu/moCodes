@@ -36,7 +36,13 @@ static int tst_All(void)
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "moCloudClient_init SUCCEED.\n");
 
-    char username[MOCLOUD_USERNAME_MAXLEN] = "test";
+//    sleep(20);
+
+//    moCloudClient_unInit();
+
+//    return 0;
+
+    char username[MOCLOUD_USERNAME_MAXLEN] = "testtest";
     char passwd[MOCLOUD_PASSWD_MAXLEN] = "123456";
     ret = moCloudClient_signUp(username, passwd);
     if(ret != 0)

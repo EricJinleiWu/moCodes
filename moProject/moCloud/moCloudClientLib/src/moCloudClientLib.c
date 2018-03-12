@@ -375,7 +375,7 @@ static int connectToServer(const int sockId)
             }
             else
             {
-                moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "select ok, check its result now.");
+                moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "select ok, check its result now.\n");
                 if(FD_ISSET(sockId, &wFdSet))
                 {
                     if(FD_ISSET(sockId, &rFdSet))
@@ -384,8 +384,8 @@ static int connectToServer(const int sockId)
                             "select ok, but wFdSet and rFdSet all being set, we should check!\n");
                         //check this socket is OK or not.
                         int err = 0;
-                        socklen_t errLen;
-                        ret = getsockopt(sockId, SOL_SOCKET, SO_ERROR, (void *)&err, &errLen);
+                        socklen_t errLen = sizeof(err);
+                        ret = getsockopt(sockId, SOL_SOCKET, SO_ERROR, &err, &errLen);
                         if(0 != ret)
                         {
                             moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -398,8 +398,8 @@ static int connectToServer(const int sockId)
                             if(err != 0)
                             {
                                 moLoggerError(MOCLOUD_MODULE_LOGGER_NAME,
-                                    "getsockopt ok, but err = %d, donot mean OK, just mean some error!\n",
-                                    err);
+                                    "getsockopt ok, but err=%d, desc=[%s], donot mean OK, just mean some error!\n",
+                                    err, strerror(err));
                                 return -4;
                             }
                             else
@@ -465,9 +465,9 @@ static int genRequest(MOCLOUD_CTRL_REQUEST * pReq,
         its original value must be NULL!
 */
 static int getCipherRequestInfo(const MOCLOUD_CTRL_REQUEST * pReq, 
-    char * pCipherReq, int * pCipherLen)
+    char ** ppCipherReq, int * pCipherLen)
 {
-    if(pReq == NULL || pCipherReq != NULL || pCipherLen == NULL)
+    if(pReq == NULL || *ppCipherReq != NULL || pCipherLen == NULL)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is invalid!\n");
         return -1;
@@ -483,8 +483,8 @@ static int getCipherRequestInfo(const MOCLOUD_CTRL_REQUEST * pReq,
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "get cipher text length succeed.\n");
     
-    pCipherReq = (char *)malloc(sizeof(char ) * (*pCipherLen));
-    if(NULL == pCipherReq)
+    *ppCipherReq = (char *)malloc(sizeof(char ) * (*pCipherLen));
+    if(NULL == *ppCipherReq)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "malloc for cipher request failed! length=%d, errno=%d, desc=[%s]\n",
@@ -496,13 +496,13 @@ static int getCipherRequestInfo(const MOCLOUD_CTRL_REQUEST * pReq,
         sizeof(MOCLOUD_CTRL_REQUEST), (*pCipherLen));
     ret = moCloudUtilsCrypt_doCrypt(MOCRYPT_METHOD_ENCRYPT,
         gCryptInfo, (char *)pReq, sizeof(MOCLOUD_CTRL_REQUEST),
-        pCipherReq, pCipherLen);
+        *ppCipherReq, pCipherLen);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "moCloudUtilsCrypt_doCrypt failed! ret=%d\n", ret);
-        free(pCipherReq);
-        pCipherReq = NULL;
+        free(*ppCipherReq);
+        *ppCipherReq = NULL;
         return -4;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "moCloudUtilsCrypt_doCrypt succeed.\n");
@@ -552,7 +552,7 @@ static int getRespHeader(MOCLOUD_CTRL_RESPONSE *pRespHeader, const MOCLOUD_CMDID
             "length=%d, errno=%d, desc=[%s]\n", cipherLength, errno, strerror(errno));
         return -3;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc succeed.");
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc succeed.\n");
 
     int cnt = 0;
     while(1)
@@ -619,7 +619,7 @@ static int getRespHeader(MOCLOUD_CTRL_RESPONSE *pRespHeader, const MOCLOUD_CMDID
                     tmp.crc32))
             {
                 moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Check this response header failed! " \
-                    "cmdId=%d, MOCLOUD_CMDID_X=%d, mark=[%s], MOCLOUD_MARK_SERVER=[%s],", 
+                    "cmdId=%d, MOCLOUD_CMDID_X=%d, mark=[%s], MOCLOUD_MARK_SERVER=[%s]\n", 
                     tmp.cmdId, cmdId, tmp.mark, MOCLOUD_MARK_SERVER);
                 cnt += loopInterval;
                 continue;
@@ -660,7 +660,7 @@ static int disConnectToServer()
     //2.do encrypt
     int cipherLen = 0;
     char * pCipherReq = NULL;
-    int ret = getCipherRequestInfo(&request, pCipherReq, &cipherLen);
+    int ret = getCipherRequestInfo(&request, &pCipherReq, &cipherLen);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -716,10 +716,10 @@ static int genKeyAgreeRequest(MOCLOUD_KEYAGREE_REQUEST * pReq)
     return 0;
 }
 
-static int getCipherKeyAgreeReq(const MOCLOUD_KEYAGREE_REQUEST * pReq, char * pCipherReq,
+static int getCipherKeyAgreeReq(const MOCLOUD_KEYAGREE_REQUEST * pReq, char ** ppCipherReq,
     int * pCipherLen)
 {
-    if(pReq == NULL || pCipherReq != NULL || pCipherLen == NULL)
+    if(pReq == NULL || *ppCipherReq != NULL || pCipherLen == NULL)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is invalid!\n");
         return -1;
@@ -735,8 +735,8 @@ static int getCipherKeyAgreeReq(const MOCLOUD_KEYAGREE_REQUEST * pReq, char * pC
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "get cipher text length succeed.\n");
     
-    pCipherReq = (char *)malloc(sizeof(char ) * (*pCipherLen));
-    if(NULL == pCipherReq)
+    *ppCipherReq = (char *)malloc(sizeof(char ) * (*pCipherLen));
+    if(NULL == *ppCipherReq)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "malloc for cipher request failed! length=%d, errno=%d, desc=[%s]\n",
@@ -745,7 +745,7 @@ static int getCipherKeyAgreeReq(const MOCLOUD_KEYAGREE_REQUEST * pReq, char * pC
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
         "plainLen=%d, cipherLen=%d, malloc for cipher reqeust ok.\n", 
-        sizeof(MOCLOUD_CTRL_REQUEST), (*pCipherLen));
+        sizeof(MOCLOUD_KEYAGREE_REQUEST), (*pCipherLen));
 
     MOCLOUD_CRYPT_INFO cryptInfo;
     memset(&cryptInfo, 0x00, sizeof(MOCLOUD_CRYPT_INFO));
@@ -754,13 +754,13 @@ static int getCipherKeyAgreeReq(const MOCLOUD_KEYAGREE_REQUEST * pReq, char * pC
     cryptInfo.keyLen = RSA_PRIV_KEYLEN;
     ret = moCloudUtilsCrypt_doCrypt(MOCRYPT_METHOD_ENCRYPT,
         cryptInfo, (char *)pReq, sizeof(MOCLOUD_KEYAGREE_REQUEST),
-        pCipherReq, pCipherLen);
+        *ppCipherReq, pCipherLen);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "moCloudUtilsCrypt_doCrypt failed! ret=%d\n", ret);
-        free(pCipherReq);
-        pCipherReq = NULL;
+        free(*ppCipherReq);
+        *ppCipherReq = NULL;
         return -4;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "moCloudUtilsCrypt_doCrypt succeed.\n");
@@ -795,7 +795,7 @@ static int getKeyAgreeResp(MOCLOUD_KEYAGREE_RESPONSE * pResp)
             "length=%d, errno=%d, desc=[%s]\n", cipherLength, errno, strerror(errno));
         return -3;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc succeed.");
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc succeed.\n");
 
     int cnt = 0;
     while(1)
@@ -910,27 +910,38 @@ static int doKeyAgree()
     //2.do encrypt
     char * pCipherReq = NULL;
     int cipherLen = 0;
-    ret = getCipherKeyAgreeReq(&req, pCipherReq, &cipherLen);
+    ret = getCipherKeyAgreeReq(&req, &pCipherReq, &cipherLen);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getCipherKeyAgreeReq failed! ret=%d\n", ret);
         return -2;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getCipherKeyAgreeReq succeed.\n");
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getCipherKeyAgreeReq succeed, cipherLen=%d.\n", cipherLen);
 
-    //3.send to server, and get response
-    MOCLOUD_KEYAGREE_RESPONSE resp;
-    memset(&resp, 0x00, sizeof(MOCLOUD_KEYAGREE_RESPONSE));
-    ret = getKeyAgreeResp(&resp);
-    if(ret < 0)
+    //3.send to server
+    ret = writen(gCtrlSockId, pCipherReq, cipherLen);
+    if(ret != cipherLen)
     {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getKeyAgreeResp failed! ret=%d\n", ret);
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "send keyagree request failed! writeLen=%d, cipherLen=%d\n", 
+            ret, cipherLen);
         free(pCipherReq);
         pCipherReq = NULL;
         return -3;
     }
     free(pCipherReq);
     pCipherReq = NULL;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send keyagree request succeed.\n");
+
+    //4.get response from server for keyagree
+    MOCLOUD_KEYAGREE_RESPONSE resp;
+    memset(&resp, 0x00, sizeof(MOCLOUD_KEYAGREE_RESPONSE));
+    ret = getKeyAgreeResp(&resp);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getKeyAgreeResp failed! ret=%d\n", ret);
+        return -3;
+    }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getKeyAgreeResp succeed.\n");
 
     //4.set Crypt info to local
@@ -1106,7 +1117,7 @@ static int refreshFilelist(const MOCLOUD_FILETYPE type)
 
     char * pCipherReq = NULL;
     int cipherLen = 0;
-    ret = getCipherRequestInfo(&req, pCipherReq, &cipherLen);
+    ret = getCipherRequestInfo(&req, &pCipherReq, &cipherLen);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getCipherRequestInfo for getFilelist failed! ret=%d\n", ret);
@@ -1212,7 +1223,7 @@ static int sendHeartbeat()
 
     char * pCipherReq = NULL;
     int cipherLen = 0;
-    ret = getCipherRequestInfo(&request, pCipherReq, &cipherLen);
+    ret = getCipherRequestInfo(&request, &pCipherReq, &cipherLen);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -1313,7 +1324,9 @@ static void * heartbeatThr(void * args)
 */
 static int startHeartbeatThr()
 {
-    int ret = startThread(&gHeartbeatThrId, NULL, heartbeatThr, NULL);
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    int ret = startThread(&gHeartbeatThrId, &attr, heartbeatThr, NULL);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "startThread failed! ret=%d\n", ret);
@@ -1411,6 +1424,7 @@ static int stopRefreshFilelistThr()
     if(gRefreshFilelistThId != MOCLOUD_INVALID_THR_ID)
     {
         gStopRefreshFilelistThr = 1;
+        sem_post(&gRefreshFilelistSem);
         pthread_join(gRefreshFilelistThId, NULL);
     }
     return 0;
@@ -1550,17 +1564,18 @@ void moCloudClient_unInit()
 {
     pthread_mutex_lock(&gMutex);
     
+    disConnectToServer();
     stopHeartbeatThr();
     stopRefreshFilelistThr();
-    disConnectToServer();
     destroyCtrlSocket();
     destroyDataSocket();
     memset(&gCfgInfo, 0x00, sizeof(CFG_INFO));
     memset(&gCryptInfo, 0x00, sizeof(MOCLOUD_CRYPT_INFO));
     gIsInited = INIT_STATE_NO;
 
-    pthread_mutex_lock(&gFilelistMutex);
     freeLocalFilelist(MOCLOUD_FILETYPE_ALL);
+    
+    pthread_mutex_lock(&gFilelistMutex);
     gCliState = CLI_STATE_IDLE;
     pthread_mutex_unlock(&gFilelistMutex);
     
@@ -1617,7 +1632,7 @@ int moCloudClient_signUp(const char * pUsrName, const char * pPasswd)
     //get cipher value to request header
     char * pCipherReq = NULL;
     int cipherLen = 0;
-    int ret = getCipherRequestInfo(&request, pCipherReq, &cipherLen);
+    int ret = getCipherRequestInfo(&request, &pCipherReq, &cipherLen);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -1713,7 +1728,7 @@ int moCloudClient_logIn(const char * pUsrName, const char * pPasswd)
     //get cipher value to request header
     char * pCipherReq = NULL;
     int cipherLen = 0;
-    int ret = getCipherRequestInfo(&request, pCipherReq, &cipherLen);
+    int ret = getCipherRequestInfo(&request, &pCipherReq, &cipherLen);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -1811,7 +1826,7 @@ int moCloudClient_logOut()
     //get cipher value to request header
     char * pCipherReq = NULL;
     int cipherLen = 0;
-    int ret = getCipherRequestInfo(&request, pCipherReq, &cipherLen);
+    int ret = getCipherRequestInfo(&request, &pCipherReq, &cipherLen);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 

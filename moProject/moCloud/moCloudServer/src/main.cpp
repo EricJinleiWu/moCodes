@@ -214,6 +214,7 @@ static int startServer(const char * pConfFilepath)
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "getConfInfo failed! ret=%d, confFilepath=[%s]\n",
             ret, pConfFilepath);
+        return -2;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getConfInfo succeed.\n");
     dumpConfInfo(confInfo);
@@ -231,7 +232,7 @@ static int startServer(const char * pConfFilepath)
     {
         struct sockaddr_in cliAddr;
         memset(&cliAddr, 0x00, sizeof(struct sockaddr_in));
-        socklen_t length;
+        socklen_t length = sizeof(struct sockaddr_in);
         int cliSockId = accept(sockId, (struct sockaddr *)&cliAddr, &length);
         if(cliSockId < 0)
         {

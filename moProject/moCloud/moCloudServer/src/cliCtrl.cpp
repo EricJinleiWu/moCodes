@@ -58,10 +58,9 @@ CliCtrl::CliCtrl() :
     mCtrlSockId(MOCLOUD_INVALID_SOCKID),
     mIp("127.0.0.1"), 
     mCtrlPort(MOCLOUD_INVALID_PORT),
-    mIsFilelistChanged(false),
-    mLastHeartbeatTime(0)
+    mIsFilelistChanged(false)
 {
-    ;
+    mLastHeartbeatTime = time(NULL);
 }
 CliCtrl::CliCtrl(const string & thrName) : 
     MoThread(thrName), 
@@ -69,10 +68,9 @@ CliCtrl::CliCtrl(const string & thrName) :
     mCtrlSockId(MOCLOUD_INVALID_SOCKID),
     mIp("127.0.0.1"), 
     mCtrlPort(MOCLOUD_INVALID_PORT),
-    mIsFilelistChanged(false),
-    mLastHeartbeatTime(0)
+    mIsFilelistChanged(false)
 {
-    ;
+    mLastHeartbeatTime = time(NULL);
 }
 CliCtrl::CliCtrl(const string & ip, const int ctrlSockId, const int ctrlSockPort, 
     const string & thrName) :
@@ -81,10 +79,9 @@ CliCtrl::CliCtrl(const string & ip, const int ctrlSockId, const int ctrlSockPort
     mCtrlSockId(ctrlSockId),
     mIp(ip), 
     mCtrlPort(ctrlSockPort),
-    mIsFilelistChanged(false),
-    mLastHeartbeatTime(0)
+    mIsFilelistChanged(false)
 {
-    ;
+    mLastHeartbeatTime = time(NULL);
 }
 
 bool CliCtrl::operator==(const CliCtrl & other)
@@ -100,8 +97,18 @@ CliCtrl::~CliCtrl()
 void CliCtrl::run()
 {
     int ret = 0;
-    while(getRunState() && mState != CLI_STATE_INVALID)
+    while(getRunState() && getState() != CLI_STATE_INVALID)
     {
+        time_t curTime = time(NULL);
+        if(abs(curTime - mLastHeartbeatTime) > MOCLOUD_HEARTBEAT_INTEVAL * 2)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "curTime=%ld, lastHeartbeatTime=%ld, heartbeat invalid!\n",
+                curTime, mLastHeartbeatTime);
+            setState(CLI_STATE_INVALID);
+            continue;
+        }
+        
         //recv request from client, and do it.
         if(mState == CLI_STATE_IDLE)
         {
@@ -138,6 +145,10 @@ void CliCtrl::run()
             }
         }
     }
+
+    moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+        "CliCtrl thread stopped! getRunState()=%d, getState()=%d, CLI_STATE_INVALID=%d\n",
+        getRunState(), getState(), CLI_STATE_INVALID);
 }
 
 /*
@@ -269,81 +280,100 @@ int CliCtrl::getKeyAgreeReqFromCli()
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "cipherReqLen=%d\n", cipherReqLen);
 
-    //2.check client send request in timeout or not
-    fd_set rFds;
-    FD_ZERO(&rFds);
-    FD_SET(mCtrlSockId, &rFds);
-    struct timeval tm;
-    tm.tv_sec = 3;
-    tm.tv_usec = 0;
-    ret = select(mCtrlSockId + 1, &rFds, NULL, NULL, &tm);
-    if(ret <= 0)
+    int i = 0;
+    while(i < 3)
     {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "select failed! " \
-            "ret=%d, errno=%d, desc=[%s]\n", ret, errno, strerror(errno));
-        return -2;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "get the request from client.\n");
+        //2.check client send request in timeout or not
+        fd_set rFds;
+        FD_ZERO(&rFds);
+        FD_SET(mCtrlSockId, &rFds);
+        struct timeval tm;
+        tm.tv_sec = 1;
+        tm.tv_usec = 0;
+        ret = select(mCtrlSockId + 1, &rFds, NULL, NULL, &tm);
+        if(ret <= 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "select failed! " \
+                "ret=%d, errno=%d, desc=[%s]\n", ret, errno, strerror(errno));
+            ret = -2;
+            i++;
+            continue;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+            "get the request from client, mCtrlSockId=%d.\n",
+            mCtrlSockId);
+        
+        //3.get memory for cipher request
+        char * pCipherReq = NULL;
+        pCipherReq = (char *)malloc(sizeof(char ) * cipherReqLen);
+        if(NULL == pCipherReq)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "malloc failed! length=%d, errno=%d, desc=[%s]\n", 
+                cipherReqLen, errno, strerror(errno));
+            ret = -3;
+            break;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc succeed.\n");
 
-    //3.get memory for cipher request
-    char * pCipherReq = NULL;
-    pCipherReq = (char *)malloc(sizeof(char ) * cipherReqLen);
-    if(NULL == pCipherReq)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "malloc failed! length=%d, errno=%d, desc=[%s]\n", 
-            cipherReqLen, errno, strerror(errno));
-        return -3;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc succeed.\n");
-
-    //4.read it
-    int readLen = readn(mCtrlSockId, pCipherReq, cipherReqLen);
-    if(readLen != cipherReqLen)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "readn failed! readLen=%d, cipherReqLen=%d\n",
-            readLen, cipherReqLen);
+        //4.read it now.
+        int readLen = readn(mCtrlSockId, pCipherReq, cipherReqLen);
+        if(readLen != cipherReqLen)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "readn failed! readLen=%d, cipherReqLen=%d\n",
+                readLen, cipherReqLen);
+            free(pCipherReq);
+            pCipherReq = NULL;
+            ret = -4;
+            i++;
+            continue;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "read cipher request from client succeed.\n");
+        
+        //5.decrypt it
+        MOCLOUD_CRYPT_INFO cryptInfo;
+        memset(&cryptInfo, 0x00, sizeof(MOCLOUD_CRYPT_INFO));
+        cryptInfo.cryptAlgoNo = MOCLOUD_CRYPT_ALGO_RSA;
+        memcpy(cryptInfo.cryptKey.rsaKey, RSA_PUB_KEY, RSA_KEY_LEN);
+        cryptInfo.keyLen = RSA_KEY_LEN;
+        MOCLOUD_KEYAGREE_REQUEST req;
+        int reqLen = 0;
+        ret = moCloudUtilsCrypt_doCrypt(MOCRYPT_METHOD_DECRYPT, cryptInfo,
+            pCipherReq, cipherReqLen, (char *)&req, &reqLen);
+        if(ret < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "moCloudUtilsCrypt_doCrypt failed! ret=%d\n", ret);
+            free(pCipherReq);
+            pCipherReq = NULL;
+            ret = -5;
+            i++;
+            continue;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "readCliCipherReq succeed.\n");
         free(pCipherReq);
         pCipherReq = NULL;
-        return -4;
+        
+        //6.check it
+        if(strcmp(req.mark, MOCLOUD_MARK_CLIENT) || req.cmdId != MOCLOUD_CMDID_KEYAGREE || 
+            moCloudUtilsCheck_crcCheckValue(MOUTILS_CHECK_CRCMETHOD_32, (char *)&req,
+            sizeof(MOCLOUD_KEYAGREE_REQUEST) - sizeof(MOUTILS_CHECK_CRCVALUE),
+            req.crc32) != 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "The request check failed! "\
+                "mark=[%s], cmdId=[%d]\n", req.mark, req.cmdId);
+            ret = -6;
+            i++;
+            continue;
+        }
+        
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "We get keyagree reqeust from client!\n");
+        ret = 0;
+        break;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "read cipher request from client succeed.\n");
-
-    //5.decrypt it
-    MOCLOUD_CRYPT_INFO cryptInfo;
-    memset(&cryptInfo, 0x00, sizeof(MOCLOUD_CRYPT_INFO));
-    cryptInfo.cryptAlgoNo = MOCLOUD_CRYPT_ALGO_RSA;
-    memcpy(cryptInfo.cryptKey.rsaKey, RSA_PUB_KEY, RSA_KEY_LEN);
-    cryptInfo.keyLen = RSA_KEY_LEN;
-    MOCLOUD_KEYAGREE_REQUEST req;
-    int reqLen = 0;
-    ret = moCloudUtilsCrypt_doCrypt(MOCRYPT_METHOD_DECRYPT, cryptInfo,
-        pCipherReq, cipherReqLen, (char *)&req, &reqLen);
-    if(ret < 0)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "moCloudUtilsCrypt_doCrypt failed! ret=%d\n", ret);
-        free(pCipherReq);
-        pCipherReq = NULL;
-        return -5;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "readCliCipherReq succeed.\n");
-    free(pCipherReq);
-    pCipherReq = NULL;
-
-    //6.check it
-    if(strcmp(req.mark, MOCLOUD_MARK_CLIENT) || req.cmdId != MOCLOUD_CMDID_KEYAGREE || 
-        moCloudUtilsCheck_crcCheckValue(MOUTILS_CHECK_CRCMETHOD_32, (char *)&req,
-        sizeof(MOCLOUD_KEYAGREE_REQUEST) - sizeof(MOUTILS_CHECK_CRCVALUE),
-        req.crc32) != 0)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "The request check failed! "\
-            "mark=[%s], cmdId=[%d]\n", req.mark, req.cmdId);
-        return -6;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "We get keyagree reqeust from client!\n");
-    return 0;
+    
+    return ret;
 }
 
 /*
@@ -370,21 +400,7 @@ int CliCtrl::doCtrlRequest(bool & isGetReq)
         return 0;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getCtrlReq succeed.\n");
-
-    //should check heartbeat!
-    if(req.cmdId != MOCLOUD_CMDID_HEARTBEAT)
-    {
-        time_t curTime = time(NULL);
-        if(abs(curTime - mLastHeartbeatTime) > MOCLOUD_HEARTBEAT_INTEVAL * 2)
-        {
-            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-                "curTime=%ld, lastHeartbeatTime=%ld, heartbeat invalid!\n",
-                curTime, mLastHeartbeatTime);
-            setState(CLI_STATE_INVALID);
-            return -2;
-        }
-    }
-
+    
     //2.if have body, should get it.
     char * pBody = NULL;
     if(req.bodyLen != 0)
@@ -482,6 +498,10 @@ int CliCtrl::getCtrlReq(MOCLOUD_CTRL_REQUEST & req, bool & isGetReq)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "readn failed! readLen=%d, cipherLen=%d\n", readLen, cipherLen);
+
+        //If read failed, client being closed, should set this client to invalid
+        setState(CLI_STATE_INVALID);
+        
         free(pCipher);
         pCipher = NULL;
         return -4;
@@ -579,31 +599,34 @@ int CliCtrl::getCtrlReqBody(const int bodyLen, char * pBody)
 int CliCtrl::doRequest(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
     MOCLOUD_CTRL_RESPONSE & resp)
 {
-    if(pBody == NULL)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is NULL.\n");
-        return -1;
-    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+        "do request with cmdId=%d\n", req.cmdId);
 
     int ret = 0;
     switch(req.cmdId)
     {
     case MOCLOUD_CMDID_HEARTBEAT:
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start doHeartBeat.\n");
         ret = doHeartBeat(req, resp);
         break;
     case MOCLOUD_CMDID_SIGNUP:
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start doSignUp.\n");
         ret = doSignUp(req, pBody, resp);
         break;
     case MOCLOUD_CMDID_LOGIN:
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start doLogIn.\n");
         ret = doLogIn(req, pBody, resp);
         break;
     case MOCLOUD_CMDID_LOGOUT:
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start doLogOut.\n");
         ret = doLogOut(req, resp);
         break;
     case MOCLOUD_CMDID_BYEBYE:
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start doByebye.\n");
         ret = doByebye(req, resp);
         break;
     case MOCLOUD_CMDID_GETFILELIST:
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start doGetFilelist.\n");
         ret = doGetFilelist(req, resp);
         break;
     default:
@@ -860,7 +883,7 @@ int CliCtrl::doByebye(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp)
 {
     if(getState() == CLI_STATE_LOGIN)
     {
-        setState(CLI_STATE_KEYAGREED);
+        setState(CLI_STATE_INVALID);
     }
     if(req.isNeedResp)
         genResp(0, MOCLOUD_CMDID_BYEBYE, resp);

@@ -2,7 +2,7 @@
 CXX:= g++
 CC := gcc
 
-VERNUM = $(shell cat VERINFO | grep MOCPS_SERVER | awk '{print $$2}' | cut -b 2-)
+VERNUM = $(shell cat VERINFO | grep MOCLOUD_SERVER | awk '{print $$2}' | cut -b 2-)
 DVRGW_SUFFIX = $(VERNUM)
 
 MO_SDK_RELEASE_DIR = ../../../moSdk/release
