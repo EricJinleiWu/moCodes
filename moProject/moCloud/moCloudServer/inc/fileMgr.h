@@ -66,8 +66,8 @@ public:
     //@username should valid, will modify its value to @info
     virtual int modifyUserinfo(const string & username, DB_USERINFO & info) = 0;
     
-    virtual bool userLogin(const string & username, const string & passwd) = 0;
-    virtual bool userLogout(const string & username) = 0;
+    virtual int userLogin(const string & username, const string & passwd) = 0;
+    virtual int userLogout(const string & username) = 0;
 
     //@info.type & @info.name to be the key of this table
     virtual int insertFileinfo(const DB_FILEINFO & info) = 0;
@@ -102,8 +102,8 @@ public:
     //@username should valid, will modify its value to @info
     virtual int modifyUserinfo(const string & username, DB_USERINFO & info);
     
-    virtual bool userLogin(const string & username, const string & passwd);
-    virtual bool userLogout(const string & username);
+    virtual int userLogin(const string & username, const string & passwd);
+    virtual int userLogout(const string & username);
 
     //@info.type & @info.name to be the key of this table
     virtual int insertFileinfo(const DB_FILEINFO & info);
@@ -148,8 +148,8 @@ public:
     virtual int modifyUserinfo(const string & username, DB_USERINFO & info);
 
 
-    virtual bool userLogin(const string & username, const string & passwd);
-    virtual bool userLogout(const string & username);
+    virtual int userLogin(const string & username, const string & passwd);
+    virtual int userLogout(const string & username);
 
 
     //@info.type & @info.name to be the key of this table

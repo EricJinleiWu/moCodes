@@ -957,9 +957,9 @@ static int doKeyAgree()
     @pRespBody is NULL when input, and it will be malloced in this function, 
         so its important to you to free it after using;
 */
-static int getRespBody(char * pRespBody, const int bodyLen)
+static int getRespBody(char ** ppRespBody, const int bodyLen)
 {
-    if(pRespBody != NULL)
+    if(*ppRespBody != NULL)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is invalid.\n");
         return -1;
@@ -982,8 +982,8 @@ static int getRespBody(char * pRespBody, const int bodyLen)
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "select OK, get response now.\n");
 
-    pRespBody = (char * )malloc(sizeof(char) * bodyLen);
-    if(NULL == pRespBody)
+    *ppRespBody = (char * )malloc(sizeof(char) * bodyLen);
+    if(NULL == *ppRespBody)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "malloc failed! errno=%d, desc=[%s]\n",
             errno, strerror(errno));
@@ -991,13 +991,13 @@ static int getRespBody(char * pRespBody, const int bodyLen)
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc OK, get value now.\n");
 
-    int readLen = readn(gCtrlSockId, pRespBody, bodyLen);
+    int readLen = readn(gCtrlSockId, *ppRespBody, bodyLen);
     if(readLen != bodyLen)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "readn failed! " \
             "readLen=%d, bodyLen=%d\n", readLen, bodyLen);
-        free(pRespBody);
-        pRespBody = NULL;
+        free(*ppRespBody);
+        *ppRespBody = NULL;
         return -3;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "read response body succeed.\n");
@@ -1100,7 +1100,6 @@ static int refreshFilelist(const MOCLOUD_FILETYPE type)
         pthread_mutex_unlock(&gFilelistMutex);
         return -2;
     }
-    
 
     MOCLOUD_CTRL_REQUEST req;
     memset(&req, 0x00, sizeof(MOCLOUD_CTRL_REQUEST));
@@ -1154,30 +1153,33 @@ static int refreshFilelist(const MOCLOUD_FILETYPE type)
         "getRespHeader for getFilelist succeed, bodyLen=%d.\n",
         respHeader.bodyLen);
 
-    //recv body
-    char * pRespBody = NULL;
-    ret = getRespBody(pRespBody, respHeader.bodyLen);
-    if(ret < 0)
+    if(respHeader.bodyLen != 0)
     {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getRespBody for getFilelist failed! ret=%d\n", ret);
-        pthread_mutex_unlock(&gFilelistMutex);
-        return -6;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getRespBody for getFilelist succeed.\n");
-
-    //save respBody to local memory @gpFilelist
-    ret = setFilelistValue(pRespBody, respHeader.bodyLen, type);
-    if(ret < 0)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "setFilelistValue failed! ret=%d\n", ret);
+        //recv body
+        char * pRespBody = NULL;
+        ret = getRespBody(&pRespBody, respHeader.bodyLen);
+        if(ret < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getRespBody for getFilelist failed! ret=%d\n", ret);
+            pthread_mutex_unlock(&gFilelistMutex);
+            return -6;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getRespBody for getFilelist succeed.\n");
+        
+        //save respBody to local memory @gpFilelist
+        ret = setFilelistValue(pRespBody, respHeader.bodyLen, type);
+        if(ret < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "setFilelistValue failed! ret=%d\n", ret);
+            free(pRespBody);
+            pRespBody = NULL;
+            pthread_mutex_unlock(&gFilelistMutex);
+            return -7;
+        }
         free(pRespBody);
         pRespBody = NULL;
-        pthread_mutex_unlock(&gFilelistMutex);
-        return -7;
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "setFilelistValue succeed.\n");
     }
-    free(pRespBody);
-    pRespBody = NULL;
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "setFilelistValue succeed.\n");
 
     pthread_mutex_unlock(&gFilelistMutex);
     return 0;
@@ -1656,7 +1658,7 @@ int moCloudClient_signUp(const char * pUsrName, const char * pPasswd)
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request header succed.\n");
     
     ret = writen(gCtrlSockId, body, bodyLen);
-    if(ret != cipherLen)
+    if(ret != bodyLen)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request body failed! " \
             "ret=%d, bodyLen=%d\n", ret, bodyLen);
@@ -1752,7 +1754,7 @@ int moCloudClient_logIn(const char * pUsrName, const char * pPasswd)
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request header succed.\n");
     
     ret = writen(gCtrlSockId, body, bodyLen);
-    if(ret != cipherLen)
+    if(ret != bodyLen)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request body failed! " \
             "ret=%d, bodyLen=%d\n", ret, bodyLen);

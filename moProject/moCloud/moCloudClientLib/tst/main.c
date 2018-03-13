@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include "moLogger.h"
 #include "moUtils.h"
@@ -35,12 +36,6 @@ static int tst_All(void)
         return -1;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "moCloudClient_init SUCCEED.\n");
-
-//    sleep(20);
-
-//    moCloudClient_unInit();
-
-//    return 0;
 
     char username[MOCLOUD_USERNAME_MAXLEN] = "testtest";
     char passwd[MOCLOUD_PASSWD_MAXLEN] = "123456";

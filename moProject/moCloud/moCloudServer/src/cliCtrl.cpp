@@ -405,7 +405,7 @@ int CliCtrl::doCtrlRequest(bool & isGetReq)
     char * pBody = NULL;
     if(req.bodyLen != 0)
     {
-        ret = getCtrlReqBody(req.bodyLen, pBody);        
+        ret = getCtrlReqBody(req.bodyLen, &pBody);        
         if(ret < 0)
         {
             moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getCtrlReqBody failed! ret=%d\n", ret);
@@ -544,9 +544,9 @@ int CliCtrl::getCtrlReq(MOCLOUD_CTRL_REQUEST & req, bool & isGetReq)
     return 0;
 }
 
-int CliCtrl::getCtrlReqBody(const int bodyLen, char * pBody)
+int CliCtrl::getCtrlReqBody(const int bodyLen, char ** ppBody)
 {
-    if(pBody != NULL)
+    if(*ppBody != NULL)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is invalid!\n");
         return -1;
@@ -574,8 +574,8 @@ int CliCtrl::getCtrlReqBody(const int bodyLen, char * pBody)
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "select succeed.\n");
 
-    pBody = (char * )malloc(sizeof(char) * bodyLen);
-    if(pBody == NULL)
+    *ppBody = (char * )malloc(sizeof(char) * bodyLen);
+    if(*ppBody == NULL)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "malloc failed! errno=%d, desc=[%s]\n", errno, strerror(errno));
@@ -583,13 +583,13 @@ int CliCtrl::getCtrlReqBody(const int bodyLen, char * pBody)
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc ok.\n");
 
-    int readLen = readn(mCtrlSockId, pBody, bodyLen);
+    int readLen = readn(mCtrlSockId, *ppBody, bodyLen);
     if(readLen != bodyLen)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "readn failed! readLen=%d, bodyLen=%d\n", readLen, bodyLen);
-        free(pBody);
-        pBody = NULL;
+        free(*ppBody);
+        *ppBody = NULL;
         return -5;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "readn succeed.\n");
@@ -679,10 +679,10 @@ int CliCtrl::getUserPasswd(const char * pBody, string & username, string & passw
             symbPasswd.c_str(), pBody);
         return -4;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Find username symbol at the beginning.\n");
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Find passwd symbol at pos=%u.\n", pos2);
 
     //get username firstly
-    username = string(body, symbUsername.length(), pos2);
+    username = string(body, symbUsername.length(), pos2 - symbUsername.length());
     if(username.length() > MOCLOUD_USERNAME_MAXLEN)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -799,7 +799,7 @@ int CliCtrl::doSignUp(MOCLOUD_CTRL_REQUEST & req, const char * pBody,
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "modify signUpTime succeed.\n");
 
-    genResp(ret, MOCLOUD_CMDID_LOGIN, resp);
+    genResp(ret, MOCLOUD_CMDID_SIGNUP, resp);
     return 0;
 }
     

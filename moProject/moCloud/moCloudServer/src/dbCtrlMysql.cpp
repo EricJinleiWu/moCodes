@@ -119,15 +119,15 @@ bool DbCtrlMysql::isFileExist(const MOCLOUD_FILEINFO_KEY & key)
 
 
 
-bool DbCtrlMysql::userLogin(const string & username, const string & passwd)
+int DbCtrlMysql::userLogin(const string & username, const string & passwd)
 {
     //TODO
-    return true;
+    return 0;
 }
 
-bool DbCtrlMysql::userLogout(const string & username)
+int DbCtrlMysql::userLogout(const string & username)
 {
     //TODO
-    return true;
+    return 0;
 }
 

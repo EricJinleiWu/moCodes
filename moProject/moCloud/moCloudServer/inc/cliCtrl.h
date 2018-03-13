@@ -83,7 +83,7 @@ private:
 
     virtual int doCtrlRequest(bool & isGetReq);
     virtual int getCtrlReq(MOCLOUD_CTRL_REQUEST & req, bool & isGetReq);
-    virtual int getCtrlReqBody(const int bodyLen, char * pBody);
+    virtual int getCtrlReqBody(const int bodyLen, char ** ppBody);
     virtual int doRequest(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
         MOCLOUD_CTRL_RESPONSE & resp);
     virtual int sendCtrlResp2Cli(MOCLOUD_CTRL_RESPONSE & resp);
