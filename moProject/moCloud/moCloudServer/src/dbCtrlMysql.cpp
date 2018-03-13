@@ -117,7 +117,11 @@ bool DbCtrlMysql::isFileExist(const MOCLOUD_FILEINFO_KEY & key)
     return 0;
 }
 
-
+int DbCtrlMysql::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap)
+{
+    //TODO,
+    return 0;
+}
 
 int DbCtrlMysql::userLogin(const string & username, const string & passwd)
 {

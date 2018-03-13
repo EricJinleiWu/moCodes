@@ -22,7 +22,7 @@ INCDIRS = -I$(UTILS_INCDIR) \
 		-I$(MO_SDK_INC_DIR)
 
 # System lib path
-LDFLAGS = -lpthread -lrt -ldl \
+LDFLAGS = -lpthread -lrt -ldl -lsqlite3 \
           -L$(MO_SDK_RELEASE_DIR) -lMoCrypto -lMoLogger -lMoUtils
 
 

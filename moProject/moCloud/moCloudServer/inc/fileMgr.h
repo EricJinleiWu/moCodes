@@ -8,6 +8,7 @@ using namespace std;
 #include <map>
 
 #include "moCloudUtilsTypes.h"
+#include "sqlite3.h"
 
 #define SQLITE_DBNAME       "mocloudserver_sqlite3.db"
 #define MYSQL_DBNAME        "mocloudserver_mysql.db"
@@ -76,10 +77,13 @@ public:
     virtual int getFileinfo(DB_FILEINFO & info) = 0;
     //username should valid, will modify its value to @info
     virtual int modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO & info) = 0;  
+    //read local file info, set its to a map, then set these file info to database should call this function
+    virtual int refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap) = 0;
 
     virtual int getFilelist(const int filetype, list<DB_FILEINFO> & filelist) = 0;
     virtual int getFilelist(const int filetype, 
         map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap) = 0;
+
 };
 
 class DbCtrlSqlite : public DbCtrl
@@ -112,6 +116,8 @@ public:
     virtual int getFileinfo(DB_FILEINFO & info);
     //username should valid, will modify its value to @info
     virtual int modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO & info);
+    
+    virtual int refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
 
     virtual int getFilelist(const int filetype, list<DB_FILEINFO> & filelist);
     virtual int getFilelist(const int filetype, 
@@ -125,6 +131,7 @@ private:
     string mDbName;
     string mUserinfoTableName;
     string mFileinfoTableName;
+    sqlite3 *mpDb;
 };
 
 class DbCtrlMysql : public DbCtrl
@@ -159,6 +166,8 @@ public:
     virtual int getFileinfo(DB_FILEINFO & info);
     //username should valid, will modify its value to @info
     virtual int modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO & info);
+
+    virtual int refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
 
     virtual int getFilelist(const int filetype, list<DB_FILEINFO> & filelist);
     virtual int getFilelist(const int filetype, 
@@ -201,6 +210,14 @@ public:
         map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
 
     virtual int modifyDirpath(const string & newDirpath);
+
+private:
+    virtual int getBasicFileinfo(string & subDirpath, const char * pName, const MOCLOUD_FILETYPE type, 
+        MOCLOUD_BASIC_FILEINFO * pFileinfo);
+    virtual int getSubDirpath(const MOCLOUD_FILETYPE type, string & subDirpath);
+    virtual bool isRegFile(const char *pDirpath, const char *pSubFileName);
+    virtual int getLocalFilelistMap(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
+    virtual void dumpFilelistMap(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
 
 public:
     virtual DbCtrl * getDbCtrlHdl();
