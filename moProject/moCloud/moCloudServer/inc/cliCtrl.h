@@ -85,8 +85,8 @@ private:
     virtual int getCtrlReq(MOCLOUD_CTRL_REQUEST & req, bool & isGetReq);
     virtual int getCtrlReqBody(const int bodyLen, char ** ppBody);
     virtual int doRequest(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
-        MOCLOUD_CTRL_RESPONSE & resp);
-    virtual int sendCtrlResp2Cli(MOCLOUD_CTRL_RESPONSE & resp);
+        MOCLOUD_CTRL_RESPONSE & resp, char ** ppRespBody);
+    virtual int sendCtrlResp2Cli(MOCLOUD_CTRL_RESPONSE & resp, char *pRespBody);
 
 private:
     virtual int doHeartBeat(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp);
@@ -96,12 +96,13 @@ private:
         MOCLOUD_CTRL_RESPONSE & resp);
     virtual int doLogOut(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp);
     virtual int doByebye(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp);
-    virtual int doGetFilelist(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp);
+    virtual int doGetFilelist(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp,
+        char ** ppRespBody);
 
     virtual int getUserPasswd(const char * pBody, string & username, string & passwd);
     virtual int genResp(const int ret, const MOCLOUD_CMDID cmdId, MOCLOUD_CTRL_RESPONSE & resp);
-    virtual int sendRespBody(const MOCLOUD_CTRL_RESPONSE & resp);
-    virtual int sendFilelistBody(const int filetype);
+    virtual int sendRespBody(const MOCLOUD_CTRL_RESPONSE & resp, char * pRespBody);
+    virtual int sendFilelistBody(const int filetype, char * pRespBody, int bodyLen);
 
 private:
     CLI_STATE mState;

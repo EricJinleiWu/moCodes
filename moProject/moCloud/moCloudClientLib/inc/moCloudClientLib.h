@@ -81,12 +81,13 @@ int moCloudClient_logOut();
     @pFilelist save the results, its a list, being malloced here;
     So, its important for caller, to call moCloudClient_freeFilelist to free memory!!!
     And I defined, @pFilelist is in meaning, if its NULL, means donot have any file in this type;
+    @type must be ALL or just one type, cannot be two or more currently;
 
     return : 
         0 : succeed;
         0-: failed;
 */
-int moCloudClient_getFilelist(MOCLOUD_BASIC_FILEINFO_NODE * pFilelist, const MOCLOUD_FILETYPE type);
+int moCloudClient_getFilelist(MOCLOUD_BASIC_FILEINFO_NODE ** ppFilelist, const MOCLOUD_FILETYPE type);
 void moCloudClient_freeFilelist(MOCLOUD_BASIC_FILEINFO_NODE * pFilelist);
 
 #if 0

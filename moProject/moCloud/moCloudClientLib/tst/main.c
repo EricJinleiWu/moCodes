@@ -16,6 +16,7 @@
 
 static void dumpAllFileInfo(MOCLOUD_BASIC_FILEINFO_NODE * pAllFileInfo)
 {
+    printf("dumpAllFileInfo now.\n");
     MOCLOUD_BASIC_FILEINFO_NODE * pCurNode = pAllFileInfo;
     while(pCurNode != NULL)
     {
@@ -63,11 +64,11 @@ static int tst_All(void)
     sleep(30);
 
     MOCLOUD_BASIC_FILEINFO_NODE * pAllFileInfo = NULL;
-    ret = moCloudClient_getFilelist(pAllFileInfo, MOCLOUD_FILETYPE_ALL);
+    ret = moCloudClient_getFilelist(&pAllFileInfo, MOCLOUD_FILETYPE_ALL);
     if(ret != 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME,
-            "moCloudClient_signUp failed! ret=%d\n", ret);
+            "moCloudClient_getAllFileInfo  failed! ret=%d\n", ret);
         moCloudClient_unInit();
         return -4;
     }
@@ -75,7 +76,9 @@ static int tst_All(void)
     dumpAllFileInfo(pAllFileInfo);
 
     moCloudClient_freeFilelist(pAllFileInfo);
-    
+
+
+    sleep(3);
 
     ret = moCloudClient_logOut(username, passwd);
     if(ret != 0)

@@ -417,7 +417,8 @@ int CliCtrl::doCtrlRequest(bool & isGetReq)
     //3.do this request, set ret to response
     MOCLOUD_CTRL_RESPONSE resp;
     memset(&resp, 0x00, sizeof(MOCLOUD_CTRL_RESPONSE));
-    ret = doRequest(req, pBody, resp);
+    char * pRespBody = NULL;
+    ret = doRequest(req, pBody, resp, &pRespBody);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "doRequest failed! " \
@@ -430,15 +431,25 @@ int CliCtrl::doCtrlRequest(bool & isGetReq)
     if(req.isNeedResp == MOCLOUD_REQUEST_TYPE_NEED_RESPONSE)
     {
         //4.encrypt response, then send it to client
-        ret = sendCtrlResp2Cli(resp);
+        ret = sendCtrlResp2Cli(resp, pRespBody);
         if(ret < 0)
         {
             moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "sendCtrlResp2Cli failed! ret=%d\n", ret);
+            if(pRespBody != NULL)
+            {
+                free(pRespBody);
+                pRespBody = NULL;
+            }
             return -5;
         }
         moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "sendCtrlResp2Cli succeed.\n");
     }
     
+    if(pRespBody != NULL)
+    {
+        free(pRespBody);
+        pRespBody = NULL;
+    }
     return 0;
 }
 
@@ -597,7 +608,7 @@ int CliCtrl::getCtrlReqBody(const int bodyLen, char ** ppBody)
 }
 
 int CliCtrl::doRequest(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
-    MOCLOUD_CTRL_RESPONSE & resp)
+    MOCLOUD_CTRL_RESPONSE & resp, char ** ppRespBody)
 {
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
         "do request with cmdId=%d\n", req.cmdId);
@@ -627,7 +638,7 @@ int CliCtrl::doRequest(MOCLOUD_CTRL_REQUEST & req, const char * pBody,
         break;
     case MOCLOUD_CMDID_GETFILELIST:
         moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start doGetFilelist.\n");
-        ret = doGetFilelist(req, resp);
+        ret = doGetFilelist(req, resp, ppRespBody);
         break;
     default:
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -890,7 +901,8 @@ int CliCtrl::doByebye(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp)
     return 0;
 }
 
-int CliCtrl::doGetFilelist(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp)    
+int CliCtrl::doGetFilelist(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp,
+    char ** ppRespBody)    
 {
     if(getState() != CLI_STATE_LOGIN)
     {
@@ -914,8 +926,41 @@ int CliCtrl::doGetFilelist(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & r
 
     if(req.isNeedResp)
     {
+        list<DB_FILEINFO> dbFilelist;
+        int ret = FileMgrSingleton::getInstance()->getFilelist(req.addInfo.cInfo[0], dbFilelist);
+        if(ret < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getFilelist from db failed! ret=%d\n", ret);
+            if(req.isNeedResp)
+                genResp(MOCLOUD_GETFILELIST_ERR_TYPE_INVALID, MOCLOUD_CMDID_GETFILELIST, resp);
+            return -3;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getFilelist from db succeed.\n");
+        
+        int length = dbFilelist.size() * sizeof(MOCLOUD_BASIC_FILEINFO);
+        *ppRespBody = (char * )malloc(sizeof(char) * length);
+        if(NULL == *ppRespBody)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "malloc failed! length=%d, errno=%d, desc=[%s]\n", 
+                length, errno, strerror(errno));
+            if(req.isNeedResp)
+                genResp(MOCLOUD_GETFILELIST_ERR_TYPE_INVALID, MOCLOUD_CMDID_GETFILELIST, resp);
+            return -4;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc succeed.\n");
+        
+        char * pPos = *ppRespBody;
+        for(list<DB_FILEINFO>::iterator it = dbFilelist.begin(); it != dbFilelist.end(); it++)
+        {
+            memcpy(pPos, &(it->basicInfo), sizeof(MOCLOUD_BASIC_FILEINFO));
+            pPos += sizeof(MOCLOUD_BASIC_FILEINFO);
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "pBody being generated.\n");
+    
         genResp(MOCLOUD_GETFILELIST_ERR_OK, MOCLOUD_CMDID_GETFILELIST, resp);
-        resp.addInfo.cInfo[0] = type;
+        resp.addInfo.cInfo[0] = req.addInfo.cInfo[0];
+        resp.bodyLen = length;
     }
     return 0;
 }
@@ -925,7 +970,7 @@ int CliCtrl::doGetFilelist(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & r
     send cipher head;
     if needed, send plain body;
 */
-int CliCtrl::sendCtrlResp2Cli(MOCLOUD_CTRL_RESPONSE & resp)
+int CliCtrl::sendCtrlResp2Cli(MOCLOUD_CTRL_RESPONSE & resp, char *pRespBody)
 {
     int cipherLen = 0;
     int ret = moCloudUtilsCrypt_getCipherTxtLen(mCryptInfo.cryptAlgoNo,
@@ -979,7 +1024,7 @@ int CliCtrl::sendCtrlResp2Cli(MOCLOUD_CTRL_RESPONSE & resp)
         "Send cipher response header succeed.\n");
 
     //to some cmdid, we should send body
-    ret = sendRespBody(resp);
+    ret = sendRespBody(resp, pRespBody);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -991,61 +1036,28 @@ int CliCtrl::sendCtrlResp2Cli(MOCLOUD_CTRL_RESPONSE & resp)
     return 0;
 }
 
-int CliCtrl::sendRespBody(const MOCLOUD_CTRL_RESPONSE & resp)
+int CliCtrl::sendRespBody(const MOCLOUD_CTRL_RESPONSE & resp, char * pRespBody)
 {
     int ret = 0;
     if(resp.cmdId == MOCLOUD_CMDID_GETFILELIST)
     {
-        ret = sendFilelistBody(resp.addInfo.cInfo[0]);
+        ret = sendFilelistBody(resp.addInfo.cInfo[0], pRespBody, resp.bodyLen);
     }
 
     return ret;
 }
 
-int CliCtrl::sendFilelistBody(const int filetype)
+int CliCtrl::sendFilelistBody(const int filetype, char * pRespBody, int bodyLen)
 {
-    list<DB_FILEINFO> dbFilelist;
-    int ret = FileMgrSingleton::getInstance()->getFilelist(filetype, dbFilelist);
-    if(ret < 0)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getFilelist from db failed! ret=%d\n", ret);
-        return -1;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getFilelist from db succeed.\n");
-
-    int length = dbFilelist.size() * sizeof(MOCLOUD_BASIC_FILEINFO);
-    char * pBody = NULL;
-    pBody = (char * )malloc(sizeof(char) * length);
-    if(NULL == pBody)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "malloc failed! length=%d, errno=%d, desc=[%s]\n", 
-            length, errno, strerror(errno));
-        return -2;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc succeed.\n");
-
-    char * pPos = pBody;
-    for(list<DB_FILEINFO>::iterator it = dbFilelist.begin(); it != dbFilelist.end(); it++)
-    {
-        memcpy(pPos, &(it->basicInfo), sizeof(MOCLOUD_BASIC_FILEINFO));
-        pPos += sizeof(MOCLOUD_BASIC_FILEINFO);
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "pBody being generated.\n");
-
-    int writeLen = writen(mCtrlSockId, pBody, length);
-    if(writeLen != length)
+    int writeLen = writen(mCtrlSockId, pRespBody, bodyLen);
+    if(writeLen != bodyLen)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "send filelist body to client failed! writeLen=%d, length=%d\n",
-            writeLen, length);
-        free(pBody);
-        pBody = NULL;
-        return -3;
+            writeLen, bodyLen);
+        return -1;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send filelist body to client succeed.\n");
-    free(pBody);
-    pBody = NULL;
     return 0;
 }
 

@@ -197,13 +197,11 @@ static int freeLocalFilelist(const MOCLOUD_FILETYPE type)
         return -1;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "type=%d\n", type);
-
-    pthread_mutex_lock(&gFilelistMutex);
     
     int curType = 0;
     for(curType = (type == MOCLOUD_FILETYPE_ALL ? MOCLOUD_FILETYPE_VIDEO : type);
         curType < (type == MOCLOUD_FILETYPE_ALL ? MOCLOUD_FILETYPE_ALL : type + 1);
-        curType++)
+        curType *= 2)
     {
         MOCLOUD_BASIC_FILEINFO_NODE * pCurNode = gpFilelist[curType];
         while(pCurNode != NULL)
@@ -214,8 +212,6 @@ static int freeLocalFilelist(const MOCLOUD_FILETYPE type)
         }
         gpFilelist[curType] = NULL;
     }
-
-    pthread_mutex_unlock(&gFilelistMutex);
 
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Free resource ok.\n");
     return 0;
@@ -1021,8 +1017,6 @@ static int setFilelistValue(const char * pRespBody,
 
     freeLocalFilelist(type);
 
-    pthread_mutex_lock(&gFilelistMutex);
-
     int ret = 0;
     MOCLOUD_BASIC_FILEINFO * pCurInfo = NULL;
     int readLen = 0;
@@ -1575,9 +1569,8 @@ void moCloudClient_unInit()
     memset(&gCryptInfo, 0x00, sizeof(MOCLOUD_CRYPT_INFO));
     gIsInited = INIT_STATE_NO;
 
-    freeLocalFilelist(MOCLOUD_FILETYPE_ALL);
-    
     pthread_mutex_lock(&gFilelistMutex);
+    freeLocalFilelist(MOCLOUD_FILETYPE_ALL);
     gCliState = CLI_STATE_IDLE;
     pthread_mutex_unlock(&gFilelistMutex);
     
@@ -1771,7 +1764,7 @@ int moCloudClient_logIn(const char * pUsrName, const char * pPasswd)
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader failed! ret=%d\n", ret);
         return MOCLOUDCLIENT_ERR_GETRESP_FAILED;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader succeed, signUp ret=%d.\n", resp.ret);
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader succeed, logIn ret=%d.\n", resp.ret);
 
     if(resp.ret == MOCLOUD_LOGIN_RET_OK)
     {
@@ -1899,9 +1892,9 @@ int moCloudClient_logOut()
         0 : succeed, if @pAllFileInfo == NULL, means donot have any file in server;
         0-: failed;
 */
-int moCloudClient_getFilelist(MOCLOUD_BASIC_FILEINFO_NODE * pFilelist, const MOCLOUD_FILETYPE type)
+int moCloudClient_getFilelist(MOCLOUD_BASIC_FILEINFO_NODE ** ppFilelist, const MOCLOUD_FILETYPE type)
 {
-    if(NULL != pFilelist || type >= MOCLOUD_FILETYPE_MAX || type < MOCLOUD_FILETYPE_VIDEO)
+    if(NULL != *ppFilelist || type >= MOCLOUD_FILETYPE_MAX || type < MOCLOUD_FILETYPE_VIDEO)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is invalid!\n");
         return MOCLOUDCLIENT_ERR_INPUT_INVALID;
@@ -1915,7 +1908,7 @@ int moCloudClient_getFilelist(MOCLOUD_BASIC_FILEINFO_NODE * pFilelist, const MOC
 
     for(curType = (type == MOCLOUD_FILETYPE_ALL ? MOCLOUD_FILETYPE_VIDEO : type); 
         curType < (type == MOCLOUD_FILETYPE_ALL ? MOCLOUD_FILETYPE_ALL : type + 1); 
-        curType++)
+        curType *= 2)
     {
         MOCLOUD_BASIC_FILEINFO_NODE * pCurNode = gpFilelist[curType];
         while(pCurNode != NULL)
@@ -1932,15 +1925,15 @@ int moCloudClient_getFilelist(MOCLOUD_BASIC_FILEINFO_NODE * pFilelist, const MOC
             memcpy(&pNewNode->info, &pCurNode->info, sizeof(MOCLOUD_BASIC_FILEINFO));
             pNewNode->next = NULL;
         
-            if(pFilelist == NULL)
+            if(*ppFilelist == NULL)
             {
                 //The first node of this list
-                pFilelist = pNewNode;
+                *ppFilelist = pNewNode;
             }
             else
             {
-                pNewNode->next = pFilelist;
-                pFilelist = pNewNode;
+                pNewNode->next = *ppFilelist;
+                *ppFilelist = pNewNode;
             }
             
             pCurNode = pCurNode->next;
@@ -1952,14 +1945,14 @@ int moCloudClient_getFilelist(MOCLOUD_BASIC_FILEINFO_NODE * pFilelist, const MOC
     if(ret < 0)
     {
         //We should free all memory being malloced when error occured
-        MOCLOUD_BASIC_FILEINFO_NODE * pCurNode = pFilelist;
+        MOCLOUD_BASIC_FILEINFO_NODE * pCurNode = *ppFilelist;
         while(pCurNode != NULL)
         {
             MOCLOUD_BASIC_FILEINFO_NODE * pNextNode = pCurNode->next;
             free(pCurNode);
             pCurNode = pNextNode;
         }
-        pFilelist = NULL;
+        *ppFilelist = NULL;
     }
 
     return ret;
