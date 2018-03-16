@@ -27,6 +27,8 @@ using namespace std;
 #define FILEINFO_TABLE_READNUM "readNum"
 #define FILEINFO_TABLE_WRITEHDR "writeHdr"
 
+#define SQL_CMD_MAXLEN  256
+
 static int isExistCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
     int * isExist = (int *)data;
@@ -52,6 +54,45 @@ static int getPasswdCallback(void *data, int n_columns, char **column_value, cha
     {
         memset(passwd, 0x00, MOCLOUD_PASSWD_MAXLEN);
     }
+    return 0;
+}
+
+static int getFileinfoCallback(void *data, int n_columns, char **column_value, char **column_names)
+{
+    DB_FILEINFO * pDbFileinfo = (DB_FILEINFO *)data;
+     
+    int isInited = atoi(column_value[0]);
+    pDbFileinfo->isInited = (isInited == 0) ? false : true;
+
+    int filetype = atoi(column_value[1]);
+    pDbFileinfo->basicInfo.key.filetype = MOCLOUD_FILETYPE(filetype);
+
+    strcpy(pDbFileinfo->basicInfo.key.filename, column_value[2]);
+
+    pDbFileinfo->basicInfo.filesize = atol(column_value[3]);
+
+    strcpy(pDbFileinfo->basicInfo.ownerName, column_value[4]);
+
+    int state = atoi(column_value[5]);
+    pDbFileinfo->basicInfo.state= MOCLOUD_FILE_STATE(state);
+
+    pDbFileinfo->readHdr = atoi(column_value[6]);
+    pDbFileinfo->readerNum = atoi(column_value[7]);
+    pDbFileinfo->writeHdr = atoi(column_value[8]);
+
+    return 0;
+}
+
+static int getUserinfoCallback(void *data, int n_columns, char **column_value, char **column_names)
+{
+    DB_USERINFO * pDbUserinfo = (DB_USERINFO *)data;
+
+    pDbUserinfo->username = column_value[0];
+    pDbUserinfo->password= column_value[1];
+    pDbUserinfo->role = DB_USER_ROLE(atoi(column_value[2]));
+    pDbUserinfo->lastLogInTime = atol(column_value[3]);
+    pDbUserinfo->signUpTime = atol(column_value[4]);
+    
     return 0;
 }
 
@@ -262,11 +303,11 @@ int DbCtrlSqlite::insertUserinfo(const DB_USERINFO & info)
         info.username.c_str());
 
     //3.insert it
-    char insertCmd[256] = {0x00};
-    snprintf(insertCmd, 256, "insert into %s values(\"%s\",\"%s\", %d, %ld, %ld);",
+    char insertCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(insertCmd, SQL_CMD_MAXLEN, "insert into %s values(\"%s\",\"%s\", %d, %ld, %ld);",
         mUserinfoTableName.c_str(), info.username.c_str(), info.password.c_str(), 
         info.role, info.lastLogInTime, info.signUpTime);
-    insertCmd[255] = 0x00;
+    insertCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "insertCmd=[%s]\n", insertCmd);
     char * errmsg = NULL;
     int ret = sqlite3_exec(mpDb, insertCmd, NULL, NULL, &errmsg);
@@ -311,10 +352,10 @@ int DbCtrlSqlite::deleteUserinfo(const string & username)
         username.c_str());
 
     //3.delete from database
-    char deleteCmd[256] = {0x00};
-    snprintf(deleteCmd, 256, "delete from %s where %s=\"%s\";", 
+    char deleteCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(deleteCmd, SQL_CMD_MAXLEN, "delete from %s where %s=\"%s\";", 
         mUserinfoTableName.c_str(), USERINFO_TABLE_USERNAME, username.c_str());
-    deleteCmd[255] = 0x00;
+    deleteCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "deleteCmd=[%s]\n", deleteCmd);
     char * errmsg = NULL;
     int ret = sqlite3_exec(mpDb, deleteCmd, NULL, NULL, &errmsg);
@@ -336,37 +377,171 @@ int DbCtrlSqlite::deleteUserinfo(const string & username)
 
 int DbCtrlSqlite::getUserinfo(const string & username, DB_USERINFO & info)
 {
-    //TODO, 
+    if(!isUserExist(username))
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "username=[%s], donot exist in database, cannot get its info!\n",
+            username.c_str());
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+        "username=[%s], get its info now.\n", username.c_str());
+
+    char selectCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(selectCmd, SQL_CMD_MAXLEN, "select * from %s where %s=\"%s\";",
+        mUserinfoTableName.c_str(), USERINFO_TABLE_USERNAME, username.c_str());
+    selectCmd[SQL_CMD_MAXLEN - 1] = 0x00;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "selectCmd=[%s]\n", selectCmd);
+    char * errmsg = NULL;
+    int ret = sqlite3_exec(mpDb, selectCmd, getUserinfoCallback, &info, &errmsg);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "sqlite3_exec failed! ret=%d, cmd=[%s], errmsg=[%s]\n",
+            ret, selectCmd, errmsg);
+        sqlite3_free(errmsg);
+        errmsg = NULL;
+        return -2;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "get user info succeed.\n");
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+        "username=[%s], passwd=[%s], role=%d, lastLoginTime=%ld, signupTime=%ld\n",
+        info.username.c_str(), info.password.c_str(), info.role, info.lastLogInTime, info.signUpTime);
+    
+    sqlite3_free(errmsg);
+    errmsg = NULL;
     return 0;
 }
 
 int DbCtrlSqlite::modifyUserinfo(const string & username, DB_USERINFO & info)
 {
-    //TODO, 
+    //TODO, modify which attribute
+
     return 0;
 }
 
 int DbCtrlSqlite::insertFileinfo(const DB_FILEINFO & info)
 {
-    //TODO, 
+    if(isFileExist(info.basicInfo.key))
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "File has been exist in database, cannot insert it again! filetype=%d, filename=[%s]\n",
+            info.basicInfo.key.filetype, info.basicInfo.key.filename);
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "filetype=%d, filename=[%s]\n", 
+        info.basicInfo.key.filetype, info.basicInfo.key.filename);
+
+    char insertCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(insertCmd, SQL_CMD_MAXLEN, 
+        "insert into %s values(%d, %d, \"%s\", %ld, \"%s\", %d, %d, %d, %d);",
+        mFileinfoTableName.c_str(), 1, info.basicInfo.key.filetype,
+        info.basicInfo.key.filename, info.basicInfo.filesize, 
+        info.basicInfo.ownerName, info.basicInfo.state, 0, -1, 0);
+    insertCmd[SQL_CMD_MAXLEN - 1] = 0x00;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "insertCmd=[%s]\n", insertCmd);
+    char *errmsg = NULL;
+    int ret = sqlite3_exec(mpDb, insertCmd, NULL, NULL, &errmsg);
+    if(ret != SQLITE_OK)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "insert failed! ret=%d, errmsg=[%s], cmd=[%s]\n",
+            ret, errmsg, insertCmd);
+        sqlite3_free(errmsg);
+        errmsg = NULL;
+        return -2;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "insert succeed.\n");
+
+    sqlite3_free(errmsg);
+    errmsg = NULL;
+    
     return 0;
 }
 
 int DbCtrlSqlite::deleteFileinfo(const MOCLOUD_FILEINFO_KEY & key)
 {
-    //TODO, 
+    if(!isFileExist(key))
+    {
+        moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, 
+            "fileinfo donot exist in database, cannot delete it! filetype=%d, filename=[%s]\n",
+            key.filetype, key.filename);
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "filetype=%d, filename=[%s]\n", key.filetype, key.filename);
+
+    char deleteCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(deleteCmd, SQL_CMD_MAXLEN, "delete from %s where %s=%d and %s=\"%s\";",
+        mFileinfoTableName.c_str(), 
+        FILEINFO_TABLE_FILETYPE, key.filetype,
+        FILEINFO_TABLE_FILENAME, key.filename);
+    deleteCmd[SQL_CMD_MAXLEN - 1] = 0x00;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "deleteCmd=[%s]\n", deleteCmd);
+    char * errmsg = NULL;
+    int ret = sqlite3_exec(mpDb, deleteCmd, NULL, NULL, &errmsg);
+    if(ret != 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "sqlite_exec failed! ret=%d, cmd=[%s], errmsg=[%s]\n",
+            ret, deleteCmd, errmsg);
+        sqlite3_free(errmsg);
+        errmsg = NULL;
+        return -2;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "sqlite3_exec succeed, cmd=[%s]\n", deleteCmd);
+
+    sqlite3_free(errmsg);
+    errmsg = NULL;
+
     return 0;
 }
 
 int DbCtrlSqlite::getFileinfo(DB_FILEINFO & info)
 {
-    //TODO, 
+    if(!isFileExist(info.basicInfo.key))
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "File donot exist, cannot get its info! filetype=%d, filename=[%s]\n",
+            info.basicInfo.key.filetype, info.basicInfo.key.filename);
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "filetype=%d, filename=[%s]\n",
+        info.basicInfo.key.filetype, info.basicInfo.key.filename);
+
+    char selectCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(selectCmd, SQL_CMD_MAXLEN, "select * from %s where %s=%d and %s=\"%s\";",
+        mFileinfoTableName.c_str(),
+        FILEINFO_TABLE_FILETYPE, info.basicInfo.key.filetype,
+        FILEINFO_TABLE_FILENAME, info.basicInfo.key.filename);
+    selectCmd[SQL_CMD_MAXLEN - 1] = 0x00;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "selectCmd=[%s]\n", selectCmd);
+    char * errmsg = NULL;
+    int ret = sqlite3_exec(mpDb, selectCmd, getFileinfoCallback, &info, &errmsg);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "sqlite3_exec failed! ret=%d, cmd=[%s], errmsg=[%s]\n",
+            ret, selectCmd, errmsg);
+        sqlite3_free(errmsg);
+        errmsg = NULL;
+        return -2;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "get file info succeed.\n");
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "filetype=%d, filename=[%s], " \
+        "filesize=%ld, ownerName=[%s], state=%d, readerNum=%d, readHdr=%d, writeHdr=%d\n",
+        info.basicInfo.key.filetype, info.basicInfo.key.filename,
+        info.basicInfo.filesize, info.basicInfo.ownerName, info.basicInfo.state,
+        info.readerNum, info.readHdr, info.writeHdr);
+    
+    sqlite3_free(errmsg);
+    errmsg = NULL;
     return 0;
 }
 
 int DbCtrlSqlite::modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO & info)
 {
-    //TODO, 
+    //TODO, modify which attribute? should make sure this
+
     return 0;
 }
 
@@ -382,12 +557,12 @@ int DbCtrlSqlite::getFilelist(const int filetype, list<DB_FILEINFO> & filelist)
         return MOCLOUD_GETFILELIST_ERR_TYPE_INVALID;
     }
 
-    char selectCmd[128] = {0x00};
-    snprintf(selectCmd, 128, "select * from %s where %s in (%d, %d, %d, %d);",
+    char selectCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(selectCmd, SQL_CMD_MAXLEN, "select * from %s where %s in (%d, %d, %d, %d);",
         mFileinfoTableName.c_str(), FILEINFO_TABLE_FILETYPE,
         filetype & MOCLOUD_FILETYPE_VIDEO, filetype & MOCLOUD_FILETYPE_AUDIO, 
         filetype & MOCLOUD_FILETYPE_PIC, filetype & MOCLOUD_FILETYPE_OTHERS);
-    selectCmd[127] = 0x00;
+    selectCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "selectCmd=[%s]\n", selectCmd);
     char *errmsg = NULL;
     int ret = sqlite3_exec(mpDb, selectCmd, getFilelistListCallback, &filelist, &errmsg);
@@ -430,12 +605,12 @@ int DbCtrlSqlite::getFilelist(const int filetype,
         return MOCLOUD_GETFILELIST_ERR_TYPE_INVALID;
     }
 
-    char selectCmd[128] = {0x00};
-    snprintf(selectCmd, 128, "select * from %s where %s in (%d, %d, %d, %d);",
+    char selectCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(selectCmd, SQL_CMD_MAXLEN, "select * from %s where %s in (%d, %d, %d, %d);",
         mFileinfoTableName.c_str(), FILEINFO_TABLE_FILETYPE, 
         filetype & MOCLOUD_FILETYPE_VIDEO, filetype & MOCLOUD_FILETYPE_AUDIO, 
         filetype & MOCLOUD_FILETYPE_PIC, filetype & MOCLOUD_FILETYPE_OTHERS);
-    selectCmd[127] = 0x00;
+    selectCmd[SQL_CMD_MAXLEN] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "selectCmd=[%s]\n", selectCmd);
     char *errmsg = NULL;
     int ret = sqlite3_exec(mpDb, selectCmd, getFilelistMapCallback, &filelistMap, &errmsg);
@@ -470,10 +645,10 @@ int DbCtrlSqlite::getFilelist(const int filetype,
 
 bool DbCtrlSqlite::isUserExist(const string & username)   
 {
-    char selectCmd[128] = {0x00};
-    snprintf(selectCmd, 128, "select count(*) from %s where %s=\"%s\";",
+    char selectCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(selectCmd, SQL_CMD_MAXLEN, "select count(*) from %s where %s=\"%s\";",
         mUserinfoTableName.c_str(), USERINFO_TABLE_USERNAME, username.c_str());
-    selectCmd[127] = 0x00;
+    selectCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "selectCmd=[%s]\n", selectCmd);
     int isExist = 0;
     char *errmsg = NULL;
@@ -494,11 +669,11 @@ bool DbCtrlSqlite::isUserExist(const string & username)
 
 bool DbCtrlSqlite::isFileExist(const MOCLOUD_FILEINFO_KEY & key)
 {
-    char selectCmd[128] = {0x00};
-    snprintf(selectCmd, 128, "select count(*) from %s where %s=%d and %s=\"%s\";",
+    char selectCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(selectCmd, SQL_CMD_MAXLEN, "select count(*) from %s where %s=%d and %s=\"%s\";",
         mFileinfoTableName.c_str(), FILEINFO_TABLE_FILETYPE, key.filetype, 
         FILEINFO_TABLE_FILENAME, key.filename);
-    selectCmd[127] = 0x00;
+    selectCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "selectCmd=[%s]\n", selectCmd);
     int isExist = 0;
     char *errmsg = NULL;
@@ -551,7 +726,7 @@ int DbCtrlSqlite::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & fi
             if(!isFileExist(iter->basicInfo.key))
             {
                 //insert it to database
-                char insertCmd[512] = {0x00};
+                char insertCmd[SQL_CMD_MAXLEN] = {0x00};
                 int isInited = 1;
                 char owner[MOCLOUD_USERNAME_MAXLEN] = {0x00};
                 if(strlen(iter->basicInfo.ownerName) == 0)
@@ -561,11 +736,11 @@ int DbCtrlSqlite::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & fi
                     strncpy(owner, iter->basicInfo.ownerName, MOCLOUD_USERNAME_MAXLEN);
                     owner[MOCLOUD_USERNAME_MAXLEN - 1] = 0x00;
                 }
-                snprintf(insertCmd, 512, "insert into %s values(%d, %d, \"%s\", %ld, \"%s\", %d, %d, %d, %d);",
+                snprintf(insertCmd, SQL_CMD_MAXLEN, "insert into %s values(%d, %d, \"%s\", %ld, \"%s\", %d, %d, %d, %d);",
                     mFileinfoTableName.c_str(), isInited, iter->basicInfo.key.filetype,
                     iter->basicInfo.key.filename, iter->basicInfo.filesize, owner,
                     iter->basicInfo.state, 0, -1, 0);
-                insertCmd[511] = 0x00;
+                insertCmd[SQL_CMD_MAXLEN - 1] = 0x00;
                 moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "insertCmd=[%s]\n", insertCmd);
                 ret = sqlite3_exec(mpDb, insertCmd, NULL, NULL, &errmsg);
                 if(ret != SQLITE_OK)
@@ -582,13 +757,13 @@ int DbCtrlSqlite::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & fi
             else
             {
                 //update its info in database
-                char updateCmd[512] = {0x00};
-                snprintf(updateCmd, 512, "update %s set %s=%d, %s=%ld where %s=%d and %s=\"%s\";", 
+                char updateCmd[SQL_CMD_MAXLEN] = {0x00};
+                snprintf(updateCmd, SQL_CMD_MAXLEN, "update %s set %s=%d, %s=%ld where %s=%d and %s=\"%s\";", 
                     mFileinfoTableName.c_str(), FILEINFO_TABLE_ISINITED, 1, 
                     FILEINFO_TABLE_FILESIZE, iter->basicInfo.filesize, 
                     FILEINFO_TABLE_FILETYPE, iter->basicInfo.key.filetype, 
                     FILEINFO_TABLE_FILENAME, iter->basicInfo.key.filename);
-                updateCmd[511] = 0x00;
+                updateCmd[SQL_CMD_MAXLEN - 1] = 0x00;
                 moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "updateCmd=[%s]\n", updateCmd);
                 ret = sqlite3_exec(mpDb, updateCmd, NULL, NULL, &errmsg);
                 if(ret != SQLITE_OK)
@@ -605,10 +780,10 @@ int DbCtrlSqlite::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & fi
     }
 
     //check all isInited==0 data, delete them
-    char deleteCmd[128] = {0x00};
-    snprintf(deleteCmd, 128, "delete from %s where %s = %d;",
+    char deleteCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(deleteCmd, SQL_CMD_MAXLEN, "delete from %s where %s = %d;",
         mFileinfoTableName.c_str(), FILEINFO_TABLE_ISINITED, 0);    
-    deleteCmd[127] = 0x00;
+    deleteCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "deleteCmd=[%s]\n", deleteCmd);
     ret = sqlite3_exec(mpDb, deleteCmd, NULL, NULL, &errmsg);
     if(ret != SQLITE_OK)
@@ -647,11 +822,11 @@ int DbCtrlSqlite::userLogin(const string & username, const string & passwd)
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "username=[%s], exist.\n", username.c_str());
 
     //get password from database
-    char selectPasswdCmd[128] = {0x00};
-    snprintf(selectPasswdCmd, 128, "select %s from %s where %s=\"%s\";",
+    char selectPasswdCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(selectPasswdCmd, SQL_CMD_MAXLEN, "select %s from %s where %s=\"%s\";",
         USERINFO_TABLE_PASSWORD, mUserinfoTableName.c_str(), 
         USERINFO_TABLE_USERNAME, username.c_str());
-    selectPasswdCmd[127] = 0x00;
+    selectPasswdCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "selectPasswdCmd=[%s]\n", selectPasswdCmd);
     char passwdDb[MOCLOUD_PASSWD_MAXLEN] = {0x00};
     char * errmsg = NULL;
@@ -680,11 +855,11 @@ int DbCtrlSqlite::userLogin(const string & username, const string & passwd)
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "passwd check ok.\n");
 
     //update lastloginTime in database
-    char updateCmd[128] = {0x00};
-    snprintf(updateCmd, 128, "update %s=%ld from %s where %s=\"\%s\";",
+    char updateCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(updateCmd, SQL_CMD_MAXLEN, "update %s=%ld from %s where %s=\"\%s\";",
         USERINFO_TABLE_LASTLOGINTIME, time(NULL), mUserinfoTableName.c_str(), 
         USERINFO_TABLE_USERNAME, username.c_str());
-    updateCmd[127] = 0x00;
+    updateCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "updateCmd=[%s]\n", updateCmd);
     ret = sqlite3_exec(mpDb, updateCmd, NULL, NULL, &errmsg);
     if(ret < 0)
