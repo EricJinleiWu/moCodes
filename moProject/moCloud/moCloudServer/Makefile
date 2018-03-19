@@ -19,11 +19,13 @@ INCDIR = ./inc
 # INC DIRS. All algorithm should set header file in this directory.
 INCDIRS = -I$(UTILS_INCDIR) \
 		-I$(INCDIR) \
-		-I$(MO_SDK_INC_DIR)
+		-I$(MO_SDK_INC_DIR) \
+		-I/usr/include/mysql
 
 # System lib path
 LDFLAGS = -lpthread -lrt -ldl -lsqlite3 \
-          -L$(MO_SDK_RELEASE_DIR) -lMoCrypto -lMoLogger -lMoUtils
+          -L$(MO_SDK_RELEASE_DIR) -lMoCrypto -lMoLogger -lMoUtils \
+	  -L/usr/lib/arm-linux-gnueabihf  -lmariadbclient -lpthread -lz -lm -ldl
 
 
 #Cflags

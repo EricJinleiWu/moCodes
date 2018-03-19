@@ -180,24 +180,16 @@ DbCtrlSqlite::DbCtrlSqlite() : DbCtrl(), mDbName(SQLITE_DBNAME),
         return ;
     }
 
-    //create userinfo table if not exist
-    string cmd("create table if not exists ");
-    cmd += mUserinfoTableName;
-    cmd += "(";
-    cmd += USERINFO_TABLE_USERNAME;
-    cmd += " char(32), ";
-    cmd += USERINFO_TABLE_PASSWORD;
-    cmd += " char(32), ";
-    cmd += USERINFO_TABLE_ROLE;
-    cmd += " int not null, ";
-    cmd += USERINFO_TABLE_LASTLOGINTIME;
-    cmd += " bigint, ";
-    cmd += USERINFO_TABLE_SIGNUPTIME;
-    cmd += " bigint);";
-//    cmd += "(username char(32),password char(32),role int not null, lastLoginTime bigint, signUpTime bigint);";
-    printf("create userinfo table cmd is [%s]\n", cmd.c_str());
+    //create userinfo table if not exist    
+    char createCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(createCmd, SQL_CMD_MAXLEN, 
+        "create table if not exists %s(%s char(32),%s char(32), %s int not null, %s bigint, %s bigint);",
+        mUserinfoTableName.c_str(), USERINFO_TABLE_USERNAME, USERINFO_TABLE_PASSWORD, 
+        USERINFO_TABLE_ROLE, USERINFO_TABLE_LASTLOGINTIME, USERINFO_TABLE_SIGNUPTIME);
+    createCmd[SQL_CMD_MAXLEN - 1] = 0x00;
+    printf("create userinfo table cmd is [%s]\n", createCmd);
     char * errmsg = NULL;
-    ret = sqlite3_exec(mpDb, cmd.c_str(), NULL, NULL, &errmsg);
+    ret = sqlite3_exec(mpDb, createCmd, NULL, NULL, &errmsg);
     if(ret != SQLITE_OK)
     {
         printf("Create userinfo table failed! ret=%d, errmsg=[%s], desc=[%s]\n", 
@@ -210,31 +202,15 @@ DbCtrlSqlite::DbCtrlSqlite() : DbCtrl(), mDbName(SQLITE_DBNAME),
     printf("Create userinfo table succeed.\n");
     
     //create fileinfo table if not exist
-    cmd = "create table if not exists ";
-    cmd += mFileinfoTableName;
-    cmd += "(";
-    cmd += FILEINFO_TABLE_ISINITED;
-    cmd += " int, ";
-    cmd += FILEINFO_TABLE_FILETYPE;
-    cmd += " int, ";
-    cmd += FILEINFO_TABLE_FILENAME;
-    cmd += " char(256), ";
-    cmd += FILEINFO_TABLE_FILESIZE;
-    cmd += " bigint, ";
-    cmd += FILEINFO_TABLE_OWNER;
-    cmd += " char(32), ";
-    cmd += FILEINFO_TABLE_STATE;
-    cmd += " int, ";
-    cmd += FILEINFO_TABLE_READHDR;
-    cmd += " int, ";
-    cmd += FILEINFO_TABLE_READNUM;
-    cmd += " int, ";
-    cmd += FILEINFO_TABLE_WRITEHDR;
-    cmd += " int);";
-//    cmd += "(isInited int, filetype int, filename char(256), filesize bigint, owner char(32), state int,";
-//    cmd += "readHdr int, readNum int, writeHdr int);";
-    printf("create fileinfo table cmd is [%s]\n", cmd.c_str());
-    ret = sqlite3_exec(mpDb, cmd.c_str(), NULL, NULL, &errmsg);
+    memset(createCmd, 0x00, SQL_CMD_MAXLEN);
+    snprintf(createCmd, SQL_CMD_MAXLEN, 
+        "create table if not exists %s(%s int, %s int, %s char(256), %s bigint, %s char(32), %s int, %s int, %s int, %s int);",
+        mFileinfoTableName.c_str(), FILEINFO_TABLE_ISINITED, FILEINFO_TABLE_FILETYPE, FILEINFO_TABLE_FILENAME,
+        FILEINFO_TABLE_FILESIZE, FILEINFO_TABLE_OWNER, FILEINFO_TABLE_STATE, FILEINFO_TABLE_READHDR,
+        FILEINFO_TABLE_READNUM, FILEINFO_TABLE_WRITEHDR);
+    createCmd[SQL_CMD_MAXLEN - 1] = 0x00;
+    printf("create userinfo table cmd is [%s]\n", createCmd);
+    ret = sqlite3_exec(mpDb, createCmd, NULL, NULL, &errmsg);
     if(ret != SQLITE_OK)
     {
         printf("Create userinfo table failed! ret=%d, errmsg=[%s], desc=[%s]\n", 
@@ -275,6 +251,12 @@ DbCtrlSqlite & DbCtrlSqlite::operator = (const DbCtrlSqlite & other)
 
 int DbCtrlSqlite::insertUserinfo(const DB_USERINFO & info)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     //1.userinfo valid or not
     if(info.username.length() > MOCLOUD_USERNAME_MAXLEN || 
         info.password.length() > MOCLOUD_PASSWD_MAXLEN ||
@@ -329,6 +311,12 @@ int DbCtrlSqlite::insertUserinfo(const DB_USERINFO & info)
 
 int DbCtrlSqlite::deleteUserinfo(const string & username)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     //1.userinfo valid or not
     if(username.length() > MOCLOUD_USERNAME_MAXLEN)
     {
@@ -377,6 +365,12 @@ int DbCtrlSqlite::deleteUserinfo(const string & username)
 
 int DbCtrlSqlite::getUserinfo(const string & username, DB_USERINFO & info)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     if(!isUserExist(username))
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -415,6 +409,12 @@ int DbCtrlSqlite::getUserinfo(const string & username, DB_USERINFO & info)
 
 int DbCtrlSqlite::modifyUserinfo(const string & username, DB_USERINFO & info)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     //TODO, modify which attribute
 
     return 0;
@@ -422,6 +422,12 @@ int DbCtrlSqlite::modifyUserinfo(const string & username, DB_USERINFO & info)
 
 int DbCtrlSqlite::insertFileinfo(const DB_FILEINFO & info)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     if(isFileExist(info.basicInfo.key))
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -461,6 +467,12 @@ int DbCtrlSqlite::insertFileinfo(const DB_FILEINFO & info)
 
 int DbCtrlSqlite::deleteFileinfo(const MOCLOUD_FILEINFO_KEY & key)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     if(!isFileExist(key))
     {
         moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -498,6 +510,12 @@ int DbCtrlSqlite::deleteFileinfo(const MOCLOUD_FILEINFO_KEY & key)
 
 int DbCtrlSqlite::getFileinfo(DB_FILEINFO & info)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     if(!isFileExist(info.basicInfo.key))
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -540,6 +558,12 @@ int DbCtrlSqlite::getFileinfo(DB_FILEINFO & info)
 
 int DbCtrlSqlite::modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO & info)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     //TODO, modify which attribute? should make sure this
 
     return 0;
@@ -547,6 +571,12 @@ int DbCtrlSqlite::modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO &
 
 int DbCtrlSqlite::getFilelist(const int filetype, list<DB_FILEINFO> & filelist)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     if(filetype & MOCLOUD_FILETYPE_VIDEO == 0 && 
         filetype & MOCLOUD_FILETYPE_AUDIO == 0 && 
         filetype & MOCLOUD_FILETYPE_PIC == 0 && 
@@ -595,6 +625,12 @@ int DbCtrlSqlite::getFilelist(const int filetype, list<DB_FILEINFO> & filelist)
 int DbCtrlSqlite::getFilelist(const int filetype, 
         map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap)       
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     if(filetype & MOCLOUD_FILETYPE_VIDEO == 0 && 
         filetype & MOCLOUD_FILETYPE_AUDIO == 0 && 
         filetype & MOCLOUD_FILETYPE_PIC == 0 && 
@@ -645,6 +681,12 @@ int DbCtrlSqlite::getFilelist(const int filetype,
 
 bool DbCtrlSqlite::isUserExist(const string & username)   
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     char selectCmd[SQL_CMD_MAXLEN] = {0x00};
     snprintf(selectCmd, SQL_CMD_MAXLEN, "select count(*) from %s where %s=\"%s\";",
         mUserinfoTableName.c_str(), USERINFO_TABLE_USERNAME, username.c_str());
@@ -669,6 +711,12 @@ bool DbCtrlSqlite::isUserExist(const string & username)
 
 bool DbCtrlSqlite::isFileExist(const MOCLOUD_FILEINFO_KEY & key)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     char selectCmd[SQL_CMD_MAXLEN] = {0x00};
     snprintf(selectCmd, SQL_CMD_MAXLEN, "select count(*) from %s where %s=%d and %s=\"%s\";",
         mFileinfoTableName.c_str(), FILEINFO_TABLE_FILETYPE, key.filetype, 
@@ -700,6 +748,12 @@ bool DbCtrlSqlite::isFileExist(const MOCLOUD_FILEINFO_KEY & key)
 */
 int DbCtrlSqlite::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     string cmd = "update ";
     cmd += mFileinfoTableName;
     cmd += " set isInited = 0;";
@@ -802,6 +856,12 @@ int DbCtrlSqlite::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & fi
 
 int DbCtrlSqlite::userLogin(const string & username, const string & passwd)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     if(username.length() > MOCLOUD_USERNAME_MAXLEN || passwd.length() > MOCLOUD_PASSWD_MAXLEN ||
         passwd.length() < MOCLOUD_PASSWD_MINLEN)
     {
@@ -880,6 +940,12 @@ int DbCtrlSqlite::userLogin(const string & username, const string & passwd)
 
 int DbCtrlSqlite::userLogout(const string & username)
 {
+    if(mpDb == NULL)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "mpDb==NULL, init database failed! cannot do anything!\n");
+        return -1;
+    }
+
     if(username.length() > MOCLOUD_USERNAME_MAXLEN)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 

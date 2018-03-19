@@ -9,9 +9,10 @@ using namespace std;
 
 #include "moCloudUtilsTypes.h"
 #include "sqlite3.h"
+#include "mysql.h"
 
 #define SQLITE_DBNAME       "mocloudserver_sqlite3.db"
-#define MYSQL_DBNAME        "mocloudserver_mysql.db"
+#define MYSQL_DBNAME        "mocloudserver"
 #define USERINFO_TABLENAME  "UserinfoTable"
 #define FILEINFO_TABLENAME  "FileinfoTable"
 
@@ -153,11 +154,9 @@ public:
     virtual int getUserinfo(const string & username, DB_USERINFO & info);
     //@username should valid, will modify its value to @info
     virtual int modifyUserinfo(const string & username, DB_USERINFO & info);
-
-
+    
     virtual int userLogin(const string & username, const string & passwd);
     virtual int userLogout(const string & username);
-
 
     //@info.type & @info.name to be the key of this table
     virtual int insertFileinfo(const DB_FILEINFO & info);
@@ -166,7 +165,7 @@ public:
     virtual int getFileinfo(DB_FILEINFO & info);
     //username should valid, will modify its value to @info
     virtual int modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO & info);
-
+    
     virtual int refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
 
     virtual int getFilelist(const int filetype, list<DB_FILEINFO> & filelist);
@@ -181,6 +180,8 @@ private:
     string mDbName;
     string mUserinfoTableName;
     string mFileinfoTableName;
+    MYSQL mDb;
+    bool isDbOk;    //mDb ok or not
 };
 
 class FileMgr
