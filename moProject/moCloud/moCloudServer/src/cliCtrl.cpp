@@ -1041,13 +1041,13 @@ int CliCtrl::sendRespBody(const MOCLOUD_CTRL_RESPONSE & resp, char * pRespBody)
     int ret = 0;
     if(resp.cmdId == MOCLOUD_CMDID_GETFILELIST)
     {
-        ret = sendFilelistBody(resp.addInfo.cInfo[0], pRespBody, resp.bodyLen);
+        ret = sendFilelistBody(pRespBody, resp.bodyLen);
     }
 
     return ret;
 }
 
-int CliCtrl::sendFilelistBody(const int filetype, char * pRespBody, int bodyLen)
+int CliCtrl::sendFilelistBody(char * pRespBody, int bodyLen)
 {
     int writeLen = writen(mCtrlSockId, pRespBody, bodyLen);
     if(writeLen != bodyLen)

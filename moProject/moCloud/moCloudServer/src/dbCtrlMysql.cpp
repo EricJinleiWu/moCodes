@@ -51,8 +51,8 @@ DbCtrlMysql::DbCtrlMysql() : DbCtrl(), mDbName(MYSQL_DBNAME),
     char createCmd[SQL_CMD_MAXLEN] = {0x00};
     snprintf(createCmd, SQL_CMD_MAXLEN, 
         "create table if not exists %s(%s char(32),%s char(32), %s int not null, %s bigint, %s bigint);",
-        USERINFO_TABLE_USERNAME, USERINFO_TABLE_PASSWORD, USERINFO_TABLE_ROLE, USERINFO_TABLE_LASTLOGINTIME,
-        USERINFO_TABLE_SIGNUPTIME);
+        mUserinfoTableName.c_str(), USERINFO_TABLE_USERNAME, USERINFO_TABLE_PASSWORD, 
+        USERINFO_TABLE_ROLE, USERINFO_TABLE_LASTLOGINTIME, USERINFO_TABLE_SIGNUPTIME);
     createCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     printf("create userinfo table cmd is [%s]\n", createCmd);
     int ret = mysql_query(&mDb, createCmd);
@@ -455,7 +455,7 @@ int DbCtrlMysql::getFilelist(const int filetype, list<DB_FILEINFO> & filelist)
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Db init failed! cannot do anything!\n");
         return -1;
     }
-#if 0
+
     if(filetype & MOCLOUD_FILETYPE_VIDEO == 0 && 
         filetype & MOCLOUD_FILETYPE_AUDIO == 0 && 
         filetype & MOCLOUD_FILETYPE_PIC == 0 && 
@@ -466,6 +466,8 @@ int DbCtrlMysql::getFilelist(const int filetype, list<DB_FILEINFO> & filelist)
         return MOCLOUD_GETFILELIST_ERR_TYPE_INVALID;
     }
 
+    filelist.clear();
+
     char selectCmd[SQL_CMD_MAXLEN] = {0x00};
     snprintf(selectCmd, SQL_CMD_MAXLEN, "select * from %s where %s in (%d, %d, %d, %d);",
         mFileinfoTableName.c_str(), FILEINFO_TABLE_FILETYPE,
@@ -473,18 +475,46 @@ int DbCtrlMysql::getFilelist(const int filetype, list<DB_FILEINFO> & filelist)
         filetype & MOCLOUD_FILETYPE_PIC, filetype & MOCLOUD_FILETYPE_OTHERS);
     selectCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "selectCmd=[%s]\n", selectCmd);
-    char *errmsg = NULL;
-    int ret = mysql_query(&mDb, selectCmd, getFilelistListCallback, &filelist, &errmsg);
+    int ret = mysql_query(&mDb, selectCmd);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "sqlite3_exec failed! ret=%d, errmsg=[%s]\n",
-            ret, errmsg);
-        sqlite3_free(errmsg);
-        errmsg = NULL;
+            "sqlite3_exec failed! ret=%d, cmd=[%s], errno=%d, errmsg=[%s]\n",
+            ret, selectCmd, mysql_errno(&mDb), mysql_error(&mDb));
         return MOCLOUD_GETFILELIST_ERR_OTHERS;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "select filelist succeed.\n");
+
+    MYSQL_RES * pRes = mysql_use_result(&mDb);
+    if(NULL == pRes)
+    {
+        moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, "Donot find any file with cmd [%s]\n", selectCmd);
+        return MOCLOUD_GETFILELIST_ERR_OK;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "mysql_use_result succeed.\n");
+
+    MYSQL_ROW row;
+    DB_FILEINFO curDbFileinfo;
+    while(NULL != (row = mysql_fetch_row(pRes)))
+    {
+        memset(&curDbFileinfo, 0x00, sizeof(DB_FILEINFO));
+        curDbFileinfo.isInited = atoi(row[0]) == 0 ? false : true;
+        curDbFileinfo.basicInfo.key.filetype = MOCLOUD_FILETYPE(atoi(row[1]));
+        strncpy(curDbFileinfo.basicInfo.key.filename, row[2], MOCLOUD_FILENAME_MAXLEN);
+        curDbFileinfo.basicInfo.key.filename[MOCLOUD_FILENAME_MAXLEN - 1] = 0x00;
+        curDbFileinfo.basicInfo.filesize = atol(row[3]);
+        strncpy(curDbFileinfo.basicInfo.ownerName, row[4], MOCLOUD_USERNAME_MAXLEN);
+        curDbFileinfo.basicInfo.ownerName[MOCLOUD_USERNAME_MAXLEN - 1] = 0x00;
+        curDbFileinfo.basicInfo.state = MOCLOUD_FILE_STATE(atoi(row[5]));
+        curDbFileinfo.readHdr = atoi(row[6]);
+        curDbFileinfo.readerNum = atoi(row[7]);
+        curDbFileinfo.writeHdr = atoi(row[8]);
+
+        filelist.push_back(curDbFileinfo);
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "filelist being set.\n");
+    mysql_free_result(pRes);
+    pRes = NULL;
 
 #if 0
     //just for debug
@@ -496,9 +526,7 @@ int DbCtrlMysql::getFilelist(const int filetype, list<DB_FILEINFO> & filelist)
             iter->basicInfo.ownerName);
     }
 #endif
-    sqlite3_free(errmsg);
-    errmsg = NULL;    
-#endif
+
     return MOCLOUD_GETFILELIST_ERR_OK;
 }
 
@@ -510,7 +538,7 @@ int DbCtrlMysql::getFilelist(const int filetype,
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Db init failed! cannot do anything!\n");
         return -1;
     }
-#if 0
+
     if(filetype & MOCLOUD_FILETYPE_VIDEO == 0 && 
         filetype & MOCLOUD_FILETYPE_AUDIO == 0 && 
         filetype & MOCLOUD_FILETYPE_PIC == 0 && 
@@ -521,6 +549,8 @@ int DbCtrlMysql::getFilelist(const int filetype,
         return MOCLOUD_GETFILELIST_ERR_TYPE_INVALID;
     }
 
+    filelistMap.clear();
+
     char selectCmd[SQL_CMD_MAXLEN] = {0x00};
     snprintf(selectCmd, SQL_CMD_MAXLEN, "select * from %s where %s in (%d, %d, %d, %d);",
         mFileinfoTableName.c_str(), FILEINFO_TABLE_FILETYPE, 
@@ -528,21 +558,56 @@ int DbCtrlMysql::getFilelist(const int filetype,
         filetype & MOCLOUD_FILETYPE_PIC, filetype & MOCLOUD_FILETYPE_OTHERS);
     selectCmd[SQL_CMD_MAXLEN] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "selectCmd=[%s]\n", selectCmd);
-    char *errmsg = NULL;
-    int ret = mysql_query(&mDb, selectCmd, getFilelistMapCallback, &filelistMap, &errmsg);
+    int ret = mysql_query(&mDb, selectCmd);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "sqlite3_exec failed! ret=%d, errmsg=[%s]\n",
-            ret, errmsg);
-        sqlite3_free(errmsg);
-        errmsg = NULL;
+            "sqlite3_exec failed! ret=%d, cmd=[%s], errno=%d, errmsg=[%s]\n",
+            ret, selectCmd, mysql_errno(&mDb), mysql_error(&mDb));
         return MOCLOUD_GETFILELIST_ERR_OTHERS;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "select filelist succeed.\n");
 
-    sqlite3_free(errmsg);
-    errmsg = NULL;    
+    MYSQL_RES * pRes = mysql_use_result(&mDb);
+    if(NULL == pRes)
+    {
+        moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, "Donot find any file with cmd [%s]\n", selectCmd);
+        return MOCLOUD_GETFILELIST_ERR_OK;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "mysql_use_result succeed.\n");
+
+    MYSQL_ROW row;
+    DB_FILEINFO curDbFileinfo;
+    while(NULL != (row = mysql_fetch_row(pRes)))
+    {
+        memset(&curDbFileinfo, 0x00, sizeof(DB_FILEINFO));
+        curDbFileinfo.isInited = atoi(row[0]) == 0 ? false : true;
+        curDbFileinfo.basicInfo.key.filetype = MOCLOUD_FILETYPE(atoi(row[1]));
+        strncpy(curDbFileinfo.basicInfo.key.filename, row[2], MOCLOUD_FILENAME_MAXLEN);
+        curDbFileinfo.basicInfo.key.filename[MOCLOUD_FILENAME_MAXLEN - 1] = 0x00;
+        curDbFileinfo.basicInfo.filesize = atol(row[3]);
+        strncpy(curDbFileinfo.basicInfo.ownerName, row[4], MOCLOUD_USERNAME_MAXLEN);
+        curDbFileinfo.basicInfo.ownerName[MOCLOUD_USERNAME_MAXLEN - 1] = 0x00;
+        curDbFileinfo.basicInfo.state = MOCLOUD_FILE_STATE(atoi(row[5]));
+        curDbFileinfo.readHdr = atoi(row[6]);
+        curDbFileinfo.readerNum = atoi(row[7]);
+        curDbFileinfo.writeHdr = atoi(row[8]);
+
+        for(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> >::iterator it = filelistMap.begin();
+            it != filelistMap.end(); it++)
+        {
+            if(curDbFileinfo.basicInfo.key.filetype == it->first)
+            {
+                list<DB_FILEINFO> & curList = it->second;
+                curList.push_back(curDbFileinfo);
+                break;
+            }
+        }
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "filelistMap being set.\n");
+    mysql_free_result(pRes);
+    pRes = NULL;
+    
 #if 0
     //just for debug
     for(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> >::iterator it = filelistMap.begin(); it != filelistMap.end(); it++)
@@ -556,7 +621,7 @@ int DbCtrlMysql::getFilelist(const int filetype,
         }
     }
 #endif
-#endif
+
     return MOCLOUD_GETFILELIST_ERR_OK;
 }
 
@@ -567,29 +632,44 @@ bool DbCtrlMysql::isUserExist(const string & username)
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Db init failed! cannot do anything!\n");
         return -1;
     }
-#if 0
+    
     char selectCmd[SQL_CMD_MAXLEN] = {0x00};
     snprintf(selectCmd, SQL_CMD_MAXLEN, "select count(*) from %s where %s=\"%s\";",
         mUserinfoTableName.c_str(), USERINFO_TABLE_USERNAME, username.c_str());
     selectCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "selectCmd=[%s]\n", selectCmd);
-    int isExist = 0;
-    char *errmsg = NULL;
-    int ret = mysql_query(&mDb, selectCmd, isExistCallback, &isExist, &errmsg);
-    if(ret != SQLITE_OK)
+    int ret = mysql_query(&mDb, selectCmd);
+    if(ret != 0)
     {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "sqlite3_exec failed! ret=%d, errmsg=[%s]\n", ret, errmsg);
-        sqlite3_free(errmsg);
-        errmsg = NULL;
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "sqlite3_exec failed! ret=%d, errno=%d, errmsg=[%s]\n", 
+            ret, mysql_errno(&mDb), mysql_error(&mDb));
         return false;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "sqlite3_exec succeed, isExist=%d.\n", isExist);
-    sqlite3_free(errmsg);
-    errmsg = NULL;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "select succeed.\n");
 
+    MYSQL_RES * pRes = mysql_store_result(&mDb);
+    if(NULL == pRes)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "pRes=NULL. errno=%d, errmsg=[%s]\n", mysql_errno(&mDb), mysql_error(&mDb));
+        return false;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "get result succeed.\n");
+
+    int rowNum = mysql_num_rows(pRes);
+    if(rowNum != 1)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "rowNum=%d!\n", rowNum);
+        mysql_free_result(pRes);
+        return false;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "rowNum==1\n");
+
+    MYSQL_ROW row = mysql_fetch_row(pRes);
+    int isExist = atoi(row[0]);
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "isExist=%d.\n", isExist);
     return isExist == 0 ? false : true;
-#endif
-    return true;
 }
 
 bool DbCtrlMysql::isFileExist(const MOCLOUD_FILEINFO_KEY & key)
@@ -599,30 +679,45 @@ bool DbCtrlMysql::isFileExist(const MOCLOUD_FILEINFO_KEY & key)
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Db init failed! cannot do anything!\n");
         return -1;
     }
-#if 0
+    
     char selectCmd[SQL_CMD_MAXLEN] = {0x00};
     snprintf(selectCmd, SQL_CMD_MAXLEN, "select count(*) from %s where %s=%d and %s=\"%s\";",
         mFileinfoTableName.c_str(), FILEINFO_TABLE_FILETYPE, key.filetype, 
         FILEINFO_TABLE_FILENAME, key.filename);
     selectCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "selectCmd=[%s]\n", selectCmd);
-    int isExist = 0;
-    char *errmsg = NULL;
-    int ret = mysql_query(&mDb, selectCmd, isExistCallback, &isExist, &errmsg);
-    if(ret != SQLITE_OK)
+    int ret = mysql_query(&mDb, selectCmd);
+    if(ret != 0)
     {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "sqlite3_exec failed! ret=%d, errmsg=[%s]\n", ret, errmsg);
-        sqlite3_free(errmsg);
-        errmsg = NULL;
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "sqlite3_exec failed! ret=%d, errno=%d, errmsg=[%s]\n", 
+            ret, mysql_errno(&mDb), mysql_error(&mDb));
         return false;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "sqlite3_exec succeed, isExist=%d.\n", isExist);
-    sqlite3_free(errmsg);
-    errmsg = NULL;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "select succeed.\n");
 
+    MYSQL_RES * pRes = mysql_store_result(&mDb);
+    if(NULL == pRes)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "pRes=NULL. errno=%d, errmsg=[%s]\n", mysql_errno(&mDb), mysql_error(&mDb));
+        return false;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "get result succeed.\n");
+
+    int rowNum = mysql_num_rows(pRes);
+    if(rowNum != 1)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "rowNum=%d!\n", rowNum);
+        mysql_free_result(pRes);
+        return false;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "rowNum==1\n");
+
+    MYSQL_ROW row = mysql_fetch_row(pRes);
+    int isExist = atoi(row[0]);
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "isExist=%d.\n", isExist);
     return isExist == 0 ? false : true;
-#endif
-    return true;
 }
 
 /*
@@ -638,23 +733,19 @@ int DbCtrlMysql::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & fil
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Db init failed! cannot do anything!\n");
         return -1;
     }
-#if 0
+
     string cmd = "update ";
     cmd += mFileinfoTableName;
     cmd += " set isInited = 0;";
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "cmd=[%s]\n", cmd.c_str());
-    char *errmsg = NULL;
-    int ret = mysql_query(&mDb, cmd.c_str(), NULL, NULL, &errmsg);
+    int ret = mysql_query(&mDb, cmd.c_str());
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "sqlite3_exec failed! ret=%d, errmsg=[%s]\n",
-            ret, errmsg);
-        sqlite3_free(errmsg);
-        errmsg = NULL;
-        return -1;
+            "update failed! ret=%d, errmsg=[%s]\n", ret, mysql_error(&mDb));
+        return -2;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "sqlite_exec succeed.\n");
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "update succeed.\n");
 
     for(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> >::iterator it = filelistMap.begin(); it != filelistMap.end(); it++)
     {
@@ -681,15 +772,13 @@ int DbCtrlMysql::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & fil
                     iter->basicInfo.state, 0, -1, 0);
                 insertCmd[SQL_CMD_MAXLEN - 1] = 0x00;
                 moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "insertCmd=[%s]\n", insertCmd);
-                ret = mysql_query(&mDb, insertCmd, NULL, NULL, &errmsg);
-                if(ret != SQLITE_OK)
+                ret = mysql_query(&mDb, insertCmd);
+                if(ret != 0)
                 {
                     moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
                         "insert failed! ret=%d, errmsg=[%s], cmd=[%s]\n",
-                        ret, errmsg, insertCmd);
-                    sqlite3_free(errmsg);
-                    errmsg = NULL;
-                    return -2;
+                        ret, mysql_error(&mDb), insertCmd);
+                    return -3;
                 }
                 moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "insert succeed.\n");
             }
@@ -704,15 +793,13 @@ int DbCtrlMysql::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & fil
                     FILEINFO_TABLE_FILENAME, iter->basicInfo.key.filename);
                 updateCmd[SQL_CMD_MAXLEN - 1] = 0x00;
                 moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "updateCmd=[%s]\n", updateCmd);
-                ret = mysql_query(&mDb, updateCmd, NULL, NULL, &errmsg);
-                if(ret != SQLITE_OK)
+                ret = mysql_query(&mDb, updateCmd);
+                if(ret != 0)
                 {
                     moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
                         "update failed! ret=%d, errmsg=[%s], cmd=[%s]\n",
-                        ret, errmsg, updateCmd);
-                    sqlite3_free(errmsg);
-                    errmsg = NULL;
-                    return -3;
+                        ret, mysql_error(&mDb), updateCmd);
+                    return -4;
                 }
             }
         }
@@ -724,19 +811,15 @@ int DbCtrlMysql::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & fil
         mFileinfoTableName.c_str(), FILEINFO_TABLE_ISINITED, 0);    
     deleteCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "deleteCmd=[%s]\n", deleteCmd);
-    ret = mysql_query(&mDb, deleteCmd, NULL, NULL, &errmsg);
-    if(ret != SQLITE_OK)
+    ret = mysql_query(&mDb, deleteCmd);
+    if(ret != 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "update failed! ret=%d, errmsg=[%s], cmd=[%s]\n",
-            ret, errmsg, deleteCmd);
-        sqlite3_free(errmsg);
-        errmsg = NULL;
-        return -4;
+            ret, mysql_error(&mDb), deleteCmd);
+        return -5;
     }
 
-    sqlite3_free(errmsg);
-#endif
     return 0;
 }
 
@@ -747,7 +830,7 @@ int DbCtrlMysql::userLogin(const string & username, const string & passwd)
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Db init failed! cannot do anything!\n");
         return -1;
     }
-#if 0
+    
     if(username.length() > MOCLOUD_USERNAME_MAXLEN || passwd.length() > MOCLOUD_PASSWD_MAXLEN ||
         passwd.length() < MOCLOUD_PASSWD_MINLEN)
     {
@@ -774,19 +857,42 @@ int DbCtrlMysql::userLogin(const string & username, const string & passwd)
         USERINFO_TABLE_USERNAME, username.c_str());
     selectPasswdCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "selectPasswdCmd=[%s]\n", selectPasswdCmd);
-    char passwdDb[MOCLOUD_PASSWD_MAXLEN] = {0x00};
-    char * errmsg = NULL;
-    int ret = mysql_query(&mDb, selectPasswdCmd, getPasswdCallback, passwdDb, &errmsg);
+    int ret = mysql_query(&mDb, selectPasswdCmd);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "sqlite3_exec failed! ret=%d, errmsg=[%s]\n",
-            ret, errmsg);
-        sqlite3_free(errmsg);
-        errmsg = NULL;
+            "select failed! ret=%d, cmd=[%s], errno=%d, errmsg=[%s]\n",
+            ret, selectPasswdCmd, mysql_errno(&mDb), mysql_error(&mDb));
         return MOCLOUD_LOGIN_RET_OTHERS;
     }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "select succeed.\n");
+
+    MYSQL_RES * pRes = mysql_store_result(&mDb);
+    if(NULL == pRes)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "pRes == NULL, errno=%d, error=[%s]\n",
+            mysql_errno(&mDb), mysql_error(&mDb));
+        return MOCLOUD_LOGIN_RET_OTHERS;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Get result succeed.\n");
+
+    int rowNum = mysql_num_rows(pRes);
+    if(rowNum != 1)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "rowNum=%d, invalid!\n", rowNum);
+        mysql_free_result(pRes);
+        pRes = NULL;
+        return MOCLOUD_LOGIN_RET_OTHERS;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "rowNum==1\n");
+
+    MYSQL_ROW row = mysql_fetch_row(pRes);
+    char passwdDb[MOCLOUD_PASSWD_MAXLEN] = {0x00};
+    strncpy(passwdDb, row[0], MOCLOUD_PASSWD_MAXLEN);
+    passwdDb[MOCLOUD_PASSWD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "passwdDb=[%s]\n", passwdDb);
+    mysql_free_result(pRes);
+    pRes = NULL;
 
     //check passwdDb and @passwd equal or not
     if(passwd != passwdDb)
@@ -794,8 +900,6 @@ int DbCtrlMysql::userLogin(const string & username, const string & passwd)
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "input passwd=[%s], passwdInDb=[%s], donot equal! login failed!\n",
             passwd.c_str(), passwdDb);
-        sqlite3_free(errmsg);
-        errmsg = NULL;
         return MOCLOUD_LOGIN_RET_PASSWD_WRONG;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "passwd check ok.\n");
@@ -807,21 +911,16 @@ int DbCtrlMysql::userLogin(const string & username, const string & passwd)
         USERINFO_TABLE_USERNAME, username.c_str());
     updateCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "updateCmd=[%s]\n", updateCmd);
-    ret = mysql_query(&mDb, updateCmd, NULL, NULL, &errmsg);
+    ret = mysql_query(&mDb, updateCmd);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "sqlite3_exec failed! ret=%d, errmsg=[%s]\n",
-            ret, errmsg);
-        sqlite3_free(errmsg);
-        errmsg = NULL;
+            "update failed! ret=%d, cmd=[%s], errno=%d, errmsg=[%s]\n",
+            ret, updateCmd, mysql_errno(&mDb), mysql_error(&mDb));
         return MOCLOUD_LOGIN_RET_OTHERS;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Update last login time succeed.\n");
     
-    sqlite3_free(errmsg);
-    errmsg = NULL;
-#endif
     return MOCLOUD_LOGIN_RET_OK;
 }
 
@@ -832,7 +931,7 @@ int DbCtrlMysql::userLogout(const string & username)
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Db init failed! cannot do anything!\n");
         return -1;
     }
-#if 0
+
     if(username.length() > MOCLOUD_USERNAME_MAXLEN)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -848,7 +947,7 @@ int DbCtrlMysql::userLogout(const string & username)
         return MOCLOUD_LOGIN_RET_USERNAME_DONOT_EXIST;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "username=[%s], exist.\n", username.c_str());
-#endif
+
     return 0;
 }
 

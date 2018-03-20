@@ -31,6 +31,7 @@ using namespace std;
 
 static int isExistCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
+    n_columns = n_columns;
     int * isExist = (int *)data;
     if(column_value[0])
     {
@@ -44,6 +45,7 @@ static int isExistCallback(void *data, int n_columns, char **column_value, char 
 
 static int getPasswdCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
+    n_columns = n_columns;
     char * passwd = (char *)data;
     if(column_value[0])
     {
@@ -59,6 +61,7 @@ static int getPasswdCallback(void *data, int n_columns, char **column_value, cha
 
 static int getFileinfoCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
+    n_columns = n_columns;
     DB_FILEINFO * pDbFileinfo = (DB_FILEINFO *)data;
      
     int isInited = atoi(column_value[0]);
@@ -85,6 +88,7 @@ static int getFileinfoCallback(void *data, int n_columns, char **column_value, c
 
 static int getUserinfoCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
+    n_columns = n_columns;
     DB_USERINFO * pDbUserinfo = (DB_USERINFO *)data;
 
     pDbUserinfo->username = column_value[0];
@@ -98,6 +102,7 @@ static int getUserinfoCallback(void *data, int n_columns, char **column_value, c
 
 static int getFilelistListCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
+    n_columns = n_columns;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "n_columns=%d\n", n_columns);
     
     list<DB_FILEINFO> * curList = (list<DB_FILEINFO> *)data;
@@ -129,6 +134,7 @@ static int getFilelistListCallback(void *data, int n_columns, char **column_valu
 
 static int getFilelistMapCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
+    n_columns = n_columns;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "n_columns=%d\n", n_columns);
     
     map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > * curMap = (map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > *)data;

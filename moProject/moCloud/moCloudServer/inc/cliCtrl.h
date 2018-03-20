@@ -102,7 +102,7 @@ private:
     virtual int getUserPasswd(const char * pBody, string & username, string & passwd);
     virtual int genResp(const int ret, const MOCLOUD_CMDID cmdId, MOCLOUD_CTRL_RESPONSE & resp);
     virtual int sendRespBody(const MOCLOUD_CTRL_RESPONSE & resp, char * pRespBody);
-    virtual int sendFilelistBody(const int filetype, char * pRespBody, int bodyLen);
+    virtual int sendFilelistBody(char * pRespBody, int bodyLen);
 
 private:
     CLI_STATE mState;
