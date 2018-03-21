@@ -19,7 +19,7 @@ using namespace std;
 #define SUBDIR_PIC    "/Picture"
 #define SUBDIR_OTHER    "/Other"
 
-static USED_DB_TYPE gDbType = USED_DB_TYPE_SQLITE;
+static USED_DB_TYPE gDbType = USED_DB_TYPE_MYSQL;
 
 FileMgr::FileMgr() : mDirpath("")
 {

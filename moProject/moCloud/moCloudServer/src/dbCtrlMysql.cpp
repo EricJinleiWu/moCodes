@@ -38,7 +38,7 @@ DbCtrlMysql::DbCtrlMysql() : DbCtrl(), mDbName(MYSQL_DBNAME),
     mysql_library_init(0, NULL, NULL);
     mysql_init(&mDb);
     
-    if(mysql_real_connect(&mDb, "localhost", "root", "", MYSQL_DBNAME, 0, NULL, CLIENT_FOUND_ROWS))
+    if(!mysql_real_connect(&mDb, "localhost", "root", "", MYSQL_DBNAME, 0, NULL, CLIENT_FOUND_ROWS))
     {
         printf("mysql_real_connect failed! errno=%d, errmsg=[%s]\n",
             mysql_errno(&mDb), mysql_error(&mDb));
@@ -46,6 +46,7 @@ DbCtrlMysql::DbCtrlMysql() : DbCtrl(), mDbName(MYSQL_DBNAME),
         mysql_library_end();
         return ;
     }
+    printf("connect to mysql succeed.\n");
 
     //create userinfo table if not exist
     char createCmd[SQL_CMD_MAXLEN] = {0x00};
@@ -58,7 +59,7 @@ DbCtrlMysql::DbCtrlMysql() : DbCtrl(), mDbName(MYSQL_DBNAME),
     int ret = mysql_query(&mDb, createCmd);
     if(ret != 0)
     {
-        printf("mysql_real_connect failed! ret=%d, errno=%d, errmsg=[%s]\n",
+        printf("create userinfo table failed! ret=%d, errno=%d, errmsg=[%s]\n",
             ret, mysql_errno(&mDb), mysql_error(&mDb));
         mysql_close(&mDb);
         mysql_library_end();
@@ -69,16 +70,16 @@ DbCtrlMysql::DbCtrlMysql() : DbCtrl(), mDbName(MYSQL_DBNAME),
     //create fileinfo table if not exist
     memset(createCmd, 0x00, SQL_CMD_MAXLEN);
     snprintf(createCmd, SQL_CMD_MAXLEN, 
-        "create table if not exists %s(%s int, %s int, %s char(256), %s bigint, %s char(32), %s int, %s int, %s int, %s int);",
+        "create table if not exists %s(%s int, %s int, %s text, %s bigint, %s char(32), %s int, %s int, %s int, %s int);",
         mFileinfoTableName.c_str(), FILEINFO_TABLE_ISINITED, FILEINFO_TABLE_FILETYPE, FILEINFO_TABLE_FILENAME,
         FILEINFO_TABLE_FILESIZE, FILEINFO_TABLE_OWNER, FILEINFO_TABLE_STATE, FILEINFO_TABLE_READHDR,
         FILEINFO_TABLE_READNUM, FILEINFO_TABLE_WRITEHDR);
     createCmd[SQL_CMD_MAXLEN - 1] = 0x00;
-    printf("create userinfo table cmd is [%s]\n", createCmd);
+    printf("create flieinfo table cmd is [%s]\n", createCmd);
     ret = mysql_query(&mDb, createCmd);
     if(ret != 0)
     {
-        printf("mysql_real_connect failed! ret=%d, errno=%d, errmsg=[%s]\n",
+        printf("create fileinfo table failed! ret=%d, errno=%d, errmsg=[%s]\n",
             ret, mysql_errno(&mDb), mysql_error(&mDb));
         mysql_close(&mDb);
         mysql_library_end();
