@@ -121,7 +121,7 @@ typedef enum
     MOCLOUD_FILE_STATE_NORMAL,  //Normal state, can read, download, play;
     MOCLOUD_FILE_STATE_UPLOADING,   //uploading by someone, cannot do any operations;
     MOCLOUD_FILE_STATE_DELETING,    //deleting by admin, file cannot do any operations;
-    MOCLOUD_FILE_STATE_DOWNLOADING, //someones downloading it;
+//    MOCLOUD_FILE_STATE_DOWNLOADING, //someones downloading it;
     MOCLOUD_FILE_STATE_MAX
 }MOCLOUD_FILE_STATE;
 

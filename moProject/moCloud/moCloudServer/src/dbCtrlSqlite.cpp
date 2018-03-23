@@ -11,24 +11,6 @@ using namespace std;
 #include "moLogger.h"
 #include "moCloudUtilsTypes.h"
 
-#define USERINFO_TABLE_USERNAME "username"
-#define USERINFO_TABLE_PASSWORD "password"
-#define USERINFO_TABLE_ROLE "role"
-#define USERINFO_TABLE_LASTLOGINTIME "lastLoginTime"
-#define USERINFO_TABLE_SIGNUPTIME "signUpTime"
-
-#define FILEINFO_TABLE_ISINITED "isInited"
-#define FILEINFO_TABLE_FILETYPE "filetype"
-#define FILEINFO_TABLE_FILENAME "filename"
-#define FILEINFO_TABLE_FILESIZE "filesize"
-#define FILEINFO_TABLE_OWNER "owner"
-#define FILEINFO_TABLE_STATE "state"
-#define FILEINFO_TABLE_READHDR "readHdr"
-#define FILEINFO_TABLE_READNUM "readNum"
-#define FILEINFO_TABLE_WRITEHDR "writeHdr"
-
-#define SQL_CMD_MAXLEN  256
-
 static int isExistCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
     n_columns = n_columns;

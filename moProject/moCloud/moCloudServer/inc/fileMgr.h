@@ -16,6 +16,26 @@ using namespace std;
 #define USERINFO_TABLENAME  "UserinfoTable"
 #define FILEINFO_TABLENAME  "FileinfoTable"
 
+
+#define USERINFO_TABLE_USERNAME "username"
+#define USERINFO_TABLE_PASSWORD "password"
+#define USERINFO_TABLE_ROLE "role"
+#define USERINFO_TABLE_LASTLOGINTIME "lastLoginTime"
+#define USERINFO_TABLE_SIGNUPTIME "signUpTime"
+
+#define FILEINFO_TABLE_ISINITED "isInited"
+#define FILEINFO_TABLE_FILETYPE "filetype"
+#define FILEINFO_TABLE_FILENAME "filename"
+#define FILEINFO_TABLE_FILESIZE "filesize"
+#define FILEINFO_TABLE_OWNER "owner"
+#define FILEINFO_TABLE_STATE "state"
+#define FILEINFO_TABLE_READHDR "readHdr"
+#define FILEINFO_TABLE_READNUM "readNum"
+#define FILEINFO_TABLE_WRITEHDR "writeHdr"
+
+
+#define SQL_CMD_MAXLEN  256
+
 typedef enum
 {
     DB_USER_ROLE_ORDINARY,
@@ -198,9 +218,14 @@ public:
 
 public:
     virtual int refreshFileinfoTable();
-    
-    virtual int readFile(const MOCLOUD_FILEINFO_KEY & key, const size_t & offset,
+
+    /*
+        When want to read file, should open--read...--close;
+    */
+    virtual int openFile(const MOCLOUD_FILEINFO_KEY & key, int & fd);
+    virtual int readFile(int fd, const size_t & offset,
         const size_t length, char * pData);
+    virtual int closeFile(const MOCLOUD_FILEINFO_KEY & key);
 
     //just uploading file will use this function
     virtual int writeFile(const MOCLOUD_FILEINFO_KEY & key, const size_t & offset,
@@ -219,6 +244,13 @@ private:
     virtual bool isRegFile(const char *pDirpath, const char *pSubFileName);
     virtual int getLocalFilelistMap(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
     virtual void dumpFilelistMap(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & filelistMap);
+
+private:
+    virtual bool isFileExist(const MOCLOUD_FILEINFO_KEY & key);
+    virtual int getFileReadHdr(const MOCLOUD_FILEINFO_KEY & key, int & fd, int & readerNum);
+    virtual int getAbsFilepath(const MOCLOUD_FILEINFO_KEY & key, string & absPath);
+    virtual int refreshFileReaderinfo2Db(const MOCLOUD_FILEINFO_KEY & key, int & fd, int & readerNum);
+    
 
 public:
     virtual DbCtrl * getDbCtrlHdl();

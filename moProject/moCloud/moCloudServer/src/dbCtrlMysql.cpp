@@ -11,24 +11,6 @@ using namespace std;
 #include "moLogger.h"
 #include "moCloudUtilsTypes.h"
 
-#define USERINFO_TABLE_USERNAME "username"
-#define USERINFO_TABLE_PASSWORD "password"
-#define USERINFO_TABLE_ROLE "role"
-#define USERINFO_TABLE_LASTLOGINTIME "lastLoginTime"
-#define USERINFO_TABLE_SIGNUPTIME "signUpTime"
-
-#define FILEINFO_TABLE_ISINITED "isInited"
-#define FILEINFO_TABLE_FILETYPE "filetype"
-#define FILEINFO_TABLE_FILENAME "filename"
-#define FILEINFO_TABLE_FILESIZE "filesize"
-#define FILEINFO_TABLE_OWNER "owner"
-#define FILEINFO_TABLE_STATE "state"
-#define FILEINFO_TABLE_READHDR "readHdr"
-#define FILEINFO_TABLE_READNUM "readNum"
-#define FILEINFO_TABLE_WRITEHDR "writeHdr"
-
-#define SQL_CMD_MAXLEN  256
-
 DbCtrlMysql::DbCtrlMysql() : DbCtrl(), mDbName(MYSQL_DBNAME), 
     mUserinfoTableName(USERINFO_TABLENAME),
     mFileinfoTableName(FILEINFO_TABLENAME)
@@ -425,8 +407,8 @@ int DbCtrlMysql::getFileinfo(DB_FILEINFO & info)
     info.readerNum = atoi(row[7]);
     info.writeHdr = atoi(row[8]);
     
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "filetype=%d, filename=[%s], " \
-        "filesize=%ld, ownerName=[%s], state=%d, readerNum=%d, readHdr=%d, writeHdr=%d\n",
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+        "filetype=%d, filename=[%s], filesize=%ld, ownerName=[%s], state=%d, readerNum=%d, readHdr=%d, writeHdr=%d\n",
         info.basicInfo.key.filetype, info.basicInfo.key.filename,
         info.basicInfo.filesize, info.basicInfo.ownerName, info.basicInfo.state,
         info.readerNum, info.readHdr, info.writeHdr);
@@ -444,8 +426,34 @@ int DbCtrlMysql::modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO & 
         return -1;
     }
 
-    //TODO, modify which attribute? should make sure this
-
+    char updateCmd[SQL_CMD_MAXLEN] = {0x00};
+    snprintf(updateCmd, SQL_CMD_MAXLEN, 
+        "update %s set %s=%d, %s=%d, %s=\"%s\", %s=%ld, %s=\"%s\", %s=%d, %s=%d, %s=%d, %s=%d where %s=%d and %s=\"%s\";",
+        mFileinfoTableName.c_str(),
+        FILEINFO_TABLE_ISINITED, info.isInited,
+        FILEINFO_TABLE_FILETYPE, info.basicInfo.key.filetype,
+        FILEINFO_TABLE_FILENAME, info.basicInfo.key.filename, 
+        FILEINFO_TABLE_FILESIZE, info.basicInfo.filesize, 
+        FILEINFO_TABLE_OWNER, info.basicInfo.ownerName, 
+        FILEINFO_TABLE_STATE, info.basicInfo.state, 
+        FILEINFO_TABLE_READHDR, info.readHdr, 
+        FILEINFO_TABLE_READNUM, info.readerNum, 
+        FILEINFO_TABLE_WRITEHDR, info.writeHdr,
+        FILEINFO_TABLE_FILETYPE, key.filetype,
+        FILEINFO_TABLE_FILENAME, key.filename);
+    updateCmd[SQL_CMD_MAXLEN - 1] = 0x00;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "update cmd=[%s]\n", updateCmd);
+    
+    int ret = mysql_query(&mDb, updateCmd);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "update failed! ret=%d, cmd=[%s], errno=%d, desc=[%s]\n",
+            ret, updateCmd, mysql_errno(&mDb), mysql_error(&mDb));
+        return -2;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "update succeed.\n");
+    
     return 0;
 }
 

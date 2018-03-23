@@ -6,6 +6,7 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 
 using namespace std;
 #include <string>
@@ -357,16 +358,334 @@ int FileMgr::refreshFileinfoTable()
     return ret;
 }
 
-int FileMgr::readFile(const MOCLOUD_FILEINFO_KEY & key,const size_t & offset,const size_t length,char * pData)
+bool FileMgr::isFileExist(const MOCLOUD_FILEINFO_KEY & key)
 {
-    //TODO
+    bool ret = false;
+    if(gDbType == USED_DB_TYPE_MYSQL)
+    {
+        DbCtrlMysql * p = dynamic_cast<DbCtrlMysql *>(mpDbCtrl);
+        ret = p->isFileExist(key);
+    }
+    else if(gDbType == USED_DB_TYPE_SQLITE)
+    {
+        DbCtrlSqlite * p = dynamic_cast<DbCtrlSqlite *>(mpDbCtrl);
+        ret = p->isFileExist(key);
+    }
+    else
+    {
+        ret = false;
+    }
+
+    return ret;
+}
+
+/*
+    If file being open yet, just set @fd, and return OK;
+    if donot open, open it!
+*/
+int FileMgr::openFile(const MOCLOUD_FILEINFO_KEY & key, int & fd)
+{
+    //Check file exist or not
+    if(!isFileExist(key))
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "filetype=%d, filename=[%s], donot exist!\n",
+            key.filetype, key.filename);
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Start open file now.\n");
+
+    fd = -1;
+    int readerNum = 0;
+    int ret = getFileReadHdr(key, fd, readerNum);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getFileReadHdr failed! ret=%d\n", ret);
+        return -2;
+    }
+    //fd<0, means this file donot being read by others, should open it firstly.
+    if(fd < 0)
+    {
+        //should open file, and refresh info to database
+        string filepath;
+        ret = getAbsFilepath(key, filepath);
+        if(ret < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "getAbsFilepath failed! ret=%d, filetype=%d, filename=[%s]\n",
+                ret, key.filetype, key.filename);
+            return -3;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "absFilepath=[%s]\n", filepath.c_str());
+        
+        fd = open(filepath.c_str(), O_RDONLY);
+        if(fd < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "open file failed! file=[%s], errno=%d, desc=[%s]\n",
+                filepath.c_str(), errno, strerror(errno));
+            return -4;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "File [%s] open succeed.\n", filepath.c_str());
+        readerNum = 1;
+    }
+    else
+    {
+        readerNum++;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "fd = %d, readerNum=%d\n", fd, readerNum);
+
+    //refresh to database
+    ret = refreshFileReaderinfo2Db(key, fd, readerNum);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "refreshFileReaderinfo2Db failed! ret=%d\n", ret);
+        close(fd);
+        fd = -1;
+        return -5;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "refreshFileReaderinfo2Db succeed.\n");
+
     return 0;
 }
+
+/*
+    1.File exist or not;
+    2.File being read yet or not;
+    3.If needed, open file;
+    4.read, and return;
+
+    return : 
+        0-: failed;
+        0+: the length being read from file;
+*/
+int FileMgr::readFile(int fd, const size_t & offset,const size_t length,char * pData)
+{
+    if(NULL == pData || fd < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is invalid! fd=%d\n", fd);
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "fd=%d\n", fd);
+
+    int ret = lseek(fd, offset, SEEK_SET);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "lseek failed! ret=%d, offset=%ld, errno=%d, desc=[%s]\n",
+            ret, offset, errno, strerror(errno));
+        return -2;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "lseek succeed.\n");
+    
+    int readLen = read(fd, pData, length);
+    if(readLen < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "read failed! ret=%d, errno=%d, desc=[%s]\n",
+            readLen, errno, strerror(errno));
+        return -3;
+    }
+
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "readlen=%d, length=%d\n", readLen, length);
+    return readLen;
+}
+
+/*
+    After read, should close it.
+*/
+int FileMgr::closeFile(const MOCLOUD_FILEINFO_KEY & key)
+{
+    //Check file exist or not
+    if(!isFileExist(key))
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "filetype=%d, filename=[%s], donot exist!\n",
+            key.filetype, key.filename);
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Start read file now.\n");
+
+    int fd = -1;
+    int readerNum = 0;
+    int ret = getFileReadHdr(key, fd, readerNum);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getFileReadHdr failed! ret=%d\n", ret);
+        return -2;
+    }
+    //fd<0, means this file donot being read by others, should open it firstly.
+    if(fd < 0 || readerNum <= 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "File donot open, cannot close it! fd=%d, readerNum=%d\n",
+            fd, readerNum);
+        return -3;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "fd = %d, readerNum=%d\n", fd, readerNum);
+
+    readerNum--;
+    if(readerNum == 0)
+    {
+        //This file donot being read by anyone, should close it.
+        close(fd);
+        fd = -1;
+    }
+    
+    //refresh file reader info in database
+    ret = refreshFileReaderinfo2Db(key, fd, readerNum);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "refreshFileReaderinfo2Db failed! ret=%d\n", ret);
+        return -4;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "refreshFileReaderinfo2Db succeed.\n");
+
+    return 0;
+}
+
+int FileMgr::getFileReadHdr(const MOCLOUD_FILEINFO_KEY & key, int & fd, int & readerNum)
+{
+    int ret = 0;
+    DB_FILEINFO info;
+    memset(&info, 0x00, sizeof(DB_FILEINFO));
+    memcpy(&info.basicInfo.key, &key, sizeof(MOCLOUD_FILEINFO_KEY));
+    
+    if(gDbType == USED_DB_TYPE_MYSQL)
+    {
+        DbCtrlMysql * p = dynamic_cast<DbCtrlMysql * >(mpDbCtrl);
+        ret = p->getFileinfo(info);
+    }
+    else if(gDbType == USED_DB_TYPE_SQLITE)
+    {
+        DbCtrlSqlite *p = dynamic_cast<DbCtrlSqlite *>(mpDbCtrl);
+        ret = p->getFileinfo(info);
+    }
+    else
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "gDbType=%d, donot support!\n", gDbType);
+        ret = -1;
+    }
+
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getFileinfo failed! ret=%d\n", ret);
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getFileinfo succeed.\n");
+
+    fd = info.readHdr;
+    readerNum = info.readerNum;
+
+    return 0;
+}
+
+int FileMgr::getAbsFilepath(const MOCLOUD_FILEINFO_KEY & key, string & absPath)
+{
+    int ret = 0;
+
+    if(mDirpath[mDirpath.length() - 1] == '/')
+        absPath = mDirpath;
+    else
+        absPath = mDirpath + "/";
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "1, absPath=[%s]\n", absPath.c_str());
+
+    switch(key.filetype)
+    {
+        case MOCLOUD_FILETYPE_VIDEO:
+            absPath += SUBDIR_VIDEO;
+            break;
+        case MOCLOUD_FILETYPE_AUDIO:
+            absPath += SUBDIR_AUDIO;
+            break;
+        case MOCLOUD_FILETYPE_PIC:
+            absPath += SUBDIR_PIC;
+            break;
+        case MOCLOUD_FILETYPE_OTHERS:
+            absPath += SUBDIR_OTHER;
+            break;
+        default:
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "filetype=%d, invalid!\n", key.filetype);
+            ret = -1;
+            break;
+    }
+    if(ret < 0)
+    {
+        return -1;
+    }
+
+    absPath += "/";
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "2, absPath=[%s]\n", absPath.c_str());
+
+    absPath += key.filename;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "3, absPath=[%s]\n", absPath.c_str());
+
+    return 0;
+}
+
+int FileMgr::refreshFileReaderinfo2Db(const MOCLOUD_FILEINFO_KEY & key, int & fd, int & readerNum)   
+{
+    int ret = 0;
+    DB_FILEINFO info;
+    memset(&info, 0x00, sizeof(DB_FILEINFO));
+    memcpy(&info.basicInfo.key, &key, sizeof(DB_FILEINFO));
+    
+    if(gDbType == USED_DB_TYPE_MYSQL)
+    {
+        DbCtrlMysql * p = dynamic_cast<DbCtrlMysql *>(mpDbCtrl);
+        ret = p->getFileinfo(info);
+        if(ret < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getFileinfo failed! ret=%d\n", ret);
+            return -1;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getFileinfo succeed.\n");
+
+        info.readHdr = fd;
+        info.readerNum = readerNum;
+        ret = p->modifyFileinfo(key, info);
+        if(ret < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "modifyFileinfo failed! ret=%d\n", ret);
+            return -2;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "modifyFileinfo succeed.\n");
+    }
+    else if(gDbType == USED_DB_TYPE_SQLITE)
+    {
+        DbCtrlSqlite * p = dynamic_cast<DbCtrlSqlite *>(mpDbCtrl);
+        ret = p->getFileinfo(info);
+        if(ret < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getFileinfo failed! ret=%d\n", ret);
+            return -3;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getFileinfo succeed.\n");
+
+        info.readHdr = fd;
+        info.readerNum = readerNum;
+        ret = p->modifyFileinfo(key, info);
+        if(ret < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "modifyFileinfo failed! ret=%d\n", ret);
+            return -4;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "modifyFileinfo succeed.\n");
+    }
+    else
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "gDbType=%d\n", gDbType);
+        return -5;
+    }
+
+    return 0;
+}
+
 
 int FileMgr::writeFile(const MOCLOUD_FILEINFO_KEY & key, const size_t & offset,
         const size_t length, char * pData)
 {
     //TODO
+
     return 0;
 }
 
