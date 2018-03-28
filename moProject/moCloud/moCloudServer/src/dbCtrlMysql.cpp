@@ -488,7 +488,7 @@ int DbCtrlMysql::getFilelist(const int filetype, list<DB_FILEINFO> & filelist)
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "sqlite3_exec failed! ret=%d, cmd=[%s], errno=%d, errmsg=[%s]\n",
+            "select failed! ret=%d, cmd=[%s], errno=%d, errmsg=[%s]\n",
             ret, selectCmd, mysql_errno(&mDb), mysql_error(&mDb));
         return MOCLOUD_GETFILELIST_ERR_OTHERS;
     }

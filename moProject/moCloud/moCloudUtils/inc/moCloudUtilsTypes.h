@@ -37,6 +37,7 @@ extern "C" {
 #define MOCLOUD_PASSWD_MINLEN   6
 #define MOCLOUD_PASSWD_MAXLEN   16
 
+#define MOCLOUD_DATA_UNIT_LEN   1024    //bytes
 
 /*
     We use a signal to stop our threads;
@@ -262,6 +263,18 @@ typedef struct _MOCLOUD_BASIC_FILEINFO_NODE
     struct _MOCLOUD_BASIC_FILEINFO_NODE * next;
 }MOCLOUD_BASIC_FILEINFO_NODE;
 
+
+/*
+    When download, a header must be used to sign which position of data;
+*/
+typedef struct
+{
+    char mark[MOCLOUD_MARK_MAXLEN]; //MOCLOUD_SERVER
+    int fileId; //use this id, client can assure which file it is, instead of fileKey
+    int unitId; //each time, a Unit being send, its length all the same, to the last unit, has different length;
+    int bodyLen;    //The length, except the last unit, bodyLen is the unitLen
+    unsigned char checkSum;
+}MOCLOUD_DATA_HEADER;
 
 #if 0
 //This will be used when file transmiting, donot being used currently verson;

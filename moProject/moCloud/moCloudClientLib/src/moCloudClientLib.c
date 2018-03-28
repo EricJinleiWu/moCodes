@@ -16,6 +16,8 @@
 #include "moCloudUtilsCheck.h"
 #include "moCloudUtilsCrypt.h"
 #include "moCloudClientLib.h"
+#include "cliUtils.h"
+#include "cliData.h"
 
 /*
     The infomation being read from cfg file;
@@ -80,7 +82,6 @@ const static char RSA_PRIV_KEY[RSA_PRIV_KEYLEN] = {
 #define CFG_ITEM_ATTR_CLI_DATA_PORT     "cliDataPort"
 #define CFG_ITEM_ATTR_CLI_CTRL_PORT     "cliCtrlPort"
 
-#define CONNECT_TIMEOUT 3   //in seconds, when connect to server, this is the timeout value
 #define CTRL_CMD_TIMEOUT    3   //To each ctrl request, timeout in 3 seconds
 
 /*
@@ -214,221 +215,6 @@ static int freeLocalFilelist(const MOCLOUD_FILETYPE type)
     }
 
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Free resource ok.\n");
-    return 0;
-}
-
-/*
-    Read ctrl ip and port from @gCfgInfo;
-    set socket id to @gCtrlSockId;
-    set this socket to non block;
-    bind it to the ctrl port;
-*/
-static int createCtrlSocket()
-{
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
-        "Client ctrl socket being created now, ip=[%s], port=%d\n",
-        gCfgInfo.clientIp, gCfgInfo.clientCtrlPort);
-
-    //1.create socket
-    gCtrlSockId = MOCLOUD_INVALID_SOCKID;
-    gCtrlSockId = socket(AF_INET, SOCK_STREAM, 0);
-    if(gCtrlSockId < 0)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "create socket failed! errno=%d, desc=[%s]\n", errno, strerror(errno));
-        return -1;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "create socket succeed.\n");
-
-    //2.set to reusable and nonblock
-    int ret = setSockReusable(gCtrlSockId);
-    if(ret < 0)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "setSockReusable failed! ret=%d, sockId=%d\n", ret, gCtrlSockId);
-        close(gCtrlSockId);
-        gCtrlSockId = MOCLOUD_INVALID_SOCKID;
-        return -2;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "setSockReusable succeed.\n");
-
-    ret = setSock2NonBlock(gCtrlSockId);
-    if(ret < 0)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "setSock2NonBlock failed! ret=%d, sockId=%d\n", ret, gCtrlSockId);
-        close(gCtrlSockId);
-        gCtrlSockId = MOCLOUD_INVALID_SOCKID;
-        return -3;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "setSock2NonBlock succeed.\n");
-
-    //3.bind to the port being defined
-    struct sockaddr_in cliAddr;
-    memset(&cliAddr, 0x00, sizeof(struct sockaddr_in));
-    cliAddr.sin_family = AF_INET;
-    cliAddr.sin_port = htons(gCfgInfo.clientCtrlPort);
-    cliAddr.sin_addr.s_addr = inet_addr(gCfgInfo.clientIp);
-    ret = bind(gCtrlSockId, (struct sockaddr *)&cliAddr, sizeof(struct sockaddr_in));
-    if(ret != 0)
-    {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "Bind failed! ret=%d, clientCtrlPort=%d, errno=%d, desc=[%s]\n",
-            ret, gCfgInfo.clientCtrlPort, errno, strerror(errno));
-        close(gCtrlSockId);
-        gCtrlSockId = MOCLOUD_INVALID_SOCKID;
-        return -4;
-    }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Bind succeed.\n");
-    
-    return 0;
-}
-
-/*
-    If ctrl socket has valid socket id, should free it;
-*/
-static void destroyCtrlSocket()
-{
-    if(gCtrlSockId != MOCLOUD_INVALID_SOCKID)
-    {
-        close(gCtrlSockId);
-        gCtrlSockId = MOCLOUD_INVALID_SOCKID;
-    }
-}
-
-/*
-    Read data ip and port from @gCfgInfo;
-    set socket id to @gDataSockId;
-*/
-static int createDataSocket()
-{
-    //TODO, stub
-    return 0;
-}
-
-/*
-    If data socket has valid socket id, should free it;
-*/
-static void destroyDataSocket()
-{
-    if(gDataSockId != MOCLOUD_INVALID_SOCKID)
-    {
-        close(gDataSockId);
-        gDataSockId = MOCLOUD_INVALID_SOCKID;
-    }
-}
-
-/*
-    Read server ip and port from @gCfgInfo;
-    connect to server with TCP mode;
-    @sockId is the id of a socket, because we have data socket id and ctrl socket id, 
-        so we should has this param to define them;
-*/
-static int connectToServer(const int sockId)
-{
-    struct sockaddr_in serAddr;
-    memset(&serAddr, 0x00, sizeof(struct sockaddr_in));
-    serAddr.sin_family = AF_INET;
-    serAddr.sin_port = htons(gCfgInfo.serverPort);
-    serAddr.sin_addr.s_addr = inet_addr(gCfgInfo.serverIp);
-    int ret = connect(sockId, (struct sockaddr *)&serAddr, sizeof(struct sockaddr_in));
-    if(0 == ret)
-    {
-        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
-            "Connect to Server succeed, donot waste any time^_^!\n");
-    }
-    else
-    {
-        moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, 
-            "errno=%d, desc=[%s]\n", errno, strerror(errno));
-        if(errno == EINPROGRESS)
-        {
-            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
-                "errno == EINPROGRESS, should check result now.\n");
-            //Do select here.
-            fd_set wFdSet;
-            FD_ZERO(&wFdSet);
-            FD_SET(sockId, &wFdSet);
-            fd_set rFdSet;
-            FD_ZERO(&rFdSet);
-            FD_SET(sockId, &rFdSet);
-            struct timeval timeout;
-            timeout.tv_sec = CONNECT_TIMEOUT;
-            timeout.tv_usec = 0;
-            ret = select(sockId + 1, &rFdSet, &wFdSet, NULL, &timeout);
-            if(ret < 0)
-            {
-                moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-                    "select failed! ret = %d, errno = %d, desc = [%s]\n", 
-                    ret, errno, strerror(errno));
-                return -1;
-            }
-            else if(ret == 0)
-            {
-                moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-                    "select timeout, we think this means connect to server failed!\n");
-                return -2;
-            }
-            else
-            {
-                moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "select ok, check its result now.\n");
-                if(FD_ISSET(sockId, &wFdSet))
-                {
-                    if(FD_ISSET(sockId, &rFdSet))
-                    {
-                        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
-                            "select ok, but wFdSet and rFdSet all being set, we should check!\n");
-                        //check this socket is OK or not.
-                        int err = 0;
-                        socklen_t errLen = sizeof(err);
-                        ret = getsockopt(sockId, SOL_SOCKET, SO_ERROR, &err, &errLen);
-                        if(0 != ret)
-                        {
-                            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-                                "getsockopt failed! ret = %d, errno = %d, desc = [%s]\n", 
-                                ret, errno, strerror(errno));
-                            return -3;
-                        }
-                        else
-                        {
-                            if(err != 0)
-                            {
-                                moLoggerError(MOCLOUD_MODULE_LOGGER_NAME,
-                                    "getsockopt ok, but err=%d, desc=[%s], donot mean OK, just mean some error!\n",
-                                    err, strerror(err));
-                                return -4;
-                            }
-                            else
-                            {
-                                moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME,
-                                    "getsockopt ok, and err = %d, means connect succeed!\n", err);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME,
-                            "select ok, and just wFdSet being set, means connect being OK.\n");
-                    }
-                }
-                else
-                {
-                    //Just this socket being set to wFdSet, if not this socket, error ocurred!
-                    moLoggerError(MOCLOUD_MODULE_LOGGER_NAME,
-                        "select ok, but the fd is not client socket!\n");
-                    return -5;
-                }
-            }
-        }
-        else
-        {
-            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME,
-                "Connect failed! ret = %d, errno = %d, desc = [%s]\n",
-                ret, errno, strerror(errno));
-            return -6;
-        }
-    }
-    
     return 0;
 }
 
@@ -1432,6 +1218,10 @@ static int stopRefreshFilelistThr()
     3.connect to server;
     4.do key agree;
     5.start heartbeat thread;
+
+    6.create data socket;
+    7.connect to server;
+    8.start recvDataThread and writeDataThread;
 */
 int moCloudClient_init(const char * pCfgFilepath)
 {
@@ -1470,7 +1260,7 @@ int moCloudClient_init(const char * pCfgFilepath)
     dumpCfgInfo(gCfgInfo);
 
     //2.create socket, get ip and port from @gCfgInfo, set socketId to @gCtrlSockId;
-    ret = createCtrlSocket();
+    ret = createSocket(gCfgInfo.clientIp, gCfgInfo.clientCtrlPort, &gCtrlSockId);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -1483,12 +1273,12 @@ int moCloudClient_init(const char * pCfgFilepath)
         "create socket succeed, socketId=%d.\n", gCtrlSockId);
 
     //3.connect to server, server info being read from @gCfgInfo
-    ret = connectToServer(gCtrlSockId);
+    ret = connectToServer(gCtrlSockId, gCfgInfo.serverIp, gCfgInfo.serverPort);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "connect to server failed! ret=%d\n", ret);
-        destroyCtrlSocket();
+        destroySocket(gCtrlSockId);
         memset(&gCfgInfo, 0x00, sizeof(CFG_INFO));
         pthread_mutex_unlock(&gMutex);
         return MOCLOUDCLIENT_ERR_CONNECT_SERVER;
@@ -1503,7 +1293,7 @@ int moCloudClient_init(const char * pCfgFilepath)
             "key agree failed! ret=%d\n", ret);
         //Cannot disconnect to server, because we donot have crypt key to do crypt to disconnect request;
         
-        destroyCtrlSocket();
+        destroySocket(gCtrlSockId);
         memset(&gCfgInfo, 0x00, sizeof(CFG_INFO));
         pthread_mutex_unlock(&gMutex);
         return MOCLOUDCLIENT_ERR_KEYAGREE;
@@ -1516,7 +1306,7 @@ int moCloudClient_init(const char * pCfgFilepath)
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "startHeartbeatThr failed! ret=%d\n", ret);
         disConnectToServer();
-        destroyCtrlSocket();
+        destroySocket(gCtrlSockId);
         memset(&gCfgInfo, 0x00, sizeof(CFG_INFO));
         memset(&gCryptInfo, 0x00, sizeof(MOCLOUD_CRYPT_INFO));
         pthread_mutex_unlock(&gMutex);
@@ -1532,7 +1322,7 @@ int moCloudClient_init(const char * pCfgFilepath)
             "startHeartbeatThr failed! ret=%d\n", ret);
         stopRefreshFilelistThr();
         disConnectToServer();
-        destroyCtrlSocket();
+        destroySocket(gCtrlSockId);
         memset(&gCfgInfo, 0x00, sizeof(CFG_INFO));
         memset(&gCryptInfo, 0x00, sizeof(MOCLOUD_CRYPT_INFO));
         pthread_mutex_unlock(&gMutex);
@@ -1540,9 +1330,23 @@ int moCloudClient_init(const char * pCfgFilepath)
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "key agree succeed.\n");
 
-    //6.other operations 
-    gCliState = CLI_STATE_NOT_LOGIN;
+    ret = cliDataInit(gCfgInfo.clientIp, gCfgInfo.clientDataPort, gCfgInfo.serverIp, gCfgInfo.serverPort);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "cliDataInit failed! ret=%d\n", ret);
+        
+        disConnectToServer();
+        stopHeartbeatThr();
+        stopRefreshFilelistThr();
+        destroySocket(&gCtrlSockId);
+        memset(&gCfgInfo, 0x00, sizeof(CFG_INFO));
+        memset(&gCryptInfo, 0x00, sizeof(MOCLOUD_CRYPT_INFO));
+        pthread_mutex_unlock(&gMutex);
+        return MOCLOUDCLIENT_ERR_CLIDATAINIT_FAILED;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "cliDataInit succeed.\n");
 
+    gCliState = CLI_STATE_NOT_LOGIN;
     gIsInited = INIT_STATE_YES;
 
     pthread_mutex_unlock(&gMutex);
@@ -1558,13 +1362,14 @@ int moCloudClient_init(const char * pCfgFilepath)
 */
 void moCloudClient_unInit()
 {
+    cliDataUnInit();
+    
     pthread_mutex_lock(&gMutex);
     
     disConnectToServer();
     stopHeartbeatThr();
     stopRefreshFilelistThr();
-    destroyCtrlSocket();
-    destroyDataSocket();
+    destroySocket(&gCtrlSockId);
     memset(&gCfgInfo, 0x00, sizeof(CFG_INFO));
     memset(&gCryptInfo, 0x00, sizeof(MOCLOUD_CRYPT_INFO));
     gIsInited = INIT_STATE_NO;

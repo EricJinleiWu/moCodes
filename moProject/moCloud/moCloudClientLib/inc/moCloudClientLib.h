@@ -18,6 +18,7 @@ extern "C" {
 #define MOCLOUDCLIENT_ERR_INTERNAL_ERROR            (MOCLOUDCLIENT_ERR_OK - 10)
 #define MOCLOUDCLIENT_ERR_SEND_REQUEST              (MOCLOUDCLIENT_ERR_OK - 11)
 #define MOCLOUDCLIENT_ERR_GETRESP_FAILED            (MOCLOUDCLIENT_ERR_OK - 12)
+#define MOCLOUDCLIENT_ERR_CLIDATAINIT_FAILED        (MOCLOUDCLIENT_ERR_OK - 13)
 
 /*
     Do init to moCloudClient;
@@ -94,11 +95,12 @@ void moCloudClient_freeFilelist(MOCLOUD_BASIC_FILEINFO_NODE * pFilelist);
 int moCloudClient_startUploadFile();
 int moCloudClient_uploadFile();
 int moCloudClient_stopUploadFile();
+#endif
 
 int moCloudClient_startDownloadFile();
 int moCloudClient_downloadFiles();
 int moCloudClient_stopDownloadFile();
-
+#if 0
 int moCloudClient_startPlayFiles();
 int moCloudClient_playFiles();
 int moCloudClient_stopPlayFiles();
