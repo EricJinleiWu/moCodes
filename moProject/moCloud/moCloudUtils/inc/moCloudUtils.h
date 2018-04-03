@@ -58,6 +58,12 @@ int splitInt2Char(const int src, unsigned char dst[4]);
 int mergeChar2Int(const unsigned char src[4], int *dst);
 
 /*
+    Start a thread;
+*/
+int startThread(pthread_t * pThId, pthread_attr_t * attr, 
+    void * (*start_routine)(void *), void * arg);
+
+/*
     Kill the thread with Id @thId;
 */
 int killThread(const pthread_t thId);

@@ -19,6 +19,22 @@ extern "C" {
 #define MOCLOUDCLIENT_ERR_SEND_REQUEST              (MOCLOUDCLIENT_ERR_OK - 11)
 #define MOCLOUDCLIENT_ERR_GETRESP_FAILED            (MOCLOUDCLIENT_ERR_OK - 12)
 #define MOCLOUDCLIENT_ERR_CLIDATAINIT_FAILED        (MOCLOUDCLIENT_ERR_OK - 13)
+#define MOCLOUDCLIENT_ERR_DWLDTASKS_INIT            (MOCLOUDCLIENT_ERR_OK - 14)
+
+typedef struct
+{
+    MOCLOUD_FILEINFO_KEY fileKey;
+    size_t fileLength;
+    char localFilepath[MOCLOUD_FILEPATH_MAXLEN];
+    int unitId;
+    char isDwlding; //1, dwlding now; 0, else;
+}MOCLOUDCLIENT_DWLD_INFO;
+
+typedef struct __MOCLOUDCLIENT_DWLD_INFO_NODE
+{
+    MOCLOUDCLIENT_DWLD_INFO dwldInfo;
+    struct __MOCLOUDCLIENT_DWLD_INFO_NODE * next;
+}MOCLOUDCLIENT_DWLD_INFO_NODE;
 
 /*
     Do init to moCloudClient;
@@ -97,9 +113,20 @@ int moCloudClient_uploadFile();
 int moCloudClient_stopUploadFile();
 #endif
 
+/*
+    Get all uncompleted dwld tasks;
+    return a pointer, which point to a forward list;
+    if return NULL, means donot find uncompleted tasks;
+    must call moCloudClient_freeUncompletedDwldTasks() to free resource!
+*/
+MOCLOUDCLIENT_DWLD_INFO_NODE * moCloudClient_getAllDwldTasks();
+MOCLOUDCLIENT_DWLD_INFO_NODE * moCloudClient_getDwldingTasks();
+void moCloudClient_freeDwldTasks(MOCLOUDCLIENT_DWLD_INFO_NODE * pTasks);
+
 int moCloudClient_startDownloadFile();
-int moCloudClient_downloadFiles();
 int moCloudClient_stopDownloadFile();
+int moCloudClient_pauseDownloadFile();
+
 #if 0
 int moCloudClient_startPlayFiles();
 int moCloudClient_playFiles();

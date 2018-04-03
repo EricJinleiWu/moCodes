@@ -223,8 +223,8 @@ public:
         When want to read file, should open--read...--close;
     */
     virtual int openFile(const MOCLOUD_FILEINFO_KEY & key, int & fd);
-    virtual int readFile(int fd, const size_t & offset,
-        const size_t length, char * pData);
+//    virtual int readFile(int fd, const size_t & offset,
+//        const size_t length, char * pData);
     virtual int closeFile(const MOCLOUD_FILEINFO_KEY & key);
 
     //just uploading file will use this function

@@ -13,6 +13,7 @@
 
 #include "cliUtils.h"
 #include "moCloudUtilsTypes.h"
+#include "moCloudUtils.h"
 
 /*
     create socket;

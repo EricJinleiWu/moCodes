@@ -57,7 +57,7 @@ static int getDataHeader(MOCLOUD_DATA_HEADER * pHeader)
             (unsigned char *)MOCLOUD_MARK_SERVER, strlen(MOCLOUD_MARK_SERVER));
         if(pos < 0)
         {
-            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Donot find MARK(%s), should find it looply.\n");
+            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Donot find MARK(%s), should find it looply.\n", MOCLOUD_MARK_SERVER);
             memmove(pTmp, pTmp + sizeof(MOCLOUD_DATA_HEADER) - strlen(MOCLOUD_MARK_SERVER), strlen(MOCLOUD_MARK_SERVER));
             startPos = strlen(MOCLOUD_MARK_SERVER);
             length = sizeof(MOCLOUD_DATA_HEADER) - strlen(MOCLOUD_MARK_SERVER);
@@ -75,7 +75,7 @@ static int getDataHeader(MOCLOUD_DATA_HEADER * pHeader)
         }
 
         //MARK being find, and at the beginning, should check its checksum
-        if(!moCloudUtilsCheck_checksumCheckValue(pTmp, sizeof(MOCLOUD_DATA_HEADER) - sizeof(unsigned char), tmp.checkSum))
+        if(moCloudUtilsCheck_checksumCheckValue(pTmp, sizeof(MOCLOUD_DATA_HEADER) - sizeof(unsigned char), tmp.checkSum) == 0)
         {
             moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "moCloudUtilsCheck_checksumCheckValue failed!\n");
             memset(pTmp, 0x00, sizeof(MOCLOUD_DATA_HEADER));
@@ -193,6 +193,7 @@ static int saveDataToBuffer(const MOCLOUD_DATA_HEADER * pHeader, const char * pB
 */
 static void * recvDataThr(void * args)
 {
+    args = args;
     sigset_t set;
     int ret = threadRegisterSignal(&set);
     if(ret < 0)
@@ -348,7 +349,7 @@ static int writeFile(const int fileId, const DWLD_UNIT_INFO * pInfo)
             progress = 100;
         }
         moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Progress=%f\n", progress);
-        gDwldFileInfo[fileId].pProgressNotifyFunc(progress);
+        gDwldFileInfo[fileId].pProgressNotifyFunc(fileId, pInfo->unitId);
     }
     
     return 0;
@@ -548,7 +549,7 @@ int cliDataInit(const char * ip, const int port, const char * servIp, const int 
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "connectToServer failed! ret=%d, sockId=%d, servIp=[%s], servPort=%d\n",
             ret, gDataSockId, servIp, servPort);
-        destroySocket(gDataSockId);
+        destroySocket(&gDataSockId);
         return -3;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "connectToServer succeed.\n");
@@ -558,7 +559,7 @@ int cliDataInit(const char * ip, const int port, const char * servIp, const int 
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "startRecvDataThr failed! ret=%d\n", ret);
-        destroySocket(gDataSockId);
+        destroySocket(&gDataSockId);
         return -4;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "startRecvDataThr succeed.\n");
@@ -639,7 +640,7 @@ int cliDataUnInit()
             free(gDwldFileInfo[i].pDwldUnitForwardListHead);
             gDwldFileInfo[i].pDwldUnitForwardListHead = NULL;
         }
-        destroySocket(gDataSockId);
+        destroySocket(&gDataSockId);
         gIsInited = 0;
     }
 
@@ -658,7 +659,7 @@ static int insertFileDwldTask(const int fileId, const MOCLOUD_FILEINFO_KEY key,
         return -1;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
-        "fileId=%d, localpath=[%s], filetype=%d, filename=[%s], filesize=%lu\n",
+        "fileId=%d, localpath=[%s], filetype=%d, filename=[%s], filesize=%d\n",
         fileId, pLocalFilepath, key.filetype, key.filename, filesize);
 
     pthread_mutex_lock(&gDwldFileInfo[fileId].writeFileThrMutex);
@@ -670,7 +671,7 @@ static int insertFileDwldTask(const int fileId, const MOCLOUD_FILEINFO_KEY key,
         fclose(gDwldFileInfo[fileId].fd);
         gDwldFileInfo[fileId].fd = NULL;
     }
-    gDwldFileInfo[fileId].fd = fopen(pLocalFilepath, "rb+");
+    gDwldFileInfo[fileId].fd = fopen(pLocalFilepath, "ab+");
     if(NULL == gDwldFileInfo[fileId].fd)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -694,7 +695,6 @@ static int insertFileDwldTask(const int fileId, const MOCLOUD_FILEINFO_KEY key,
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "startWriteFileThr start succeed.\n");
 
-    gDwldFileInfo[fileId].fileKey;
     memcpy(&gDwldFileInfo[fileId].fileKey, &key, sizeof(MOCLOUD_FILEINFO_KEY));
     gDwldFileInfo[fileId].fileLength = filesize;
     strncpy(gDwldFileInfo[fileId].localFilepath, pLocalFilepath, MOCLOUD_FILEPATH_MAXLEN);
@@ -706,6 +706,7 @@ static int insertFileDwldTask(const int fileId, const MOCLOUD_FILEINFO_KEY key,
     return 0;
 }
 
+#if 0
 /*
     stop thread;
     delete all buffer node;
@@ -739,10 +740,8 @@ static void delFileDwldTask(const int fileId)
     gDwldFileInfo[fileId].isUsing = 0;
     
     pthread_mutex_unlock(&gDwldFileInfo[fileId].writeFileThrMutex);
-    
-    return 0;
 }
-
+#endif
 /*
     Check this file being dwlding or not;
     Get a fileId of this file;
@@ -758,7 +757,7 @@ int cliDataStartDwld(const MOCLOUD_FILEINFO_KEY key, const size_t filesize, cons
         return -1;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
-        "Filetype=%d, filename=[%s], filesize=%lu, localFilepath=[%s]\n",
+        "Filetype=%d, filename=[%s], filesize=%d, localFilepath=[%s]\n",
         key.filetype, key.filename, filesize, pLocalFilepath);
 
     int i = 0;

@@ -16,8 +16,15 @@ extern "C" {
 #define MOCLOUD_MARK_MAXLEN   16
 #define MOCLOUD_MARK_CLIENT   "MOCLOUD_CLIENT"
 #define MOCLOUD_MARK_SERVER   "MOCLOUD_SERVER"
+#define MOCLOUD_MARK_DWLD     "MOCLOUD_DWLD"
 
 #define MOCLOUD_USER_PASSWD_FORMAT  "username=%s, password=%s"
+/*
+    When start dwld, startOffset is meaningly, fileId meaninglessly;
+    When stop dwld, startOffset is meaninglessly, fileId meaningly;
+*/
+#define MOCLOUD_DWLDTASKINFO_MAXLEN (MOCLOUD_FILENAME_MAXLEN + 128)
+#define MOCLOUD_DWLDTASKINFO_FORMAT "filetype=%d, filename=%s, startOffset=%d, fileId=%d"
 
 #define MOCLOUD_HEARTBEAT_INTEVAL     3   //in seconds
 
@@ -164,6 +171,18 @@ typedef enum
     MOCLOUD_GETFILELIST_ERR_TYPE_INVALID,
     MOCLOUD_GETFILELIST_ERR_OTHERS,
 }MOCLOUD_GETFILELIST_ERR;
+
+typedef enum
+{
+    MOCLOUD_DWLDSTART_RET_OK,
+    MOCLOUD_DWLDSTART_RET_OTHERS
+}MOCLOUD_DWLDSTART_RET;
+
+typedef enum
+{
+    MOCLOUD_DWLDSTOP_RET_OK,
+    MOCLOUD_DWLDSTOP_RET_OTHERS
+}MOCLOUD_DWLDSTOP_RET;
 
 /*
     The struct for keyagree reqeust from client to server;

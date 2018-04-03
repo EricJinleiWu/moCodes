@@ -7,7 +7,7 @@ extern "C" {
 
 #include "moCloudUtilsTypes.h"
 
-typedef void (*notifyDwldProgressCallback)(double progress);
+typedef void (*notifyDwldProgressCallback)(const int fileId, const int unitId);
 
 
 /*

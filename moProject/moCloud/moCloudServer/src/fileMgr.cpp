@@ -448,7 +448,7 @@ int FileMgr::openFile(const MOCLOUD_FILEINFO_KEY & key, int & fd)
 
     return 0;
 }
-
+#if 0
 /*
     1.File exist or not;
     2.File being read yet or not;
@@ -489,7 +489,7 @@ int FileMgr::readFile(int fd, const size_t & offset,const size_t length,char * p
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "readlen=%d, length=%d\n", readLen, length);
     return readLen;
 }
-
+#endif
 /*
     After read, should close it.
 */

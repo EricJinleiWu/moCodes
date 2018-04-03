@@ -286,7 +286,8 @@ int main(int argc, char ** argv)
         return -3;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "refreshFileinfoTable succeed.\n");
-
+    
+#if 1
     CliMgrSingleton::getInstance()->start();
 
     //start main thread, to accept all request, then do it
@@ -301,7 +302,7 @@ int main(int argc, char ** argv)
         moLoggerUnInit();
         return -4;
     }
-    
+#endif    
     moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, "Main process will exit now...\n");
     moLoggerUnInit();
     
