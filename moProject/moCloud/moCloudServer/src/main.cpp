@@ -183,17 +183,7 @@ static int initSocket(int & sockId, CONF_INFO & confInfo)
 
 static int doNewCliConnect(struct sockaddr_in & cliAddr, const int cliSockId)
 {
-    string cliName("thread_ip=");
-    cliName = cliName + inet_ntoa(cliAddr.sin_addr);
-    string cliIp(inet_ntoa(cliAddr.sin_addr));
-
-    CliCtrl * pCurCliCtrl = new CliCtrl(cliIp, cliSockId, ntohs(cliAddr.sin_port), cliName);
-    pCurCliCtrl->setState(CLI_STATE_IDLE);
-    pCurCliCtrl->run();
-
-    CliMgrSingleton::getInstance()->insertCliCtrl(pCurCliCtrl);
-
-    return 0;
+    return CliMgrSingleton::getInstance()->doNewConn(cliAddr, cliSockId);
 }
 
 static int startServer(const char * pConfFilepath)

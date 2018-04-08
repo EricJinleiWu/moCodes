@@ -29,8 +29,6 @@ using namespace std;
 #define FILEINFO_TABLE_FILESIZE "filesize"
 #define FILEINFO_TABLE_OWNER "owner"
 #define FILEINFO_TABLE_STATE "state"
-#define FILEINFO_TABLE_READHDR "readHdr"
-#define FILEINFO_TABLE_READNUM "readNum"
 #define FILEINFO_TABLE_WRITEHDR "writeHdr"
 
 
@@ -64,10 +62,6 @@ typedef struct
 
     //We can show this value to client
     MOCLOUD_BASIC_FILEINFO basicInfo;
-    
-    //These value are ctrl info, being used with ourselves
-    int readHdr;    //The read handler for this file
-    int readerNum;  //how many clients read this file
     
     int writeHdr;   //The write handler for this file, just when uploading we should use it.
 }DB_FILEINFO;
@@ -223,9 +217,7 @@ public:
         When want to read file, should open--read...--close;
     */
     virtual int openFile(const MOCLOUD_FILEINFO_KEY & key, int & fd);
-//    virtual int readFile(int fd, const size_t & offset,
-//        const size_t length, char * pData);
-    virtual int closeFile(const MOCLOUD_FILEINFO_KEY & key);
+    virtual int closeFile(int & fd);
 
     //just uploading file will use this function
     virtual int writeFile(const MOCLOUD_FILEINFO_KEY & key, const size_t & offset,
@@ -247,9 +239,7 @@ private:
 
 private:
     virtual bool isFileExist(const MOCLOUD_FILEINFO_KEY & key);
-    virtual int getFileReadHdr(const MOCLOUD_FILEINFO_KEY & key, int & fd, int & readerNum);
     virtual int getAbsFilepath(const MOCLOUD_FILEINFO_KEY & key, string & absPath);
-    virtual int refreshFileReaderinfo2Db(const MOCLOUD_FILEINFO_KEY & key, int & fd, int & readerNum);
     
 
 public:

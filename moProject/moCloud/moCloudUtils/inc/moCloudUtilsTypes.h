@@ -44,6 +44,11 @@ extern "C" {
 #define MOCLOUD_PASSWD_MINLEN   6
 #define MOCLOUD_PASSWD_MAXLEN   16
 
+/*
+    We define, mostly 8 files can be dwld at the same time!
+*/
+#define MOCLOUD_DWLD_TASK_MAX_NUM   8
+
 #define MOCLOUD_DATA_UNIT_LEN   1024    //bytes
 
 /*
@@ -290,6 +295,7 @@ typedef struct
 {
     char mark[MOCLOUD_MARK_MAXLEN]; //MOCLOUD_SERVER
     int fileId; //use this id, client can assure which file it is, instead of fileKey
+    char isEof; //1, end of file, dwld ended; 0, dwld continue;
     int unitId; //each time, a Unit being send, its length all the same, to the last unit, has different length;
     int bodyLen;    //The length, except the last unit, bodyLen is the unitLen
     unsigned char checkSum;

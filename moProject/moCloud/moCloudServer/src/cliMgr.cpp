@@ -4,6 +4,11 @@
 #include <pthread.h>
 #include <string.h>
 #include <time.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "cliMgr.h"
 #include "moCloudUtilsTypes.h"
@@ -30,6 +35,8 @@ void CliMgr::run()
 {
     while(getRunState())
     {
+        dump();
+        
         struct timespec t;
         clock_gettime(CLOCK_REALTIME, &t);
         t.tv_sec += 3;
@@ -97,8 +104,26 @@ void CliMgr::run()
             }
             pthread_mutex_unlock(&mCliCtrlListLock);
         }
+    }    
+}
+
+void CliMgr::dump()
+{
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Dump CliMgr now.\n");
+    pthread_mutex_lock(&mCliCtrlListLock);
+
+    for(list<CliCtrl * >::iterator it = mCliCtrlList.begin(); it != mCliCtrlList.end(); it++)
+    {
+        CliCtrl * pCurNode = *it;
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+            "Ip=[%s], ctrlSockId=%d, ctrlPort=%d, dataSockId=%d, dataPort=%d\n",
+            pCurNode->getIp().c_str(),
+            pCurNode->getCtrlSockId(), pCurNode->getCtrlPort(),
+            pCurNode->getDataSockId(), pCurNode->getDataPort());
     }
     
+    pthread_mutex_unlock(&mCliCtrlListLock);
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Dump CliMgr end.\n");
 }
 
 void CliMgr::setChangedFiletype(const MOCLOUD_FILETYPE & type)
@@ -154,25 +179,54 @@ MOCLOUD_FILETYPE CliMgr::getChangedFiletype()
     return ret;
 }
 
-int CliMgr::insertCliCtrl(CliCtrl * cliCtrl)
+/*
+    1.find this connect by it IP;
+    2.if IP donot exist yet, its a client ctrl socket connect request, new an object, add to list;
+    3.if IP exist and data socket is invalid, this is a client data socket connect request, set its info to its CliCtrl;
+    4.if IP exist and two sockets all valid, its an invalid request!
+*/
+int CliMgr::doNewConn(struct sockaddr_in & cliAddr, const int cliSockId)
 {
     pthread_mutex_lock(&mCliCtrlListLock);
 
-    for(list<CliCtrl *>::iterator it = mCliCtrlList.begin();
-        it != mCliCtrlList.end(); it++)
+    string cliIp(inet_ntoa(cliAddr.sin_addr));
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "client IP = [%s]\n", cliIp.c_str());
+
+    for(list<CliCtrl *>::iterator it = mCliCtrlList.begin(); it != mCliCtrlList.end(); it++)
     {
         CliCtrl * pCurCliCtrl = *it;
-        if(pCurCliCtrl == cliCtrl)
+        if(pCurCliCtrl->getIp() == cliIp)
         {
-            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-                "Client(ip=[%s], ctrlport=%d) has been in now, cannot insert again.\n",
-                pCurCliCtrl->getIp().c_str(), pCurCliCtrl->getCtrlPort());
+            //this ip has been exist, should check its data socket is valid or not
+            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+                "Client(ip=[%s] being found, check its data port now.\n",
+                pCurCliCtrl->getIp().c_str());
+
+            if(pCurCliCtrl->getDataSockId() > 0)
+            {
+                moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "This IP has valid dataport yet! cannot get new connect request!\n");
+                pthread_mutex_unlock(&mCliCtrlListLock);
+                return -1;
+            }
+
+            pCurCliCtrl->setDataSockId(cliSockId);
+            pCurCliCtrl->setDataPort(ntohs(cliAddr.sin_port));
+            
             pthread_mutex_unlock(&mCliCtrlListLock);
             return 0;
         }
     }
+
+    //donot find this IP in list, means this is the cliCtrl connect request
+    string cliName("thread_ip=");
+    cliName = cliName + inet_ntoa(cliAddr.sin_addr);
+
+    CliCtrl * pCurCliCtrl = new CliCtrl(cliIp, cliSockId, ntohs(cliAddr.sin_port), cliName);
+    pCurCliCtrl->setState(CLI_STATE_IDLE);
+    pCurCliCtrl->start();
     
-    mCliCtrlList.push_back(cliCtrl);
+    mCliCtrlList.push_back(pCurCliCtrl);
+
     pthread_mutex_unlock(&mCliCtrlListLock);
     return 0;
 }

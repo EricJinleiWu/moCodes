@@ -21,13 +21,14 @@ public:
 
 public:
     virtual void run();
+    virtual void dump();
 
 public:
     virtual void setChangedFiletype(const MOCLOUD_FILETYPE & type);
     virtual MOCLOUD_FILETYPE getChangedFiletype();
 
 public:
-    virtual int insertCliCtrl(CliCtrl * cliCtrl);
+    virtual int doNewConn(struct sockaddr_in & cliAddr, const int cliSockId);
 
 private:
     vector<MOCLOUD_FILETYPE> mChangedTypeVector;

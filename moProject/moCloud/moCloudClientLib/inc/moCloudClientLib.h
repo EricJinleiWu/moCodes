@@ -123,8 +123,8 @@ MOCLOUDCLIENT_DWLD_INFO_NODE * moCloudClient_getAllDwldTasks();
 MOCLOUDCLIENT_DWLD_INFO_NODE * moCloudClient_getDwldingTasks();
 void moCloudClient_freeDwldTasks(MOCLOUDCLIENT_DWLD_INFO_NODE * pTasks);
 
-int moCloudClient_startDownloadFile();
-int moCloudClient_stopDownloadFile();
+int moCloudClient_startDownloadFile(const MOCLOUD_FILEINFO_KEY key, const size_t filesize, const char * pLocalFilepath);
+int moCloudClient_stopDownloadFile(const MOCLOUD_FILEINFO_KEY key, const char isDelLocalDwldFile);
 int moCloudClient_pauseDownloadFile();
 
 #if 0

@@ -1313,7 +1313,7 @@ static int initDwldTasksInfo()
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "DwldInfoFile [%s] exist.\n", gCfgInfo.dwldInfoFile);
 
     //1.open file
-    gDwldInfofileFd = fopen(gCfgInfo.dwldInfoFile, "ab+");
+    gDwldInfofileFd = fopen(gCfgInfo.dwldInfoFile, "rb+");
     if(NULL == gDwldInfofileFd)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "open file [%s] failed! errno=%d, desc=[%s]\n",
@@ -2308,7 +2308,7 @@ void moCloudClient_freeDwldTasks(MOCLOUDCLIENT_DWLD_INFO_NODE * pTasks)
     set progress;
     if needed, send out;
 */
-static void setDwldProgress(const int fileId, const int unitId)
+static void setDwldProgress(const int fileId, const int unitId, const char isEof)
 {
     pthread_mutex_lock(&gDwldTasksMutex);
 
@@ -2331,12 +2331,13 @@ static void setDwldProgress(const int fileId, const int unitId)
                 pthread_mutex_unlock(&gDwldTasksMutex);
                 return ;
             }
+
             pCurNode->dwldTaskInfo.dwldInfo.unitId = unitId;
             //refresh this info to dwldInfoFile
             DWLD_FILE_UNIT_INFO dwldFileUnitInfo;
             memset(&dwldFileUnitInfo, 0x00, sizeof(DWLD_FILE_UNIT_INFO));
             memcpy(&dwldFileUnitInfo.dwldInfo, &pCurNode->dwldTaskInfo.dwldInfo, sizeof(MOCLOUDCLIENT_DWLD_INFO));
-            dwldFileUnitInfo.isUsing = 1;
+            dwldFileUnitInfo.isUsing = isEof ? 0 : 1;
             strcpy(dwldFileUnitInfo.mark, MOCLOUD_MARK_DWLD);
             moCloudUtilsCheck_checksumGetValue((char *)&dwldFileUnitInfo,
                 sizeof(DWLD_FILE_UNIT_INFO) - sizeof(unsigned char), &dwldFileUnitInfo.checkSum);
@@ -2348,6 +2349,12 @@ static void setDwldProgress(const int fileId, const int unitId)
             //TODO, if needed, send progress out
 
             pthread_mutex_unlock(&gDwldTasksMutex);
+
+            if(isEof)
+            {
+                moCloudClient_stopDownloadFile(pCurNode->dwldTaskInfo.dwldInfo.fileKey, 0);
+            }
+            
             return ;
         }
         
@@ -2383,11 +2390,11 @@ static int getOneDwldNode(const MOCLOUD_FILEINFO_KEY key, const size_t filesize,
         }
         pCurNode = pCurNode->next;
     }
-    if(cnt >= DWLD_TASK_MAX_NUM)
+    if(cnt >= MOCLOUD_DWLD_TASK_MAX_NUM)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "cnt=%d, larger than maxValue(%d), cannot start new dwld task!",
-            cnt, DWLD_TASK_MAX_NUM);
+            cnt, MOCLOUD_DWLD_TASK_MAX_NUM);
         pthread_mutex_unlock(&gDwldTasksMutex);
         return -1;
     }
@@ -2529,11 +2536,11 @@ static int delDwldNode(const MOCLOUD_FILEINFO_KEY key)
     encrypt, then send to server;
     wait for response, and decrypt, then parse result;
 */
-static int doStartDwld(MOCLOUD_FILEINFO_KEY key, const int startOffset)
+static int doStartDwld(MOCLOUD_FILEINFO_KEY key, const int startOffset, const int fileId)
 {
     char body[MOCLOUD_DWLDTASKINFO_MAXLEN] = {0x00};
     snprintf(body, MOCLOUD_DWLDTASKINFO_MAXLEN, MOCLOUD_DWLDTASKINFO_FORMAT,
-        key.filetype, key.filename, startOffset, 0);
+        key.filetype, key.filename, startOffset, fileId);
     body[MOCLOUD_DWLDTASKINFO_MAXLEN - 1] = 0x00;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "startDwld body is [%s]\n", body);
 
@@ -2564,7 +2571,7 @@ static int doStartDwld(MOCLOUD_FILEINFO_KEY key, const int startOffset)
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request header succed.\n");
     
     ret = writen(gCtrlSockId, body, strlen(body));
-    if(ret != cipherLen)
+    if(ret != strlen(body))
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request body failed! " \
             "ret=%d, bodyLen=%d\n", ret, strlen(body));
@@ -2581,9 +2588,9 @@ static int doStartDwld(MOCLOUD_FILEINFO_KEY key, const int startOffset)
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader failed! ret=%d\n", ret);
         return -4;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader succeed, signUp ret=%d.\n", resp.ret);
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader succeed, startDwld ret=%d.\n", resp.ret);
 
-    if(resp.ret == MOCLOUD_DWLDSTART_RET_OK)
+    if(resp.ret != MOCLOUD_DWLDSTART_RET_OK)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "resp.ret=%d, start dwld failed!\n", resp.ret);
         return -5;
@@ -2603,7 +2610,7 @@ static int doStopDwld(MOCLOUD_FILEINFO_KEY key, const int fileId)
     snprintf(body, MOCLOUD_DWLDTASKINFO_MAXLEN, MOCLOUD_DWLDTASKINFO_FORMAT,
         key.filetype, key.filename, 0, fileId);
     body[MOCLOUD_DWLDTASKINFO_MAXLEN - 1] = 0x00;
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "startDwld body is [%s]\n", body);
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "stopDwld body is [%s]\n", body);
 
     MOCLOUD_CTRL_REQUEST request;
     genRequest(&request, MOCLOUD_REQUEST_TYPE_NEED_RESPONSE, MOCLOUD_CMDID_DWLD_STOP, strlen(body));
@@ -2632,7 +2639,7 @@ static int doStopDwld(MOCLOUD_FILEINFO_KEY key, const int fileId)
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request header succed.\n");
     
     ret = writen(gCtrlSockId, body, strlen(body));
-    if(ret != cipherLen)
+    if(ret != strlen(body))
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "send cipher request body failed! " \
             "ret=%d, bodyLen=%d\n", ret, strlen(body));
@@ -2649,14 +2656,14 @@ static int doStopDwld(MOCLOUD_FILEINFO_KEY key, const int fileId)
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader failed! ret=%d\n", ret);
         return -4;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader succeed, signUp ret=%d.\n", resp.ret);
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getRespHeader succeed, stop dwld ret=%d.\n", resp.ret);
 
-    if(resp.ret == MOCLOUD_DWLDSTOP_RET_OK)
+    if(resp.ret != MOCLOUD_DWLDSTOP_RET_OK)
     {
-        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "resp.ret=%d, start dwld failed!\n", resp.ret);
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "resp.ret=%d, stop dwld failed!\n", resp.ret);
         return -5;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start dwld succeed.\n");
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "stop dwld succeed.\n");
     return 0;
 }
 
@@ -2684,7 +2691,7 @@ int moCloudClient_startDownloadFile(const MOCLOUD_FILEINFO_KEY key, const size_t
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "cliDataStartDwld succeed.\n");
 
-    ret = doStartDwld(key, startOffset);
+    ret = doStartDwld(key, startOffset, pDwldNode->dwldTaskInfo.fileId);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "doStartDwld failed! ret = %d\n", ret);
@@ -2697,7 +2704,7 @@ int moCloudClient_startDownloadFile(const MOCLOUD_FILEINFO_KEY key, const size_t
     return 0;
 }
 
-int moCloudClient_stopDownloadFile(const MOCLOUD_FILEINFO_KEY key)
+int moCloudClient_stopDownloadFile(const MOCLOUD_FILEINFO_KEY key, const char isDelLocalDwldFile)
 {
     int fileId = 0;
     char localFilepath[MOCLOUD_FILEPATH_MAXLEN] = {0x00};
@@ -2732,7 +2739,11 @@ int moCloudClient_stopDownloadFile(const MOCLOUD_FILEINFO_KEY key)
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "cliDataStopDwld succeed.\n");
 
     //should delete local file
-    unlink(localFilepath);
+    if(isDelLocalDwldFile)
+    {
+        moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, "Should delete local dwld file [%s]\n", localFilepath);
+        unlink(localFilepath);
+    }
 
     //should refresh dwldInfo.file, then delete the global memory
     delDwldNode(key);

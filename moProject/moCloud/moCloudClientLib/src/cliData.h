@@ -7,16 +7,11 @@ extern "C" {
 
 #include "moCloudUtilsTypes.h"
 
-typedef void (*notifyDwldProgressCallback)(const int fileId, const int unitId);
-
-
-/*
-    We define, mostly 8 files can be dwld at the same time!
-*/
-#define DWLD_TASK_MAX_NUM   8
+typedef void (*notifyDwldProgressCallback)(const int fileId, const int unitId, const char isEof);
 
 typedef struct
 {
+    char isEof; //1, to the end of file, dwld should stop
     char isUsed;    //0, donot used; else, used;
     int unitId;
     int bodyLen;
@@ -45,7 +40,7 @@ typedef struct
     char isStopWriteFileThr;    //1, thread should stop; 0, thread can still running;
     sem_t writeFileThrsem;  //semaphore, using in writeFileThr;
     pthread_mutex_t writeFileThrMutex;
-    DWLD_UNIT_INFO_NODE * pDwldUnitForwardListHead; //head node of this forward list
+    DWLD_UNIT_INFO_NODE * pDwldUnitListHead; //head node of this forward list
     
 }DWLD_FILE_INFO;
 

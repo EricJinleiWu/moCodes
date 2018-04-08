@@ -4,6 +4,8 @@
 #include <pthread.h>
 #include <string.h>
 
+#include <new>
+
 #include "cliCtrl.h"
 #include "moCloudUtils.h"
 #include "moCloudUtilsCheck.h"
@@ -15,40 +17,154 @@
 //TODO
 const static char RSA_PUB_KEY[RSA_KEY_LEN] = {0x00};
 
-CliData::CliData(const int sockId, const int port, const string & ip) : 
-    MoThread(), mSockId(sockId), mPort(port), mIp(ip)
+CliData::CliData() : 
+    mSockId(MOCLOUD_INVALID_SOCKID), mPort(MOCLOUD_INVALID_PORT), mIp(""), 
+    mOffset(-1), mFileId(-1), mReadHdl(-1)
 {
     ;
 }
 
+CliData::CliData(const int sockId, const int port, const string & ip, const MOCLOUD_FILEINFO_KEY & key,
+    const size_t offset, const int fileId, int & readHdl) : 
+    mSockId(sockId), mPort(port), mIp(ip), mOffset(offset), mFileId(fileId), mReadHdl(readHdl)
+{
+    memcpy(&mKey, &key, sizeof(MOCLOUD_FILEINFO_KEY));
+}
+
 CliData::~CliData()
 {
-    stop();
-    join();
+    ;
 }
 
 void CliData::run()
 {
-    //TODO
-}
+    MOCLOUD_DATA_HEADER header;
+    int unitId = mOffset / MOCLOUD_DATA_UNIT_LEN;
+    
+    while(getRunState() && mReadHdl >= 0)
+    {
+        memset(&header, 0x00, sizeof(MOCLOUD_DATA_HEADER));
+        
+        //seek, read, genResponse, send, looply
+        int ret = lseek(mReadHdl, unitId * MOCLOUD_DATA_UNIT_LEN, SEEK_SET);
+        if(ret < 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "lseek failed! ret=%d, offset=%d, errno=%d, desc=[%s]\n",
+                ret, unitId * MOCLOUD_DATA_UNIT_LEN, errno, strerror(errno));
+            //We think this is the end of file, just send the last response here
+            genEofRespHeader(header);
+            sendHeader(header);
+            
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "To the end of file, should exit thread now.\n");
+            break;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "lseek succeed.\n");
 
-int CliData::startRead(const MOCLOUD_FILEINFO_KEY & fileKey, const size_t offset)
-{
-    //TODO
-    return 0;
-}
+        char data[MOCLOUD_DATA_UNIT_LEN] = {0x00};
+        int readLen = read(mReadHdl, data, MOCLOUD_DATA_UNIT_LEN);
+        if(readLen <= 0)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "readLen=%d, error ocurred, errno=%d, desc=[%s], should exit thread now.\n", 
+                readLen, errno, strerror(errno));
+            genEofRespHeader(header);
+            sendHeader(header);
+            break;
+        }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "readLen=%d, length=%d\n", readLen, MOCLOUD_DATA_UNIT_LEN);
 
-int CliData::stopRead(const MOCLOUD_FILEINFO_KEY & fileKey)
-{
-    //TODO
-    return 0;
+        genRespHeader(header, readLen, unitId);
+        sendHeader(header);
+        sendBody(data, readLen);
+
+        if(readLen != MOCLOUD_DATA_UNIT_LEN)
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "read uncompleted! readLen=%d, length=%d\n", readLen, MOCLOUD_DATA_UNIT_LEN);
+            genEofRespHeader(header);
+            sendHeader(header);
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "To the end of file, should exit thread now.\n");
+            break;
+        }
+    
+        unitId++;
+    }
 }
 
 void CliData::dump()
 {
+    moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, "Dump cliData now.\n");
     moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, 
-        "dump cliData here: ip=[%s], port=%d, sockId=%d\n",
-        mIp.c_str(), mPort, mSockId);
+        "sockId=%d, port=%d, ip=[%s], filetype=%d, filename=[%s], offset=%d, fileId=%d, readHdl=%d\n",
+        mSockId, mPort, mIp.c_str(), mKey.filetype, mKey.filename, mOffset, mFileId, mReadHdl);
+}
+
+int CliData::genEofRespHeader(MOCLOUD_DATA_HEADER & header)
+{
+    memset(&header, 0x00, sizeof(MOCLOUD_DATA_HEADER));
+    strcpy(header.mark, MOCLOUD_MARK_DWLD);
+    header.fileId = mFileId;
+    header.isEof = 1;
+    header.unitId = 0;
+    header.bodyLen = 0;
+    moCloudUtilsCheck_checksumGetValue((char *)&header,
+        sizeof(MOCLOUD_DATA_HEADER) - sizeof(unsigned char),
+        &header.checkSum);
+    return 0;
+}
+
+int CliData::genRespHeader(MOCLOUD_DATA_HEADER & header,const int len,const int unitId)
+{
+    memset(&header, 0x00, sizeof(MOCLOUD_DATA_HEADER));
+    strcpy(header.mark, MOCLOUD_MARK_DWLD);
+    header.fileId = mFileId;
+    header.isEof = 0;
+    header.unitId = unitId;
+    header.bodyLen = len;
+    moCloudUtilsCheck_checksumGetValue((char *)&header,
+        sizeof(MOCLOUD_DATA_HEADER) - sizeof(unsigned char),
+        &header.checkSum);
+    return 0;
+}
+
+int CliData::sendHeader(MOCLOUD_DATA_HEADER & header)
+{
+    int writeLen = writen(mSockId, (char *)&header, sizeof(MOCLOUD_DATA_HEADER));
+    if(writeLen != sizeof(MOCLOUD_DATA_HEADER))
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "writen failed! writeLen=%d, length=%d\n", writeLen, sizeof(MOCLOUD_DATA_HEADER));
+        return -1;
+    }
+    return 0;
+}
+
+int CliData::sendBody(char * pData,const int length)
+{
+    if(NULL == pData)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is NULL!\n");
+        return -1;
+    }
+
+    int writeLen = writen(mSockId, pData, length);
+    if(writeLen != length)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "writen failed! writeLen=%d, length=%d\n", writeLen, length);
+        return -2;
+    }
+    return 0;
+}
+
+int & CliData::getFd()
+{
+    return mReadHdl;
+}
+
+MOCLOUD_FILEINFO_KEY & CliData::getFileKey()
+{
+    return mKey;
 }
 
 
@@ -58,9 +174,12 @@ CliCtrl::CliCtrl() :
     mCtrlSockId(MOCLOUD_INVALID_SOCKID),
     mIp("127.0.0.1"), 
     mCtrlPort(MOCLOUD_INVALID_PORT),
-    mIsFilelistChanged(false)
+    mIsFilelistChanged(false),
+    mDataSockId(MOCLOUD_INVALID_SOCKID),
+    mDataPort(MOCLOUD_INVALID_PORT)
 {
     mLastHeartbeatTime = time(NULL);
+    pthread_mutex_init(&mDwldMutex, NULL);
 }
 CliCtrl::CliCtrl(const string & thrName) : 
     MoThread(thrName), 
@@ -68,9 +187,12 @@ CliCtrl::CliCtrl(const string & thrName) :
     mCtrlSockId(MOCLOUD_INVALID_SOCKID),
     mIp("127.0.0.1"), 
     mCtrlPort(MOCLOUD_INVALID_PORT),
-    mIsFilelistChanged(false)
+    mIsFilelistChanged(false),
+    mDataSockId(MOCLOUD_INVALID_SOCKID),
+    mDataPort(MOCLOUD_INVALID_PORT)
 {
     mLastHeartbeatTime = time(NULL);
+    pthread_mutex_init(&mDwldMutex, NULL);
 }
 CliCtrl::CliCtrl(const string & ip, const int ctrlSockId, const int ctrlSockPort, 
     const string & thrName) :
@@ -79,19 +201,22 @@ CliCtrl::CliCtrl(const string & ip, const int ctrlSockId, const int ctrlSockPort
     mCtrlSockId(ctrlSockId),
     mIp(ip), 
     mCtrlPort(ctrlSockPort),
-    mIsFilelistChanged(false)
+    mIsFilelistChanged(false),
+    mDataSockId(MOCLOUD_INVALID_SOCKID),
+    mDataPort(MOCLOUD_INVALID_PORT)
 {
     mLastHeartbeatTime = time(NULL);
+    pthread_mutex_init(&mDwldMutex, NULL);
 }
 
 bool CliCtrl::operator==(const CliCtrl & other)
 {
-    return mCtrlSockId == other.mCtrlSockId ? true : false;
+    return mIp == other.mIp ? true : false;
 }
 
 CliCtrl::~CliCtrl()
 {
-    ;
+    pthread_mutex_destroy(&mDwldMutex);
 }
 
 void CliCtrl::run()
@@ -399,7 +524,7 @@ int CliCtrl::doCtrlRequest(bool & isGetReq)
         moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Donot get request this time.\n");
         return 0;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getCtrlReq succeed.\n");
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getCtrlReq succeed. req.bodyLen=%d\n", req.bodyLen);
     
     //2.if have body, should get it.
     char * pBody = NULL;
@@ -411,7 +536,7 @@ int CliCtrl::doCtrlRequest(bool & isGetReq)
             moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "getCtrlReqBody failed! ret=%d\n", ret);
             return -3;
         }
-        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getCtrlReqBody succeed.\n");
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "getCtrlReqBody succeed. pBody=[%s]\n", pBody);
     }
 
     //3.do this request, set ret to response
@@ -585,7 +710,7 @@ int CliCtrl::getCtrlReqBody(const int bodyLen, char ** ppBody)
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "select succeed.\n");
 
-    *ppBody = (char * )malloc(sizeof(char) * bodyLen);
+    *ppBody = (char * )malloc(sizeof(char) * (bodyLen + 1));
     if(*ppBody == NULL)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -593,6 +718,7 @@ int CliCtrl::getCtrlReqBody(const int bodyLen, char ** ppBody)
         return -4;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc ok.\n");
+    memset(*ppBody, 0x00, bodyLen + 1);
 
     int readLen = readn(mCtrlSockId, *ppBody, bodyLen);
     if(readLen != bodyLen)
@@ -639,6 +765,14 @@ int CliCtrl::doRequest(MOCLOUD_CTRL_REQUEST & req, const char * pBody,
     case MOCLOUD_CMDID_GETFILELIST:
         moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start doGetFilelist.\n");
         ret = doGetFilelist(req, resp, ppRespBody);
+        break;
+    case MOCLOUD_CMDID_DWLD_START:
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start doStartDwld.\n");
+        ret = doStartDwld(req, pBody, resp);
+        break;
+    case MOCLOUD_CMDID_DWLD_STOP:
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start doStopDwld.\n");
+        ret = doStopDwld(req, pBody, resp);
         break;
     default:
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -965,6 +1099,277 @@ int CliCtrl::doGetFilelist(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & r
     return 0;
 }
 
+/*    
+    #define MOCLOUD_DWLDTASKINFO_MAXLEN (MOCLOUD_FILENAME_MAXLEN + 128)
+    #define MOCLOUD_DWLDTASKINFO_FORMAT "filetype=%d, filename=%s, startOffset=%d, fileId=%d"
+*/
+int CliCtrl::getDwldReqInfo(const char * pBody, MOCLOUD_FILEINFO_KEY & key, 
+    int & startOffset, int & fileId)
+{
+    if(NULL == pBody)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is NULL.\n");
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "pBody=[%s]\n", pBody);
+
+    string body(pBody);
+    string symbFiletype("filetype=");
+    string symbFilename(", filename=");
+    string symbStartOffset(", startOffset=");
+    string symbFileId(", fileId=");
+    //1."filetype=" must at the beginning of this string
+    unsigned int pos1 = body.find(symbFiletype);
+    if(pos1 == string::npos)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "Donot find symbol [%s] in body [%s]!\n", 
+            symbFiletype.c_str(), pBody);
+        return -2;
+    }
+    if(pos1 != 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "symbol [%s] donont in beginning of body [%s]!\n", 
+            symbFiletype.c_str(), pBody);
+        return -3;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Find filetype symbol at the beginning.\n");
+
+    //2.get ", filename=" from body, must donot at the end of this string
+    unsigned int pos2 = body.find(symbFilename);
+    if(pos2 == string::npos)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "Donot find symbol [%s] in body [%s]!\n", 
+            symbFilename.c_str(), pBody);
+        return -4;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Find filename symbol at pos=%u.\n", pos2);
+
+    //3.get ", startOffset=" from body, must donot at the end of this string
+    unsigned int pos3 = body.find(symbStartOffset);
+    if(pos3 == string::npos)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "Donot find symbol [%s] in body [%s]!\n", 
+            symbStartOffset.c_str(), pBody);
+        return -5;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Find startOffset symbol at pos=%u.\n", pos3);
+
+    //4.get ", fileId=" from body, must donot at the end of this string
+    unsigned int pos4 = body.find(symbFileId);
+    if(pos4 == string::npos)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "Donot find symbol [%s] in body [%s]!\n", 
+            symbFileId.c_str(), pBody);
+        return -6;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Find FileId symbol at pos=%u.\n", pos4);
+
+    //get filetype firstly
+    string filetype = string(body, symbFiletype.length(), pos2 - symbFiletype.length());
+    key.filetype = MOCLOUD_FILETYPE(atoi(filetype.c_str()));
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "filetype=[%s], its value=%d\n", filetype.c_str(), key.filetype);
+    //filename secondly
+    string filename = string(body, pos2 + symbFilename.length(), pos3 - (pos2 + symbFilename.length()));
+    strncpy(key.filename, filename.c_str(), MOCLOUD_FILENAME_MAXLEN);
+    key.filename[MOCLOUD_FILENAME_MAXLEN] = 0x00;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "filename=[%s], its value=[%s]\n", filename.c_str(), key.filename);
+    //startOffset thirdly
+    string startOffsetStr = string(body, pos3 + symbStartOffset.length(), pos4 - (pos3 + symbStartOffset.length()));
+    startOffset = atoi(startOffsetStr.c_str());
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "startOffsetStr=[%s], its value=%d\n", startOffsetStr.c_str(), startOffset);
+    //get fileId endly
+    string fileIdStr = string(body, pos4 + symbFileId.length(), body.length());
+    fileId = atoi(fileIdStr.c_str());
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "fileIdString=[%s], its value=%d\n", fileIdStr.c_str(), fileId);
+    
+    return 0;
+}
+
+int CliCtrl::doStartDwld(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
+        MOCLOUD_CTRL_RESPONSE & resp)
+{
+    if(NULL == pBody)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is NULL!\n");
+        genResp(-1, req.cmdId, resp);
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "pBody=[%s]\n", pBody);
+
+    pthread_mutex_lock(&mDwldMutex);
+    //check the number of dwld tasks now
+    if(mCliDataList.size() >= MOCLOUD_DWLD_TASK_MAX_NUM)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "mCliDataList size is %d, larger than max value %d! cannot start new dwld task!\n",
+            mCliDataList.size(), MOCLOUD_DWLD_TASK_MAX_NUM);
+        pthread_mutex_unlock(&mDwldMutex);
+        genResp(-2, req.cmdId, resp);
+        return -2;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "mCliDataList.size()=%d\n", mCliDataList.size());
+
+    //get dwld request info
+    MOCLOUD_FILEINFO_KEY key;
+    memset(&key, 0x00, sizeof(MOCLOUD_FILEINFO_KEY));
+    int startOffset = 0;
+    int fileId = 0;
+    int ret = getDwldReqInfo(pBody, key, startOffset, fileId);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "getDwldReqInfo failed! ret=%d, body=[%s]\n", ret, pBody);
+        pthread_mutex_unlock(&mDwldMutex);
+        genResp(-3, req.cmdId, resp);
+        return -3;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+        "pBody=[%s], filetype=%d, filename=[%s], startOffset=%d, fileId=%d\n",
+        pBody, key.filetype, key.filename, startOffset, fileId);
+
+    //check this dwld task being dwlding or not
+    for(list<CliData *>::iterator it = mCliDataList.begin(); it != mCliDataList.end(); it++)
+    {
+        CliData * pCurCliData = *it;
+        if( pCurCliData->getFileKey().filetype == key.filetype && 
+            0 == strcmp(pCurCliData->getFileKey().filename, key.filename))
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "filetype=%d, filename=[%s], being dwlding now, cannot start it again.\n",
+                key.filetype, key.filename);
+            pthread_mutex_unlock(&mDwldMutex);
+            genResp(-4, req.cmdId, resp);
+            return -4;
+        }
+    }
+
+    //open this file now.
+    int fd = -1;
+    ret = FileMgrSingleton::getInstance()->openFile(key, fd);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "Open file failed! ret=%d, filetype=%d, filename=[%s]\n",
+            ret, key.filetype, key.filename);
+        pthread_mutex_unlock(&mDwldMutex);
+        genResp(-5, req.cmdId, resp);
+        return -5;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "openFile succeed. fd=%d\n", fd);
+
+    //new a cliData object
+    CliData * pNewCliData = new (nothrow) CliData(mDataSockId, mDataPort, mIp, key,
+        startOffset, fileId, fd);
+    if(NULL == pNewCliData)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "New cliData object failed! mDataSockId=%d, mDataPort=%d.\n",
+            mDataSockId, mDataPort);
+        FileMgrSingleton::getInstance()->closeFile(fd);
+        pthread_mutex_unlock(&mDwldMutex);
+        genResp(-6, req.cmdId, resp);
+        return -6;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+        "New cliData object succeed, mDataSockId=%d, mDataPort=%d.\n",
+        mDataSockId, mDataPort);
+    pNewCliData->start();
+
+    //add this cliData object to list
+    mCliDataList.push_back(pNewCliData);
+
+    pthread_mutex_unlock(&mDwldMutex);
+
+    //generate response to it
+    genResp(0, req.cmdId, resp);
+    
+    return 0;
+}
+
+int CliCtrl::doStopDwld(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
+        MOCLOUD_CTRL_RESPONSE & resp)
+{
+    if(NULL == pBody)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is NULL!\n");
+        genResp(-1, req.cmdId, resp);
+        return -1;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "pBody=[%s]\n", pBody);
+
+    pthread_mutex_lock(&mDwldMutex);
+
+    //get dwld request info
+    MOCLOUD_FILEINFO_KEY key;
+    memset(&key, 0x00, sizeof(MOCLOUD_FILEINFO_KEY));
+    int startOffset = 0;
+    int fileId = 0;
+    int ret = getDwldReqInfo(pBody, key, startOffset, fileId);
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "getDwldReqInfo failed! ret=%d, body=[%s]\n", ret, pBody);
+        pthread_mutex_unlock(&mDwldMutex);
+        genResp(-2, req.cmdId, resp);
+        return -2;
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+        "pBody=[%s], filetype=%d, filename=[%s], startOffset=%d, fileId=%d\n",
+        pBody, key.filetype, key.filename, startOffset, fileId);
+
+    //check this dwld task being dwlding or not
+    CliData * pCurCliData = NULL;
+    bool isFind = false;
+    list<CliData *>::iterator it;
+    for(it = mCliDataList.begin(); it != mCliDataList.end(); it++)
+    {
+        pCurCliData = *it;
+        if( pCurCliData->getFileKey().filetype == key.filetype && 
+            0 == strcmp(pCurCliData->getFileKey().filename, key.filename))
+        {
+            moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+                "filetype=%d, filename=[%s], being dwlding now, will stop it.\n",
+                key.filetype, key.filename);
+            isFind = true;
+            break;
+        }
+    }
+    if(!isFind)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "filetype=%d, filename=[%s], donot dwlding, cannot stop it!\n",
+            key.filetype, key.filename);
+        pthread_mutex_unlock(&mDwldMutex);
+        genResp(-3, req.cmdId, resp);
+        return -3;
+    }
+
+    //close this file now.
+    ret = FileMgrSingleton::getInstance()->closeFile(pCurCliData->getFd());
+    if(ret < 0)
+    {
+        moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
+            "Close file failed! ret=%d, filetype=%d, filename=[%s], fileId=%d, fd=%d\n",
+            ret, key.filetype, key.filename, fileId, pCurCliData->getFd());
+    }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "closeFile succeed.\n");
+
+    //delete this node
+    pCurCliData->stop();
+    pCurCliData->join();
+    mCliDataList.erase(it);
+
+    pthread_mutex_unlock(&mDwldMutex);
+
+    genResp(0, req.cmdId, resp);
+    
+    return 0;
+}
 /*
     encrypt;
     send cipher head;
@@ -1096,6 +1501,18 @@ int CliCtrl::setFilelistChangeValue(const int value)
     return 0;
 }
 
+int CliCtrl::setDataPort(const int port)
+{
+    mDataPort = port;
+    return 0;
+}
+
+int CliCtrl::setDataSockId(const int sockId)
+{
+    mDataSockId = sockId;
+    return 0;
+}
+
 CLI_STATE CliCtrl::getState()
 {
     return mState;
@@ -1124,6 +1541,16 @@ int CliCtrl::getFilelistChangedFlag()
 int CliCtrl::getFilelistChangedValue()
 {
     return mFilelistChangedValue;
+}
+
+int CliCtrl::getDataSockId()
+{
+    return mDataSockId;
+}
+
+int CliCtrl::getDataPort()
+{
+    return mDataPort;
 }
 
 

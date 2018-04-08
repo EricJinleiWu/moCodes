@@ -7,6 +7,7 @@
 using namespace std;
 
 #include <string>
+#include <list>
 
 typedef enum
 {
@@ -20,30 +21,33 @@ typedef enum
 class CliData : public MoThread
 {
 public:
-    CliData(const int sockId, const int port, const string & ip);
+    CliData();
+    CliData(const int sockId, const int port, const string & ip, const MOCLOUD_FILEINFO_KEY & key,
+        const size_t offset, const int fileId, int & readHdl);
     ~CliData();
 
 public:
     virtual void run();
-
-public:
-    /*
-        read file being defined by @fileKey;
-        start from @offset, read, util @stopRead() called or to the end of file;
-    */
-    virtual int startRead(const MOCLOUD_FILEINFO_KEY & fileKey, const size_t offset);
-
-    /*
-        When stop/pause, this function called;
-    */
-    virtual int stopRead(const MOCLOUD_FILEINFO_KEY & fileKey);
-
     virtual void dump();
+    virtual int & getFd();
+    virtual MOCLOUD_FILEINFO_KEY & getFileKey();
+
+private:
+    virtual int genEofRespHeader(MOCLOUD_DATA_HEADER & header);
+    virtual int sendHeader(MOCLOUD_DATA_HEADER & header);
+    virtual int sendBody(char * pData, const int length);
+    virtual int genRespHeader(MOCLOUD_DATA_HEADER & header, const int len, const int unitId);
 
 private:
     int mSockId;
     int mPort;
     string mIp;
+
+    MOCLOUD_FILEINFO_KEY mKey;
+    size_t mOffset;
+    int mFileId;
+
+    int mReadHdl;
 };
 
 class CliCtrl : public MoThread
@@ -66,6 +70,8 @@ public:
     virtual void clearFilelistChangedFlag();
     virtual int setState(const CLI_STATE state);
     virtual int setFilelistChangeValue(const int value);
+    virtual int setDataSockId(const int sockId);
+    virtual int setDataPort(const int port);
 
 public:
     virtual CLI_STATE getState();
@@ -74,6 +80,8 @@ public:
     virtual int getCtrlPort();
     virtual int getFilelistChangedFlag();
     virtual int getFilelistChangedValue();
+    virtual int getDataSockId();
+    virtual int getDataPort();
 
 private:
     virtual int doKeyAgree();
@@ -98,11 +106,17 @@ private:
     virtual int doByebye(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp);
     virtual int doGetFilelist(MOCLOUD_CTRL_REQUEST & req, MOCLOUD_CTRL_RESPONSE & resp,
         char ** ppRespBody);
+    virtual int doStartDwld(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
+        MOCLOUD_CTRL_RESPONSE & resp);
+    virtual int doStopDwld(MOCLOUD_CTRL_REQUEST & req, const char * pBody, 
+        MOCLOUD_CTRL_RESPONSE & resp);
 
     virtual int getUserPasswd(const char * pBody, string & username, string & passwd);
     virtual int genResp(const int ret, const MOCLOUD_CMDID cmdId, MOCLOUD_CTRL_RESPONSE & resp);
     virtual int sendRespBody(const MOCLOUD_CTRL_RESPONSE & resp, char * pRespBody);
     virtual int sendFilelistBody(char * pRespBody, int bodyLen);
+    virtual int getDwldReqInfo(const char * pBody, MOCLOUD_FILEINFO_KEY & key, 
+        int & startOffset, int & fileId);
 
 private:
     CLI_STATE mState;
@@ -116,7 +130,10 @@ private:
     bool mIsFilelistChanged;
     int mFilelistChangedValue;
 
-    CliData * pCliData;
+    int mDataSockId;
+    int mDataPort;
+    list<CliData *> mCliDataList;
+    pthread_mutex_t mDwldMutex;
 
     MOCLOUD_CRYPT_INFO mCryptInfo;
 

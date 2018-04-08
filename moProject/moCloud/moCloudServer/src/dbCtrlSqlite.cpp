@@ -14,6 +14,7 @@ using namespace std;
 static int isExistCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
     n_columns = n_columns;
+    column_names = column_names;
     int * isExist = (int *)data;
     if(column_value[0])
     {
@@ -28,6 +29,7 @@ static int isExistCallback(void *data, int n_columns, char **column_value, char 
 static int getPasswdCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
     n_columns = n_columns;
+    column_names = column_names;
     char * passwd = (char *)data;
     if(column_value[0])
     {
@@ -44,6 +46,7 @@ static int getPasswdCallback(void *data, int n_columns, char **column_value, cha
 static int getFileinfoCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
     n_columns = n_columns;
+    column_names = column_names;
     DB_FILEINFO * pDbFileinfo = (DB_FILEINFO *)data;
      
     int isInited = atoi(column_value[0]);
@@ -61,9 +64,7 @@ static int getFileinfoCallback(void *data, int n_columns, char **column_value, c
     int state = atoi(column_value[5]);
     pDbFileinfo->basicInfo.state= MOCLOUD_FILE_STATE(state);
 
-    pDbFileinfo->readHdr = atoi(column_value[6]);
-    pDbFileinfo->readerNum = atoi(column_value[7]);
-    pDbFileinfo->writeHdr = atoi(column_value[8]);
+    pDbFileinfo->writeHdr = atoi(column_value[6]);
 
     return 0;
 }
@@ -71,6 +72,7 @@ static int getFileinfoCallback(void *data, int n_columns, char **column_value, c
 static int getUserinfoCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
     n_columns = n_columns;
+    column_names = column_names;
     DB_USERINFO * pDbUserinfo = (DB_USERINFO *)data;
 
     pDbUserinfo->username = column_value[0];
@@ -85,6 +87,7 @@ static int getUserinfoCallback(void *data, int n_columns, char **column_value, c
 static int getFilelistListCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
     n_columns = n_columns;
+    column_names = column_names;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "n_columns=%d\n", n_columns);
     
     list<DB_FILEINFO> * curList = (list<DB_FILEINFO> *)data;
@@ -105,9 +108,7 @@ static int getFilelistListCallback(void *data, int n_columns, char **column_valu
     int state = atoi(column_value[5]);
     curFileinfo.basicInfo.state= MOCLOUD_FILE_STATE(state);
 
-    curFileinfo.readHdr = atoi(column_value[6]);
-    curFileinfo.readerNum = atoi(column_value[7]);
-    curFileinfo.writeHdr = atoi(column_value[8]);
+    curFileinfo.writeHdr = atoi(column_value[6]);
 
     curList->push_back(curFileinfo);
 
@@ -117,6 +118,7 @@ static int getFilelistListCallback(void *data, int n_columns, char **column_valu
 static int getFilelistMapCallback(void *data, int n_columns, char **column_value, char **column_names)
 {
     n_columns = n_columns;
+    column_names = column_names;
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "n_columns=%d\n", n_columns);
     
     map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > * curMap = (map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > *)data;
@@ -138,9 +140,7 @@ static int getFilelistMapCallback(void *data, int n_columns, char **column_value
     int state = atoi(column_value[5]);
     curFileinfo.basicInfo.state= MOCLOUD_FILE_STATE(state);
 
-    curFileinfo.readHdr = atoi(column_value[6]);
-    curFileinfo.readerNum = atoi(column_value[7]);
-    curFileinfo.writeHdr = atoi(column_value[8]);
+    curFileinfo.writeHdr = atoi(column_value[6]);
 
     for(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> >::iterator it = curMap->begin(); it != curMap->end(); it++)
     {
@@ -192,10 +192,9 @@ DbCtrlSqlite::DbCtrlSqlite() : DbCtrl(), mDbName(SQLITE_DBNAME),
     //create fileinfo table if not exist
     memset(createCmd, 0x00, SQL_CMD_MAXLEN);
     snprintf(createCmd, SQL_CMD_MAXLEN, 
-        "create table if not exists %s(%s int, %s int, %s char(256), %s bigint, %s char(32), %s int, %s int, %s int, %s int);",
+        "create table if not exists %s(%s int, %s int, %s char(256), %s bigint, %s char(32), %s int, %s int);",
         mFileinfoTableName.c_str(), FILEINFO_TABLE_ISINITED, FILEINFO_TABLE_FILETYPE, FILEINFO_TABLE_FILENAME,
-        FILEINFO_TABLE_FILESIZE, FILEINFO_TABLE_OWNER, FILEINFO_TABLE_STATE, FILEINFO_TABLE_READHDR,
-        FILEINFO_TABLE_READNUM, FILEINFO_TABLE_WRITEHDR);
+        FILEINFO_TABLE_FILESIZE, FILEINFO_TABLE_OWNER, FILEINFO_TABLE_STATE, FILEINFO_TABLE_WRITEHDR);
     createCmd[SQL_CMD_MAXLEN - 1] = 0x00;
     printf("create userinfo table cmd is [%s]\n", createCmd);
     ret = sqlite3_exec(mpDb, createCmd, NULL, NULL, &errmsg);
@@ -404,6 +403,9 @@ int DbCtrlSqlite::modifyUserinfo(const string & username, DB_USERINFO & info)
     }
 
     //TODO, modify which attribute
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+        "username=[%s], passwd=[%s], signUpTime=%ld, lastLogInTime=%ld\n",
+        username.c_str(), info.password.c_str(), info.signUpTime, info.lastLogInTime);
 
     return 0;
 }
@@ -428,7 +430,7 @@ int DbCtrlSqlite::insertFileinfo(const DB_FILEINFO & info)
 
     char insertCmd[SQL_CMD_MAXLEN] = {0x00};
     snprintf(insertCmd, SQL_CMD_MAXLEN, 
-        "insert into %s values(%d, %d, \"%s\", %ld, \"%s\", %d, %d, %d, %d);",
+        "insert into %s values(%d, %d, \"%s\", %d, \"%s\", %d, %d, %d, %d);",
         mFileinfoTableName.c_str(), 1, info.basicInfo.key.filetype,
         info.basicInfo.key.filename, info.basicInfo.filesize, 
         info.basicInfo.ownerName, info.basicInfo.state, 0, -1, 0);
@@ -534,10 +536,9 @@ int DbCtrlSqlite::getFileinfo(DB_FILEINFO & info)
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "get file info succeed.\n");
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "filetype=%d, filename=[%s], " \
-        "filesize=%ld, ownerName=[%s], state=%d, readerNum=%d, readHdr=%d, writeHdr=%d\n",
+        "filesize=%d, ownerName=[%s], state=%d, writeHdr=%d\n",
         info.basicInfo.key.filetype, info.basicInfo.key.filename,
-        info.basicInfo.filesize, info.basicInfo.ownerName, info.basicInfo.state,
-        info.readerNum, info.readHdr, info.writeHdr);
+        info.basicInfo.filesize, info.basicInfo.ownerName, info.basicInfo.state, info.writeHdr);
     
     sqlite3_free(errmsg);
     errmsg = NULL;
@@ -553,6 +554,9 @@ int DbCtrlSqlite::modifyFileinfo(const MOCLOUD_FILEINFO_KEY & key, DB_FILEINFO &
     }
 
     //TODO, modify which attribute? should make sure this
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+        "filetype=%d, filename=[%s], filesize=%d\n",
+        key.filetype, key.filename, info.basicInfo.filesize);
 
     return 0;
 }
@@ -565,10 +569,10 @@ int DbCtrlSqlite::getFilelist(const int filetype, list<DB_FILEINFO> & filelist)
         return -1;
     }
 
-    if(filetype & MOCLOUD_FILETYPE_VIDEO == 0 && 
-        filetype & MOCLOUD_FILETYPE_AUDIO == 0 && 
-        filetype & MOCLOUD_FILETYPE_PIC == 0 && 
-        filetype & MOCLOUD_FILETYPE_OTHERS == 0)
+    if( ((filetype & MOCLOUD_FILETYPE_VIDEO) == 0) && 
+        ((filetype & MOCLOUD_FILETYPE_AUDIO) == 0) && 
+        ((filetype & MOCLOUD_FILETYPE_PIC) == 0) && 
+        ((filetype & MOCLOUD_FILETYPE_OTHERS) == 0))
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "filetype=%d, invalid value!\n", filetype);
@@ -619,10 +623,10 @@ int DbCtrlSqlite::getFilelist(const int filetype,
         return -1;
     }
 
-    if(filetype & MOCLOUD_FILETYPE_VIDEO == 0 && 
-        filetype & MOCLOUD_FILETYPE_AUDIO == 0 && 
-        filetype & MOCLOUD_FILETYPE_PIC == 0 && 
-        filetype & MOCLOUD_FILETYPE_OTHERS == 0)
+    if( ((filetype & MOCLOUD_FILETYPE_VIDEO) == 0) && 
+        ((filetype & MOCLOUD_FILETYPE_AUDIO) == 0) && 
+        ((filetype & MOCLOUD_FILETYPE_PIC) == 0) && 
+        ((filetype & MOCLOUD_FILETYPE_OTHERS) == 0))
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "filetype=%d, invalid value!\n", filetype);
@@ -761,7 +765,7 @@ int DbCtrlSqlite::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & fi
 
     for(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> >::iterator it = filelistMap.begin(); it != filelistMap.end(); it++)
     {
-        MOCLOUD_FILETYPE type = it->first;
+//        MOCLOUD_FILETYPE type = it->first;
         list<DB_FILEINFO> & curFileinfoList = it->second;
         for(list<DB_FILEINFO>::iterator iter = curFileinfoList.begin(); iter != curFileinfoList.end(); iter++)
         {
@@ -778,7 +782,7 @@ int DbCtrlSqlite::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & fi
                     strncpy(owner, iter->basicInfo.ownerName, MOCLOUD_USERNAME_MAXLEN);
                     owner[MOCLOUD_USERNAME_MAXLEN - 1] = 0x00;
                 }
-                snprintf(insertCmd, SQL_CMD_MAXLEN, "insert into %s values(%d, %d, \"%s\", %ld, \"%s\", %d, %d, %d, %d);",
+                snprintf(insertCmd, SQL_CMD_MAXLEN, "insert into %s values(%d, %d, \"%s\", %d, \"%s\", %d, %d, %d, %d);",
                     mFileinfoTableName.c_str(), isInited, iter->basicInfo.key.filetype,
                     iter->basicInfo.key.filename, iter->basicInfo.filesize, owner,
                     iter->basicInfo.state, 0, -1, 0);
@@ -800,7 +804,7 @@ int DbCtrlSqlite::refreshFileinfo(map<MOCLOUD_FILETYPE, list<DB_FILEINFO> > & fi
             {
                 //update its info in database
                 char updateCmd[SQL_CMD_MAXLEN] = {0x00};
-                snprintf(updateCmd, SQL_CMD_MAXLEN, "update %s set %s=%d, %s=%ld where %s=%d and %s=\"%s\";", 
+                snprintf(updateCmd, SQL_CMD_MAXLEN, "update %s set %s=%d, %s=%d where %s=%d and %s=\"%s\";", 
                     mFileinfoTableName.c_str(), FILEINFO_TABLE_ISINITED, 1, 
                     FILEINFO_TABLE_FILESIZE, iter->basicInfo.filesize, 
                     FILEINFO_TABLE_FILETYPE, iter->basicInfo.key.filetype, 

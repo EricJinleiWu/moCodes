@@ -21,7 +21,7 @@ static int gDataSockId = MOCLOUD_INVALID_SOCKID;
 static char gIsInited = 0;   //0,DONOT INIT; others, have inited;
 static pthread_t gRecvDataThrId = MOCLOUD_INVALID_THR_ID;
 
-static DWLD_FILE_INFO gDwldFileInfo[DWLD_TASK_MAX_NUM];
+static DWLD_FILE_INFO gDwldFileInfo[MOCLOUD_DWLD_TASK_MAX_NUM];
 
 
 /*
@@ -44,6 +44,7 @@ static int getDataHeader(MOCLOUD_DATA_HEADER * pHeader)
     //find header looply, MARK and CHECKSUM must be right
     while(1)
     {
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "startPos=%d, length=%d\n", startPos, length);
         int readLen = readn(gDataSockId, pTmp + startPos, length);
         if(readLen != length)
         {
@@ -54,15 +55,16 @@ static int getDataHeader(MOCLOUD_DATA_HEADER * pHeader)
         moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "check the header now.\n");
 
         int pos = moUtils_Search_BF((unsigned char *)pTmp, sizeof(MOCLOUD_DATA_HEADER),
-            (unsigned char *)MOCLOUD_MARK_SERVER, strlen(MOCLOUD_MARK_SERVER));
+            (unsigned char *)MOCLOUD_MARK_DWLD, strlen(MOCLOUD_MARK_DWLD));
         if(pos < 0)
         {
-            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Donot find MARK(%s), should find it looply.\n", MOCLOUD_MARK_SERVER);
-            memmove(pTmp, pTmp + sizeof(MOCLOUD_DATA_HEADER) - strlen(MOCLOUD_MARK_SERVER), strlen(MOCLOUD_MARK_SERVER));
-            startPos = strlen(MOCLOUD_MARK_SERVER);
-            length = sizeof(MOCLOUD_DATA_HEADER) - strlen(MOCLOUD_MARK_SERVER);
+            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Donot find MARK(%s), should find it looply.\n", MOCLOUD_MARK_DWLD);
+            memmove(pTmp, pTmp + sizeof(MOCLOUD_DATA_HEADER) - strlen(MOCLOUD_MARK_DWLD), strlen(MOCLOUD_MARK_DWLD));
+            startPos = strlen(MOCLOUD_MARK_DWLD);
+            length = sizeof(MOCLOUD_DATA_HEADER) - strlen(MOCLOUD_MARK_DWLD);
             continue;
         }
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "find mark(%s) in pos=%d\n", MOCLOUD_MARK_DWLD, pos);
 
         if(pos != 0)
         {
@@ -113,11 +115,13 @@ static int saveDataToBuffer(const MOCLOUD_DATA_HEADER * pHeader, const char * pB
         pthread_mutex_unlock(&gDwldFileInfo[pHeader->fileId].writeFileThrMutex);    
         return -2;
     }
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start save data to buffer now, fileId=%d\n", pHeader->fileId);
 
-    //if donot have any node in gDwldFileInfo[fileId].pDwldUnitForwardListHead, should malloc a new node
-    if(gDwldFileInfo[pHeader->fileId].pDwldUnitForwardListHead->next == NULL && 
-        gDwldFileInfo[pHeader->fileId].pDwldUnitForwardListHead->prev == NULL)
+    //if donot have any node in gDwldFileInfo[fileId].pDwldUnitListHead, should malloc a new node
+    if(gDwldFileInfo[pHeader->fileId].pDwldUnitListHead->next == NULL && 
+        gDwldFileInfo[pHeader->fileId].pDwldUnitListHead->prev == NULL)
     {
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Donot have node, should malloc a new one.\n");
         DWLD_UNIT_INFO_NODE * pNewNode = NULL;
         pNewNode = (DWLD_UNIT_INFO_NODE *)malloc(sizeof(DWLD_UNIT_INFO_NODE) * 1);
         if(NULL == pNewNode)
@@ -127,33 +131,36 @@ static int saveDataToBuffer(const MOCLOUD_DATA_HEADER * pHeader, const char * pB
             return -3;
         }
         moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc new node succeed.\n");
+        pNewNode->dataUnitInfo.isEof = pHeader->isEof;
         pNewNode->dataUnitInfo.isUsed = 1;
         pNewNode->dataUnitInfo.unitId = pHeader->unitId;
         pNewNode->dataUnitInfo.bodyLen = pHeader->bodyLen;
         memcpy(pNewNode->dataUnitInfo.body, pBody, MOCLOUD_DATA_UNIT_LEN);
 
-        gDwldFileInfo[pHeader->fileId].pDwldUnitForwardListHead->next = pNewNode;
-        gDwldFileInfo[pHeader->fileId].pDwldUnitForwardListHead->prev = pNewNode;
-        pNewNode->next = gDwldFileInfo[pHeader->fileId].pDwldUnitForwardListHead;
-        pNewNode->prev = gDwldFileInfo[pHeader->fileId].pDwldUnitForwardListHead;
+        gDwldFileInfo[pHeader->fileId].pDwldUnitListHead->next = pNewNode;
+        gDwldFileInfo[pHeader->fileId].pDwldUnitListHead->prev = pNewNode;
+        pNewNode->next = gDwldFileInfo[pHeader->fileId].pDwldUnitListHead;
+        pNewNode->prev = gDwldFileInfo[pHeader->fileId].pDwldUnitListHead;
 
         pthread_mutex_unlock(&gDwldFileInfo[pHeader->fileId].writeFileThrMutex);
         return 0;
     }
 
     //find a node if exist in gDwldFileInfo[fileId]->list
-    DWLD_UNIT_INFO_NODE * pCurNode = gDwldFileInfo[pHeader->fileId].pDwldUnitForwardListHead->next;
-    while(pCurNode != gDwldFileInfo[pHeader->fileId].pDwldUnitForwardListHead)
+    DWLD_UNIT_INFO_NODE * pCurNode = gDwldFileInfo[pHeader->fileId].pDwldUnitListHead->next;
+    while(pCurNode != gDwldFileInfo[pHeader->fileId].pDwldUnitListHead)
     {
         if(pCurNode->dataUnitInfo.isUsed)
         {
             break;
         }
+        pCurNode = pCurNode->next;
     }
 
     //all nodes being used, must malloc new node for it
-    if(pCurNode->prev == gDwldFileInfo[pHeader->fileId].pDwldUnitForwardListHead)
+    if(pCurNode->prev == gDwldFileInfo[pHeader->fileId].pDwldUnitListHead)
     {
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "all nodes being used, should malloc a new one to save data.\n");
         DWLD_UNIT_INFO_NODE * pNewNode = NULL;
         pNewNode = (DWLD_UNIT_INFO_NODE *)malloc(sizeof(DWLD_UNIT_INFO_NODE) * 1);
         if(NULL == pNewNode)
@@ -163,22 +170,25 @@ static int saveDataToBuffer(const MOCLOUD_DATA_HEADER * pHeader, const char * pB
             return -4;
         }
         moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "malloc new node succeed.\n");
+        pNewNode->dataUnitInfo.isEof = pHeader->isEof;
         pNewNode->dataUnitInfo.isUsed = 1;
         pNewNode->dataUnitInfo.unitId = pHeader->unitId;
         pNewNode->dataUnitInfo.bodyLen = pHeader->bodyLen;
         memcpy(pNewNode->dataUnitInfo.body, pBody, MOCLOUD_DATA_UNIT_LEN);
 
-        gDwldFileInfo[pHeader->fileId].pDwldUnitForwardListHead->next = pNewNode;
+        gDwldFileInfo[pHeader->fileId].pDwldUnitListHead->next = pNewNode;
         pNewNode->next = pCurNode;
         pCurNode->prev = pNewNode;
-        pNewNode->prev = gDwldFileInfo[pHeader->fileId].pDwldUnitForwardListHead;
+        pNewNode->prev = gDwldFileInfo[pHeader->fileId].pDwldUnitListHead;
 
         pthread_mutex_unlock(&gDwldFileInfo[pHeader->fileId].writeFileThrMutex);
         return 0;
     }
 
     //pCurNode->prev is a node not being used, and not the head node, can be set value directly
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Find a node can be used!\n");
     pCurNode = pCurNode->prev;
+    pCurNode->dataUnitInfo.isEof = pHeader->isEof;
     pCurNode->dataUnitInfo.isUsed = 1;
     pCurNode->dataUnitInfo.unitId = pHeader->unitId;
     pCurNode->dataUnitInfo.bodyLen = pHeader->bodyLen;
@@ -250,7 +260,7 @@ static void * recvDataThr(void * args)
                 moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "readn return %d, bodyLen=%d\n", ret, header.bodyLen);
                 break;
             }
-            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "read body succeed.\n");
+            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "read body succeed. bodyLen=%d\n", header.bodyLen);
 
             //add this data unit to local memory
             ret = saveDataToBuffer(&header, body);
@@ -317,16 +327,17 @@ static int writeFile(const int fileId, const DWLD_UNIT_INFO * pInfo)
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is NULL!\n");
         return -1;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "fileId=%d\n", fileId);
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "fileId=%d, start writeFile!\n", fileId);
 
     int offset = pInfo->unitId * MOCLOUD_DATA_UNIT_LEN;
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "offset=%d\n", offset);
     int ret = fseek(gDwldFileInfo[fileId].fd, offset, SEEK_SET);
     if(ret != 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "fseek failed! errno=%d, desc=[%s]\n", errno, strerror(errno));
         return -2;
     }
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "seek succeed. offset=%d\n", offset);
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "fseek succeed. offset=%d\n", offset);
     
     int writeLen = fwrite(pInfo->body, 1, pInfo->bodyLen, gDwldFileInfo[fileId].fd);
     if(writeLen != pInfo->bodyLen)
@@ -335,7 +346,7 @@ static int writeFile(const int fileId, const DWLD_UNIT_INFO * pInfo)
         return -3;
     }
     fflush(gDwldFileInfo[fileId].fd);
-    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "write succeed.\n");
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "write succeed. bodyLen=%d\n", pInfo->bodyLen);
 
     //if needed, send progress by callback function
     if(gDwldFileInfo[fileId].pProgressNotifyFunc)
@@ -349,15 +360,15 @@ static int writeFile(const int fileId, const DWLD_UNIT_INFO * pInfo)
             progress = 100;
         }
         moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "Progress=%f\n", progress);
-        gDwldFileInfo[fileId].pProgressNotifyFunc(fileId, pInfo->unitId);
+        gDwldFileInfo[fileId].pProgressNotifyFunc(fileId, pInfo->unitId, 0);
     }
     
     return 0;
 }
 
-static int isEof(const int fileId, const int unitId)
+static int isEof(const int isEof)
 {
-    return (unitId * MOCLOUD_DATA_UNIT_LEN >= gDwldFileInfo[fileId].fileLength) ? 1 : 0;
+    return (isEof == 0) ? 0 : 1;
 }
 
 /*
@@ -365,13 +376,12 @@ static int isEof(const int fileId, const int unitId)
 */
 static void * writeFileThr(void * args)
 {
-    int * pFileId = (int *)args;
-    int fileId = *pFileId;
-    if(fileId < 0 || fileId >= DWLD_TASK_MAX_NUM)
+    int fileId = *(int *)args;
+    if(fileId < 0 || fileId >= MOCLOUD_DWLD_TASK_MAX_NUM)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "fileId=%d, valid range is [%d, %d), start WriteFileThread failed!\n",
-            fileId, 0, DWLD_TASK_MAX_NUM);
+            fileId, 0, MOCLOUD_DWLD_TASK_MAX_NUM);
         return NULL;
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "fileId=%d\n", fileId);
@@ -381,6 +391,7 @@ static void * writeFileThr(void * args)
     while(1)
     {
         sem_wait(&gDwldFileInfo[fileId].writeFileThrsem);
+        moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "fileId=%d, recv semaphore to write.\n", fileId);
 
         while(1)
         {
@@ -389,21 +400,21 @@ static void * writeFileThr(void * args)
             if(gDwldFileInfo[fileId].isStopWriteFileThr)
             {
                 moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-                    "gDwldFileInfo[fileId].isStopWriteFileThr=%d, fileId=%d, should exit thread now.\n",
-                    gDwldFileInfo[fileId].isStopWriteFileThr, fileId);
+                    "gDwldFileInfo[%d].isStopWriteFileThr=%d, should exit thread now.\n",
+                    fileId, gDwldFileInfo[fileId].isStopWriteFileThr);
 
                 //drop all data
-                DWLD_UNIT_INFO_NODE *pCurNode = gDwldFileInfo[fileId].pDwldUnitForwardListHead->next;
-                while(pCurNode != gDwldFileInfo[fileId].pDwldUnitForwardListHead && pCurNode != NULL)
+                DWLD_UNIT_INFO_NODE *pCurNode = gDwldFileInfo[fileId].pDwldUnitListHead->next;
+                while(pCurNode != gDwldFileInfo[fileId].pDwldUnitListHead && pCurNode != NULL)
                 {
-                    gDwldFileInfo[fileId].pDwldUnitForwardListHead->next = pCurNode->next;
+                    gDwldFileInfo[fileId].pDwldUnitListHead->next = pCurNode->next;
                     free(pCurNode);
                     pCurNode = NULL;
-                    pCurNode = gDwldFileInfo[fileId].pDwldUnitForwardListHead->next;
+                    pCurNode = gDwldFileInfo[fileId].pDwldUnitListHead->next;
                 }
 
-                gDwldFileInfo[fileId].pDwldUnitForwardListHead->next = NULL;
-                gDwldFileInfo[fileId].pDwldUnitForwardListHead->prev = NULL;
+                gDwldFileInfo[fileId].pDwldUnitListHead->next = NULL;
+                gDwldFileInfo[fileId].pDwldUnitListHead->prev = NULL;
                 gDwldFileInfo[fileId].isUsing = 0;
                 
                 isExit = 1;
@@ -413,12 +424,13 @@ static void * writeFileThr(void * args)
             
             //get data from buffer
             DWLD_UNIT_INFO_NODE * pLastNode = NULL;
-            pLastNode = gDwldFileInfo[fileId].pDwldUnitForwardListHead->prev;
+            pLastNode = gDwldFileInfo[fileId].pDwldUnitListHead->prev;
             if(NULL == pLastNode || pLastNode->dataUnitInfo.isUsed == 0)
             {
                 moLoggerWarn(MOCLOUD_MODULE_LOGGER_NAME, "Donot have valid node can be write now!\n");
                 pthread_mutex_unlock(&gDwldFileInfo[fileId].writeFileThrMutex);
-                break;
+                usleep(300);
+                continue;
             }
             
             DWLD_UNIT_INFO curInfo;
@@ -429,38 +441,39 @@ static void * writeFileThr(void * args)
             pLastNode->dataUnitInfo.isUsed = 0;
             
             //just one node in this list, do nothing is OK.
-            if(gDwldFileInfo[fileId].pDwldUnitForwardListHead->prev == gDwldFileInfo[fileId].pDwldUnitForwardListHead->next)
+            if(gDwldFileInfo[fileId].pDwldUnitListHead->prev == gDwldFileInfo[fileId].pDwldUnitListHead->next)
             {
                 moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "just one node in this list.\n");
-                pthread_mutex_unlock(&gDwldFileInfo[fileId].writeFileThrMutex);
-                break;
+            }
+            else
+            {
+                //move last node to head->next
+                DWLD_UNIT_INFO_NODE * pNewLastNode = pLastNode->prev;
+                DWLD_UNIT_INFO_NODE * pFirstNode = gDwldFileInfo[fileId].pDwldUnitListHead->next;
+                gDwldFileInfo[fileId].pDwldUnitListHead->next = pLastNode;
+                gDwldFileInfo[fileId].pDwldUnitListHead->prev = pNewLastNode;
+                pLastNode->next = pFirstNode;
+                pLastNode->prev = gDwldFileInfo[fileId].pDwldUnitListHead;
+                pFirstNode->prev = pLastNode;
+                pNewLastNode->next = gDwldFileInfo[fileId].pDwldUnitListHead;
             }
             
-            //move last node to head->next
-            DWLD_UNIT_INFO_NODE * pNewLastNode = pLastNode->prev;
-            DWLD_UNIT_INFO_NODE * pFirstNode = gDwldFileInfo[fileId].pDwldUnitForwardListHead->next;
-            gDwldFileInfo[fileId].pDwldUnitForwardListHead->next = pLastNode;
-            gDwldFileInfo[fileId].pDwldUnitForwardListHead->prev = pNewLastNode;
-            pLastNode->next = pFirstNode;
-            pLastNode->prev = gDwldFileInfo[fileId].pDwldUnitForwardListHead;
-            pFirstNode->prev = pLastNode;
-            pNewLastNode->next = gDwldFileInfo[fileId].pDwldUnitForwardListHead;
-            
             pthread_mutex_unlock(&gDwldFileInfo[fileId].writeFileThrMutex);
+
+            //If to the end of file, should write all data to file, then free buffer, then exit thread
+            if(isEof(curInfo.isEof))
+            {
+                moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, "To the end of file!\n");
+                gDwldFileInfo[fileId].isStopWriteFileThr = 1;
+                gDwldFileInfo[fileId].pProgressNotifyFunc(fileId, curInfo.unitId, curInfo.isEof);
+                continue;
+            }
 
             //write this unit to file
             int ret = writeFile(fileId, &curInfo);
             if(ret < 0)
             {
                 moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "writeFile failed! ret=%d, fileId=%d\n", ret, fileId);
-                continue;
-            }
-
-            //If to the end of file, should write all data to file, then free buffer, then exit thread
-            if(isEof(fileId, curInfo.unitId))
-            {
-                moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, "To the end of file!\n");
-                gDwldFileInfo[fileId].isStopWriteFileThr = 1;
                 continue;
             }
         }
@@ -481,7 +494,7 @@ static void * writeFileThr(void * args)
 */
 static int startWriteFileThr(const int fileId)
 {
-    int ret = pthread_create(&gDwldFileInfo[fileId].writeFileThrId, NULL, writeFileThr, NULL);
+    int ret = pthread_create(&gDwldFileInfo[fileId].writeFileThrId, NULL, writeFileThr, (void *)&fileId);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -499,6 +512,7 @@ static int startWriteFileThr(const int fileId)
 */
 static int stopWriteFileThr(const int fileId)
 {
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "stop write file thread now.\n");
     if(gDwldFileInfo[fileId].writeFileThrId != MOCLOUD_INVALID_THR_ID)
     {
         moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, "start stop writeFileThr now, fileId=%d.\n", fileId);
@@ -512,8 +526,11 @@ static int stopWriteFileThr(const int fileId)
 
         gDwldFileInfo[fileId].writeFileThrId = MOCLOUD_INVALID_THR_ID;
 
-        fclose(gDwldFileInfo[fileId].fd);
-        gDwldFileInfo[fileId].fd = NULL;
+        if(gDwldFileInfo[fileId].fd)
+        {
+            fclose(gDwldFileInfo[fileId].fd);
+            gDwldFileInfo[fileId].fd = NULL;
+        }
     }
     
     return 0;
@@ -564,27 +581,27 @@ int cliDataInit(const char * ip, const int port, const char * servIp, const int 
     }
     moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "startRecvDataThr succeed.\n");
 
-    memset(&gDwldFileInfo, 0x00, sizeof(DWLD_FILE_INFO) * DWLD_TASK_MAX_NUM);
+    memset(&gDwldFileInfo, 0x00, sizeof(DWLD_FILE_INFO) * MOCLOUD_DWLD_TASK_MAX_NUM);
     int i = 0;
-    for(i = 0; i < DWLD_TASK_MAX_NUM; i++)
+    for(i = 0; i < MOCLOUD_DWLD_TASK_MAX_NUM; i++)
     {
         gDwldFileInfo[i].isUsing = 0;
         gDwldFileInfo[i].writeFileThrId = MOCLOUD_INVALID_THR_ID;
         sem_init(&gDwldFileInfo[i].writeFileThrsem, 0, 0);
         pthread_mutex_init(&gDwldFileInfo[i].writeFileThrMutex, NULL);
-        gDwldFileInfo[i].pDwldUnitForwardListHead = NULL;
-        gDwldFileInfo[i].pDwldUnitForwardListHead = (DWLD_UNIT_INFO_NODE *)malloc(sizeof(DWLD_UNIT_INFO_NODE) * 1);
-        if(NULL == gDwldFileInfo[i].pDwldUnitForwardListHead)
+        gDwldFileInfo[i].pDwldUnitListHead = NULL;
+        gDwldFileInfo[i].pDwldUnitListHead = (DWLD_UNIT_INFO_NODE *)malloc(sizeof(DWLD_UNIT_INFO_NODE) * 1);
+        if(NULL == gDwldFileInfo[i].pDwldUnitListHead)
         {
             moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "malloc failed! i = %d, errno=%d, desc=[%s]\n", i, errno, strerror(errno));
             break;
         }
-        memset(&gDwldFileInfo[i].pDwldUnitForwardListHead->dataUnitInfo, 0x00, sizeof(DWLD_UNIT_INFO));
-        gDwldFileInfo[i].pDwldUnitForwardListHead->prev = NULL;
-        gDwldFileInfo[i].pDwldUnitForwardListHead->next = NULL;
+        memset(&gDwldFileInfo[i].pDwldUnitListHead->dataUnitInfo, 0x00, sizeof(DWLD_UNIT_INFO));
+        gDwldFileInfo[i].pDwldUnitListHead->prev = NULL;
+        gDwldFileInfo[i].pDwldUnitListHead->next = NULL;
     }
 
-    if(i < DWLD_TASK_MAX_NUM)
+    if(i < MOCLOUD_DWLD_TASK_MAX_NUM)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Init gDwldFileInfo failed!\n");
         int j = 0;
@@ -592,8 +609,8 @@ int cliDataInit(const char * ip, const int port, const char * servIp, const int 
         {
             sem_destroy(&gDwldFileInfo[i].writeFileThrsem);
             pthread_mutex_destroy(&gDwldFileInfo[i].writeFileThrMutex);
-            free(gDwldFileInfo[i].pDwldUnitForwardListHead);
-            gDwldFileInfo[i].pDwldUnitForwardListHead = NULL;
+            free(gDwldFileInfo[i].pDwldUnitListHead);
+            gDwldFileInfo[i].pDwldUnitListHead = NULL;
         }
         
         return -5;
@@ -611,15 +628,16 @@ int cliDataInit(const char * ip, const int port, const char * servIp, const int 
 */
 int cliDataUnInit()
 {
+    moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "start uninit cliData module. gIsInited=%d\n", gIsInited);
     if(gIsInited)
     {
         stopRecvDataThr();
         int i = 0;
-        for(i = 0; i < DWLD_TASK_MAX_NUM; i++)
+        for(i = 0; i < MOCLOUD_DWLD_TASK_MAX_NUM; i++)
         {
             stopWriteFileThr(i);
         }
-        for(i = 0; i < DWLD_TASK_MAX_NUM; i++)
+        for(i = 0; i < MOCLOUD_DWLD_TASK_MAX_NUM; i++)
         {
             gDwldFileInfo[i].isUsing = 0;
             gDwldFileInfo[i].writeFileThrId = MOCLOUD_INVALID_THR_ID;
@@ -628,17 +646,17 @@ int cliDataUnInit()
             sem_destroy(&gDwldFileInfo[i].writeFileThrsem);
             pthread_mutex_destroy(&gDwldFileInfo[i].writeFileThrMutex);
 
-            DWLD_UNIT_INFO_NODE *pCurNode = gDwldFileInfo[i].pDwldUnitForwardListHead->next;
+            DWLD_UNIT_INFO_NODE *pCurNode = gDwldFileInfo[i].pDwldUnitListHead->next;
             while(pCurNode != NULL)
             {
-                gDwldFileInfo[i].pDwldUnitForwardListHead->next = pCurNode->next;
+                DWLD_UNIT_INFO_NODE * pNextNode = pCurNode->next;
                 free(pCurNode);
                 pCurNode = NULL;
-                pCurNode = gDwldFileInfo[i].pDwldUnitForwardListHead->next;
+                pCurNode = pNextNode;
             }
             
-            free(gDwldFileInfo[i].pDwldUnitForwardListHead);
-            gDwldFileInfo[i].pDwldUnitForwardListHead = NULL;
+            free(gDwldFileInfo[i].pDwldUnitListHead);
+            gDwldFileInfo[i].pDwldUnitListHead = NULL;
         }
         destroySocket(&gDataSockId);
         gIsInited = 0;
@@ -653,7 +671,7 @@ int cliDataUnInit()
 static int insertFileDwldTask(const int fileId, const MOCLOUD_FILEINFO_KEY key, 
     const size_t filesize, const char *pLocalFilepath)
 {
-    if(NULL == pLocalFilepath || fileId < 0 || fileId >= DWLD_TASK_MAX_NUM)
+    if(NULL == pLocalFilepath || fileId < 0 || fileId >= MOCLOUD_DWLD_TASK_MAX_NUM)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "Input param is invalid!\n");
         return -1;
@@ -671,7 +689,19 @@ static int insertFileDwldTask(const int fileId, const MOCLOUD_FILEINFO_KEY key,
         fclose(gDwldFileInfo[fileId].fd);
         gDwldFileInfo[fileId].fd = NULL;
     }
-    gDwldFileInfo[fileId].fd = fopen(pLocalFilepath, "ab+");
+
+    int ret = access(pLocalFilepath, 0);
+    if(ret < 0)
+    {
+        //file donot exist, just create it
+        moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, "file [%s] donot exist, create it.\n", pLocalFilepath);
+        gDwldFileInfo[fileId].fd = fopen(pLocalFilepath, "wb+");
+    }
+    else
+    {     
+        moLoggerInfo(MOCLOUD_MODULE_LOGGER_NAME, "file [%s] exist, open it.\n", pLocalFilepath);
+        gDwldFileInfo[fileId].fd = fopen(pLocalFilepath, "rb+");   
+    }
     if(NULL == gDwldFileInfo[fileId].fd)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -684,7 +714,7 @@ static int insertFileDwldTask(const int fileId, const MOCLOUD_FILEINFO_KEY key,
     
     //gDwldFileInfo[fileId].writeFileThrId will be set in this function
     gDwldFileInfo[fileId].isStopWriteFileThr = 0;
-    int ret = startWriteFileThr(fileId);
+    ret = startWriteFileThr(fileId);
     if(ret < 0)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, "startWriteFileThr failed! ret=%d\n", ret);
@@ -699,7 +729,6 @@ static int insertFileDwldTask(const int fileId, const MOCLOUD_FILEINFO_KEY key,
     gDwldFileInfo[fileId].fileLength = filesize;
     strncpy(gDwldFileInfo[fileId].localFilepath, pLocalFilepath, MOCLOUD_FILEPATH_MAXLEN);
     gDwldFileInfo[fileId].localFilepath[MOCLOUD_FILEPATH_MAXLEN - 1] = 0x00;
-    gDwldFileInfo[fileId].fd = NULL;
     
     pthread_mutex_unlock(&gDwldFileInfo[fileId].writeFileThrMutex);
 
@@ -726,17 +755,17 @@ static void delFileDwldTask(const int fileId)
 
     pthread_mutex_lock(&gDwldFileInfo[fileId].writeFileThrMutex);
     
-    DWLD_UNIT_INFO_NODE *pCurNode = gDwldFileInfo[fileId].pDwldUnitForwardListHead->next;
-    while(pCurNode != gDwldFileInfo[fileId].pDwldUnitForwardListHead && pCurNode != NULL)
+    DWLD_UNIT_INFO_NODE *pCurNode = gDwldFileInfo[fileId].pDwldUnitListHead->next;
+    while(pCurNode != gDwldFileInfo[fileId].pDwldUnitListHead && pCurNode != NULL)
     {
-        gDwldFileInfo[fileId].pDwldUnitForwardListHead->next = pCurNode->next;
+        gDwldFileInfo[fileId].pDwldUnitListHead->next = pCurNode->next;
         free(pCurNode);
         pCurNode = NULL;
-        pCurNode = gDwldFileInfo[fileId].pDwldUnitForwardListHead->next;
+        pCurNode = gDwldFileInfo[fileId].pDwldUnitListHead->next;
     }
 
-    gDwldFileInfo[fileId].pDwldUnitForwardListHead->next = NULL;
-    gDwldFileInfo[fileId].pDwldUnitForwardListHead->prev = NULL;
+    gDwldFileInfo[fileId].pDwldUnitListHead->next = NULL;
+    gDwldFileInfo[fileId].pDwldUnitListHead->prev = NULL;
     gDwldFileInfo[fileId].isUsing = 0;
     
     pthread_mutex_unlock(&gDwldFileInfo[fileId].writeFileThrMutex);
@@ -761,7 +790,7 @@ int cliDataStartDwld(const MOCLOUD_FILEINFO_KEY key, const size_t filesize, cons
         key.filetype, key.filename, filesize, pLocalFilepath);
 
     int i = 0;
-    for(i = 0; i < DWLD_TASK_MAX_NUM; i++)
+    for(i = 0; i < MOCLOUD_DWLD_TASK_MAX_NUM; i++)
     {
         if(gDwldFileInfo[i].isUsing && 
             0 == strcmp(gDwldFileInfo[i].fileKey.filename, key.filename) && 
@@ -774,7 +803,7 @@ int cliDataStartDwld(const MOCLOUD_FILEINFO_KEY key, const size_t filesize, cons
         }
     }
 
-    for(i = 0; i < DWLD_TASK_MAX_NUM; i++)
+    for(i = 0; i < MOCLOUD_DWLD_TASK_MAX_NUM; i++)
     {
         pthread_mutex_lock(&gDwldFileInfo[i].writeFileThrMutex);
         if(!gDwldFileInfo[i].isUsing)
@@ -787,7 +816,7 @@ int cliDataStartDwld(const MOCLOUD_FILEINFO_KEY key, const size_t filesize, cons
         }
     }
 
-    if(i >= DWLD_TASK_MAX_NUM)
+    if(i >= MOCLOUD_DWLD_TASK_MAX_NUM)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
             "Donot have unused fileId, cannot start new dwld task.\n");
@@ -826,10 +855,10 @@ int cliDataStartDwld(const MOCLOUD_FILEINFO_KEY key, const size_t filesize, cons
 */
 int cliDataStopDwld(const int fileId)
 {
-    if(fileId < 0 || fileId >= DWLD_TASK_MAX_NUM)
+    if(fileId < 0 || fileId >= MOCLOUD_DWLD_TASK_MAX_NUM)
     {
         moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
-            "FileId=%d, invalid one! valid range is [0, %d).\n", fileId, DWLD_TASK_MAX_NUM);
+            "FileId=%d, invalid one! valid range is [0, %d).\n", fileId, MOCLOUD_DWLD_TASK_MAX_NUM);
         return -1;
     }
 
