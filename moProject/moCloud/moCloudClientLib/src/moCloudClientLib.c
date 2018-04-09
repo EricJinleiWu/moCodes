@@ -1345,6 +1345,13 @@ static int initDwldTasksInfo()
     {
         //read a unit
         readLen = fread((char *)&unitInfo, 1, sizeof(DWLD_FILE_UNIT_INFO), gDwldInfofileFd);
+        if(readLen == 0)
+        {
+            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+                "To the end of dwldInfoFile [%s], exit check now.\n", 
+                gCfgInfo.dwldInfoFile);
+            break;
+        }
         if(readLen != sizeof(DWLD_FILE_UNIT_INFO))
         {
             moLoggerError(MOCLOUD_MODULE_LOGGER_NAME, 
@@ -2345,7 +2352,9 @@ static void setDwldProgress(const int fileId, const int unitId, const char isEof
             fseek(gDwldInfofileFd, pCurNode->dwldTaskInfo.offset, SEEK_SET);
             fwrite((char *)&dwldFileUnitInfo, 1, sizeof(DWLD_FILE_UNIT_INFO), gDwldInfofileFd);
             fflush(gDwldInfofileFd);
-            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "refresh progress to file succeed.\n");
+            moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, 
+                "refresh progress to file succeed. offset=%d\n", 
+                pCurNode->dwldTaskInfo.offset);
             //TODO, if needed, send progress out
 
             pthread_mutex_unlock(&gDwldTasksMutex);
@@ -2431,7 +2440,12 @@ static int getOneDwldNode(const MOCLOUD_FILEINFO_KEY key, const size_t filesize,
                 break;
         }
         moLoggerDebug(MOCLOUD_MODULE_LOGGER_NAME, "offset=%d.\n", pTask->dwldTaskInfo.offset);
+        strcpy(dwldFileUnitInfo.mark, MOCLOUD_MARK_DWLD);
         dwldFileUnitInfo.isUsing = 1;
+        memcpy(&dwldFileUnitInfo.dwldInfo.fileKey, &key, sizeof(MOCLOUD_FILEINFO_KEY));
+        dwldFileUnitInfo.dwldInfo.fileLength = filesize;
+        strcpy(dwldFileUnitInfo.dwldInfo.localFilepath, pLocalFilepath);
+        dwldFileUnitInfo.dwldInfo.unitId = 0;
         dwldFileUnitInfo.dwldInfo.isDwlding = 1;
         moCloudUtilsCheck_checksumGetValue((char *)&dwldFileUnitInfo,
                 sizeof(DWLD_FILE_UNIT_INFO) - sizeof(unsigned char), &dwldFileUnitInfo.checkSum);        
@@ -2521,6 +2535,7 @@ static int delDwldNode(const MOCLOUD_FILEINFO_KEY key)
     moCloudUtilsCheck_checksumGetValue((char *)&dwldFileUnitInfo,
         sizeof(DWLD_FILE_UNIT_INFO) - sizeof(unsigned char),
         &dwldFileUnitInfo.checkSum);
+    fseek(gDwldInfofileFd, pCurNode->dwldTaskInfo.offset, SEEK_SET);
     fwrite((char *)&dwldFileUnitInfo, 1, sizeof(DWLD_FILE_UNIT_INFO), gDwldInfofileFd);
 
     //delete this node then
