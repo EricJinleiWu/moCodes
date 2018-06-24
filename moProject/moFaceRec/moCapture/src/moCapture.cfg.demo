@@ -1,0 +1,18 @@
+{
+"HostInfo" : {
+	"Ip" : "127.0.0.1",
+	"Port" : 8080,
+	"Name" : "HostEricWu"
+	},
+"ServerInfo" : {
+	"Ip" : "127.0.0.1",
+	"Port" : 8081
+	}, 
+"CaptureParam" : {
+	"width" : 640,
+	"height" : 480,
+	"format" : "jpg",
+	"inteval" : 1,
+	"captureDirpath" : "./"
+	}
+}
