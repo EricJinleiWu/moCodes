@@ -87,7 +87,16 @@ class MoCaptCapture(object):
                 return (-4, None)
             else:
                 print("raspistill succeed! filename=[%s], filepath=[%s]" % (captFilename, captFilepath))
-                return (0, captFilepath)
+                
+                #filename should add length, this can help moFaceRecServer to do some other work.
+                newFilename = str(curTimestamp) + "_w" + str(width) + "_h" + str(height) + "_l" + str(os.path.getsize(captFilepath)) + "." + gCaptFileFormat[fileFormat]
+                newFilepath = dirPath
+                if not newFilepath.endswith("/"):
+                    newFilepath += "/"
+                newFilepath += newFilename
+                os.renames(captFilepath, newFilepath)
+                
+                return (0, newFilepath)
         elif self.captMethod == 1:
             print("Currently, donot support piccamera to do capture.")
             #TODO, do capture by piccamera

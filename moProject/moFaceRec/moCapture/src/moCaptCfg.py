@@ -28,7 +28,7 @@ class MoCaptCfg(object):
     def setDefaultCfg(self):
         self.hostInfo = {"Ip" : "127.0.0.1", "Port" : 8080, "Name" : "EricWu"}
         self.serverInfo = {"Ip" : "127.0.0.1", "Port" : 8081}
-        self.captParam = {"Width" : 640, "Height" : 480, "Format" : "jpg", "Inteval" : 1, "CaptureDirpath" : "./"}
+        self.captParam = {"Width" : 640, "Height" : 480, "Format" : "jpg", "Inteval" : 10, "CaptureDirpath" : "./"}
         #write these config info to file
         try:
             fd = open(self.cfgFilepath, "w")

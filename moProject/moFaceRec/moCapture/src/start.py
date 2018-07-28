@@ -15,6 +15,7 @@ __author__ = "EricWu"
 import requests
 import time
 import os
+import json
 
 from moCaptCapture import MoCaptCapture
 from moCaptCfg import MoCaptCfg
@@ -23,39 +24,37 @@ def sendPic2Server(captFilepath, serverIp, serverPort):
     """
     send the picture(maybe jpg or yuv) to server;
     """
-    if True:
-        print("sendPic2Server stub")
-        return 0
-    else:
-        ret = 0
-        fd = open(captFilepath, "rb")
-        reqBody = {"picture" : fd}
-        serverUrl = "http://"
-        serverUrl += serverIp
-        serverUrl += ":"
-        serverUrl += str(serverPort)
-        serverUrl += "/captureFile"
-        try:
-            resp = requests.post(serverUrl, data=reqBody)
-        except requests.exceptions.ConnectionError:
-            print("catch an exception : ConnectionError! check for it! serverUrl=", serverUrl)
-            ret = -1
-        except requests.exceptions.ConnectTimeout:
-            print("catch an exception : ConnectTimeout! check for it! serverUrl=", serverUrl)
-            ret = -2
-        except:
-            print("catch an exception : Unknown! serverUrl=", serverUrl)
-            ret = -3
-        finally:
-            fd.close()
-            if ret != 0:
-                return ret
-        
-        #parse response
-        if resp.status_code != 200:
-            print("resp.status_code=%d, donot statusOk." % (resp.status_code))
-            return -4
-        return 0    
+    ret = 0
+#         reqData = {"width":width, "height":height}
+    reqFile = {"captureFile" : open(captFilepath, "rb")}
+
+    serverUrl = "http://"
+    serverUrl += serverIp
+    serverUrl += ":"
+    serverUrl += str(serverPort)
+    serverUrl += "/FaceServer/captures"
+    try:
+#             resp = requests.post(serverUrl, data=reqData, files=reqFile)
+        resp = requests.post(serverUrl, files=reqFile)
+    except requests.exceptions.ConnectionError:
+        print("catch an exception : ConnectionError! check for it! serverUrl=", serverUrl)
+        ret = -1
+    except requests.exceptions.ConnectTimeout:
+        print("catch an exception : ConnectTimeout! check for it! serverUrl=", serverUrl)
+        ret = -2
+    except:
+        print("catch an exception : UnKnown")
+        ret = -3
+    finally:
+        if ret != 0:
+            return ret
+    
+    #parse response
+    if resp.status_code != 200:
+        print("resp.status_code=%d, donot statusOk." % (resp.status_code))
+        return -4
+    
+    return 0    
 
 def startHttpServer():
     print("startHttpServer stub")
@@ -111,7 +110,7 @@ def main():
         ret = sendPic2Server(captFilepath, serverIp, serverPort)
         if ret != 0:
             print("sendPic2Server failed. serverIp=[%s], serverPort=%d" % (serverIp, serverPort))
-        
+        #break
         #delete capture file
         os.remove(captFilepath)
         
