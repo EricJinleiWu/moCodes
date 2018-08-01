@@ -34,7 +34,7 @@ class MoCaptCapture(object):
     def __del__(self):
         pass
     
-    def capture(self, dirPath = "./", width = 640, height = 480, fileFormat = 0):
+    def capture(self, dirPath = "./", width = 640, height = 480, fileFormat = 0, hostName="defaultCameraName"):
         """
         Do capture by raspistill or piccamera, use which method depends on self.captMethod;
         The file we captured will be save in @dirPath;
@@ -89,7 +89,7 @@ class MoCaptCapture(object):
                 print("raspistill succeed! filename=[%s], filepath=[%s]" % (captFilename, captFilepath))
                 
                 #filename should add length, this can help moFaceRecServer to do some other work.
-                newFilename = str(curTimestamp) + "_w" + str(width) + "_h" + str(height) + "_l" + str(os.path.getsize(captFilepath)) + "." + gCaptFileFormat[fileFormat]
+                newFilename = str(curTimestamp) + "_w" + str(width) + "_h" + str(height) + "_l" + str(os.path.getsize(captFilepath)) + "_n" + hostName + "." + gCaptFileFormat[fileFormat]
                 newFilepath = dirPath
                 if not newFilepath.endswith("/"):
                     newFilepath += "/"

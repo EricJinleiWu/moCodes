@@ -18,21 +18,23 @@ using namespace std;
 
 #include <algorithm>
 
-CaptFileInfo::CaptFileInfo() : mWidth(0), mHeight(0), mTimestamp(0), mCameraIp(0)
+CaptFileInfo::CaptFileInfo() : mWidth(0), mHeight(0), mTimestamp(0), mCameraIp(0), mCameraName("")
 {
     mFaceInfoList.clear();
 }
 
 CaptFileInfo::CaptFileInfo(
-    const int width, const int height, const time_t timestamp, const unsigned long cameraIp) : 
-    mWidth(width), mHeight(height), mTimestamp(timestamp), mCameraIp(cameraIp)
+    const int width, const int height, const time_t timestamp, const unsigned long cameraIp,
+    const string cameraName) : 
+    mWidth(width), mHeight(height), mTimestamp(timestamp), mCameraIp(cameraIp),
+    mCameraName(cameraName)
 {
     mFaceInfoList.clear();
 }
 
 CaptFileInfo::CaptFileInfo(const CaptFileInfo & other) : 
     mWidth(other.mWidth), mHeight(other.mHeight), mTimestamp(other.mTimestamp),
-    mCameraIp(other.mCameraIp)
+    mCameraIp(other.mCameraIp), mCameraName(other.mCameraName)
 {
     mFaceInfoList.clear();
 }
@@ -51,6 +53,7 @@ CaptFileInfo & CaptFileInfo::operator = (const CaptFileInfo & other)
     mHeight = other.mHeight;
     mTimestamp = other.mTimestamp;
     mCameraIp = other.mCameraIp;
+    mCameraName = other.mCameraName;
 
     mFaceInfoList = other.mFaceInfoList;
     
@@ -95,6 +98,11 @@ unsigned long CaptFileInfo::getCameraIp()
     return mCameraIp;
 }
 
+string CaptFileInfo::getCameraName()
+{
+    return mCameraName;
+}
+
 void CaptFileInfo::setWidth(const int width)
 {
     mWidth = width;
@@ -113,6 +121,11 @@ void CaptFileInfo::setTimestamp(const time_t timestamp)
 void CaptFileInfo::setCameraIp(const unsigned long cameraIp)
 {
     mCameraIp= cameraIp;
+}
+
+void CaptFileInfo::setCameraName(const string & name)
+{
+    mCameraName = name;
 }
 
 void CaptFileInfo::setFaceInfoList(list<FaceInfo> & l)
@@ -213,7 +226,8 @@ int FileMgr::getCaptFileInfo(const string & filename,CaptFileInfo & fileInfo)
     int width;
     int height;
     unsigned long ip;
-    int ret = sscanf(filename.c_str(), CAPT_FILE_FORMAT, &timestamp, &width, &height, &ip);
+    char tmp[MAX_FILENAME_LEN] = {0x00};
+    int ret = sscanf(filename.c_str(), CAPT_FILE_FORMAT, &timestamp, &width, &height, &ip, tmp);
     if(ret != 4)
     {
         dbgError("filename=[%s], CATP_FILE_FORMAT=[%s], donot in right format! ret=%d\n",
@@ -221,14 +235,26 @@ int FileMgr::getCaptFileInfo(const string & filename,CaptFileInfo & fileInfo)
         return -1;
     }
 
+    //delete the suffix in tmp
+    if(strlen(tmp) <= strlen(CAPT_FILE_SUFFIX) || 
+        0 != strcmp(tmp + (strlen(tmp) - strlen(CAPT_FILE_SUFFIX)), CAPT_FILE_SUFFIX))
+    {
+        dbgError("tmp=[%s], donot in right capture file format, it should ends with [%s] as suffix.\n",
+            tmp, CAPT_FILE_SUFFIX);
+        return -2;
+    }
+    tmp[strlen(tmp) - strlen(CAPT_FILE_SUFFIX)] = 0x00;
+
     fileInfo.setWidth(width);
     fileInfo.setHeight(height);
     fileInfo.setTimestamp(timestamp);
     fileInfo.setCameraIp(ip);
+    string name(tmp);
+    fileInfo.setCameraName(name);
     
-    dbgDebug("filename=[%s], fileInfo: timestamp=%ld, width=%d, height=%d, ip=%lu\n",
+    dbgDebug("filename=[%s], fileInfo: timestamp=%ld, width=%d, height=%d, ip=%lu, cameraName=[%s]\n",
         filename.c_str(), fileInfo.getTimestamp(), fileInfo.getWidth(), fileInfo.getHeight(), 
-        fileInfo.getCameraIp());
+        fileInfo.getCameraIp(), fileInfo.getCameraName().c_str());
 
     return 0;
 }
@@ -239,7 +265,8 @@ int FileMgr::getYuvFilename(CaptFileInfo & fileInfo,string & yuvname)
     memset(tmp, 0x00, MAX_FILENAME_LEN);
     snprintf(tmp, MAX_FILENAME_LEN, YUV_FILE_FORMAT, 
         fileInfo.getTimestamp(), fileInfo.getWidth(),
-        fileInfo.getHeight(), fileInfo.getCameraIp());
+        fileInfo.getHeight(), fileInfo.getCameraIp(),
+        fileInfo.getCameraName().c_str());
     tmp[MAX_FILENAME_LEN - 1] = 0x00;
     yuvname = tmp;
     dbgDebug("fileInfo: timestamp=%ld, width=%d, height=%d, ip=%lu; yuvname=[%s]\n",
@@ -255,7 +282,8 @@ int FileMgr::getCaptFilename(CaptFileInfo & fileInfo,string & filename)
     memset(tmp, 0x00, MAX_FILENAME_LEN);
     snprintf(tmp, MAX_FILENAME_LEN, CAPT_FILE_FORMAT, 
         fileInfo.getTimestamp(), fileInfo.getWidth(),
-        fileInfo.getHeight(), fileInfo.getCameraIp());
+        fileInfo.getHeight(), fileInfo.getCameraIp(),
+        fileInfo.getCameraName().c_str());
     tmp[MAX_FILENAME_LEN - 1] = 0x00;
     filename = tmp;
     dbgDebug("fileInfo: timestamp=%ld, width=%d, height=%d, ip=%lu; filename=[%s]\n",

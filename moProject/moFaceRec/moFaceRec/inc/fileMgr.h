@@ -19,7 +19,8 @@ class CaptFileInfo
 {
 public:
     CaptFileInfo();
-    CaptFileInfo(const int width, const int height, const time_t timestamp, const unsigned long cameraIp);
+    CaptFileInfo(const int width, const int height, const time_t timestamp, const unsigned long cameraIp,
+        const string cameraName);
     CaptFileInfo(const CaptFileInfo & other);
     virtual ~CaptFileInfo();
 
@@ -35,12 +36,14 @@ public:
     virtual int getHeight();
     virtual time_t getTimestamp();
     virtual unsigned long getCameraIp();
+    virtual string getCameraName();
 
 public:
     virtual void setWidth(const int width);
     virtual void setHeight(const int height);
     virtual void setTimestamp(const time_t timestamp);
     virtual void setCameraIp(const unsigned long cameraIp);
+    virtual void setCameraName(const string & name);
 
 public:
     virtual void setFaceInfoList(list<FaceInfo> & l);
@@ -50,6 +53,7 @@ private:
     int mHeight;
     time_t mTimestamp;
     unsigned long mCameraIp;
+    string mCameraName;
 
     list<FaceInfo> mFaceInfoList;
 };

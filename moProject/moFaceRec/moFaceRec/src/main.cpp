@@ -98,7 +98,8 @@ static int initCaptFiles(string & captDirpath)
         time_t timestamp = 0;
         int width = 0, height = 0;
         unsigned long cameraIp = 0;
-        ret = sscanf(pCurFile->d_name, CAPT_FILE_FORMAT, &timestamp, &width, &height, &cameraIp);
+        char tmp[MAX_FILENAME_LEN] = {0x00};
+        ret = sscanf(pCurFile->d_name, CAPT_FILE_FORMAT, &timestamp, &width, &height, &cameraIp, tmp);
         if(ret != CAPT_FILE_PARAM_NUM)
         {
             dbgError("captDirpath=[%s], filename=[%s], donot in right filename format!\n",
@@ -110,7 +111,22 @@ static int initCaptFiles(string & captDirpath)
             continue;
         }
 
-        CaptFileInfo curFileInfo(width, height, timestamp, cameraIp);
+        //@tmp has suffix ".jpg" currently, delete it.
+        if(strlen(tmp) <= strlen(JPG_SUFFIX) || 
+            0 != strcmp(tmp + (strlen(tmp) - strlen(JPG_SUFFIX)), JPG_SUFFIX))
+        {
+            dbgError("captDirpath=[%s], filename=[%s], tmp=[%s], donot in right filename format!\n",
+                captDirpath.c_str(), pCurFile->d_name, tmp);
+
+            string curFilename(pCurFile->d_name);
+            delFilenameList.push_back(curFilename);
+
+            continue;
+        }
+        tmp[strlen(tmp) - strlen(JPG_SUFFIX)] = 0x00;
+        string cameraName(tmp);
+
+        CaptFileInfo curFileInfo(width, height, timestamp, cameraIp, cameraName);
         ret = FileMgrSingleton::getInstance()->insertCaptFileTask(curFileInfo);
         if(ret != 0)
         {

@@ -8,6 +8,9 @@
 
 #define FACE_SERVER_HTTP_PORT   8088
 
+#define JPG_SUFFIX  ".jpg"
+#define YUV_SUFFIX  ".yuv"
+
 #define INVALID_THR_ID  (-1)
 #define DEFAULT_THR_NAME    "defThrName"
 
@@ -16,12 +19,13 @@
 #define DEFAULT_DISPLAY_MAX_NUM 9
 
 #define MAX_FILENAME_LEN    256
-#define CAPT_FILE_FORMAT    "%ld_w%d_h%d_ip%lu_capture.jpg"
-#define CAPT_FILE_PARAM_NUM 4
-#define YUV_FILE_FORMAT    "%ld_w%d_h%d_ip%lu_capture.yuv"
+#define CAPT_FILE_FORMAT    "%ld_w%d_h%d_ip%lu_n%s_capture.jpg"
+#define CAPT_FILE_PARAM_NUM 5
+#define YUV_FILE_FORMAT    "%ld_w%d_h%d_ip%lu_n%s_capture.yuv"
+#define CAPT_FILE_SUFFIX    "_capture.jpg"
 
-#define REQ_FILENAME_FORMAT "%ld_w%d_h%d_l%lld.jpg"
-#define REQ_FILENAME_PARAM_NUM  4
+#define REQ_FILENAME_FORMAT "%ld_w%d_h%d_l%lld_n%s.jpg"
+#define REQ_FILENAME_PARAM_NUM  5
 
 #define BASE_FILE_FORMAT    "baseFace_w%d_h%d_n%s.jpg"
 #define BASE_FILE_PARAM_NUM 3

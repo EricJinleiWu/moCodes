@@ -143,6 +143,14 @@ int BaseFaceInfo::getFeatures(FaceOper * pFaceOper)
         dbgError("mJpgFilename=[%s], donot in right base face file format!\n", mJpgFilename.c_str());
         return -3;
     }
+    //tmp is include suffix like "a.jpg", we should convert it to "a"
+    if(strlen(tmp) <= strlen(JPG_SUFFIX) || 0 != strcmp(tmp + (strlen(tmp) - strlen(JPG_SUFFIX)), JPG_SUFFIX))
+    {
+        dbgError("tmp=[%s], donot in right jpg file name format, it should ends with [%s] as suffix.\n",
+            tmp, JPG_SUFFIX);
+        return -3;
+    }
+    tmp[strlen(tmp) - strlen(JPG_SUFFIX)] = 0x00;
     dbgDebug("dirpath=[%s], jpgFilename=[%s], get params : width=%d, height=%d, name=[%s]\n",
         mDirpath.c_str(), mJpgFilename.c_str(), mWidth, mHeight, tmp);
     mName = tmp;

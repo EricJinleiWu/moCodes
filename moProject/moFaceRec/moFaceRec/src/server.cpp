@@ -146,7 +146,8 @@ static int getFilename(char * pReqData, const int reqLen, char * pFilename, int 
 /*
     @filename in format like : timestamp_w%d_h%d_l%lld.jpg
 */
-static int getParamFromFilename(const char * filename, int * pWidth, int * pHeight, long long int * pFileLen)
+static int getParamFromFilename(const char * filename, int * pWidth, int * pHeight, long long int * pFileLen,
+    string & cameraName)
 {
     if(NULL == filename || NULL == pWidth || NULL == pHeight)
     {
@@ -155,13 +156,25 @@ static int getParamFromFilename(const char * filename, int * pWidth, int * pHeig
     }
 
     time_t timestamp;
-    int cnt = sscanf(filename, REQ_FILENAME_FORMAT, &timestamp, pWidth, pHeight, pFileLen);
+    char tmp[MAX_FILENAME_LEN] = {0x00};
+    int cnt = sscanf(filename, REQ_FILENAME_FORMAT, &timestamp, pWidth, pHeight, pFileLen, tmp);
     if(cnt != REQ_FILENAME_PARAM_NUM)
     {
         dbgError("filename=[%s], donot get width and height in it!\n", filename);
         return -2;
     }
-    dbgDebug("filename=[%s], width=%d, height=%d, fileLen=%lld\n", filename, *pWidth, *pHeight, *pFileLen);
+    //Now, cameraName include suffix ".jpg" yet, I clear it here.
+    if(strlen(tmp) <= strlen(JPG_SUFFIX) || 
+        0 != strcmp(tmp + (strlen(tmp) - strlen(JPG_SUFFIX)), JPG_SUFFIX))
+    {
+        dbgError("tmp=[%s], donot in right jpg file name format, it should ends with [%s] as suffix.\n",
+            tmp, JPG_SUFFIX);
+        return -3;
+    }
+    tmp[strlen(tmp) - strlen(JPG_SUFFIX)] = 0x00;
+    cameraName = tmp;
+    dbgDebug("filename=[%s], width=%d, height=%d, fileLen=%lld, cameraName=[%s]\n", 
+        filename, *pWidth, *pHeight, *pFileLen, cameraName.c_str());
     return 0;
 }
 
@@ -202,8 +215,9 @@ static void captureHdl(void *arg)
 
     //get width and height value
     int width = 0, height = 0;
+    string cameraName;
     long long int jpgFileLen = 0;
-    ret = getParamFromFilename(filename, &width, &height, &jpgFileLen);
+    ret = getParamFromFilename(filename, &width, &height, &jpgFileLen, cameraName);
     if(ret != 0)
     {
         dbgError("get width and height from filename failed! ret=%d, filename=[%s]\n", ret, filename);
@@ -230,7 +244,7 @@ static void captureHdl(void *arg)
         width, height, timestamp, cameraIp);
 
     //construct a fileInfo, then set to fileMgr
-    CaptFileInfo fileInfo(width, height, timestamp, cameraIp);
+    CaptFileInfo fileInfo(width, height, timestamp, cameraIp, cameraName);
     ret = FileMgrSingleton::getInstance()->insertCaptFileTask(fileInfo);
     if(ret != 0)
     {

@@ -97,8 +97,11 @@ def main():
         captureDirpath = captureParam["CaptureDirpath"]
         captureInteval = captureParam["Inteval"]
         
+        hostParam = moCaptCfg.getHostInfo()
+        cameraName = hostParam["Name"]
+        
         #do capture
-        ret, captFilepath = moCapture.capture(captureDirpath, captureWidth, captureHeight, captureFormat)
+        ret, captFilepath = moCapture.capture(captureDirpath, captureWidth, captureHeight, captureFormat, cameraName)
         if ret != 0:
             print("capture failed! ret=", ret)
             return -3
