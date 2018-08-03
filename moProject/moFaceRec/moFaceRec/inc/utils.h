@@ -34,6 +34,20 @@
 #define UNKNOWN_PEOPLE_NAME "UnKnown"
 #define SIMI_LIMIT_VALUE    0.6
 
+/*
+    In a picture, max number of faces we detect;
+*/
+#define MAX_FACE_NUM    8
+
+/*
+    The max length of a people name in english;
+*/
+#define MAX_PEOPLE_NAME_LEN 32
+/*
+    The max length of a CAMERA name in english;
+*/
+#define MAX_CAMERA_NAME_LEN 64
+
 /* 
     Check input @pIp is a valid ip address or not;
     A valid ip address in format like aaa.bbb.ccc.ddd;

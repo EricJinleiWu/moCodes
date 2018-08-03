@@ -18,6 +18,7 @@ INCDIRS = -I./inc \
 LDFLAGS = -L./arcSoft/lib -larcsoft_fsdk_age_estimation -larcsoft_fsdk_face_recognition -larcsoft_fsdk_face_tracking -larcsoft_fsdk_gender_estimation -larcsoft_fsdk_face_detection
 LDFLAGS += -L./ffmpeg/lib -lavcodec -lavformat -lavutil -lswresample
 LDFLAGS += -lpthread -lrt -ldl
+LDFLAGS += -lmysqlclient
 
 #Cflags
 CFLAGS	= -g -ggdb -MMD -Wall -W

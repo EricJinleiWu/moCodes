@@ -15,6 +15,7 @@
 #include "utils.h"
 #include "fileMgr.h"
 #include "faceOper.h"
+#include "db.h"
 
 using namespace std;
 
@@ -112,8 +113,8 @@ static int initCaptFiles(string & captDirpath)
         }
 
         //@tmp has suffix ".jpg" currently, delete it.
-        if(strlen(tmp) <= strlen(JPG_SUFFIX) || 
-            0 != strcmp(tmp + (strlen(tmp) - strlen(JPG_SUFFIX)), JPG_SUFFIX))
+        if(strlen(tmp) <= strlen(CAPT_FILE_SUFFIX) || 
+            0 != strcmp(tmp + (strlen(tmp) - strlen(CAPT_FILE_SUFFIX)), CAPT_FILE_SUFFIX))
         {
             dbgError("captDirpath=[%s], filename=[%s], tmp=[%s], donot in right filename format!\n",
                 captDirpath.c_str(), pCurFile->d_name, tmp);
@@ -123,7 +124,18 @@ static int initCaptFiles(string & captDirpath)
 
             continue;
         }
-        tmp[strlen(tmp) - strlen(JPG_SUFFIX)] = 0x00;
+        tmp[strlen(tmp) - strlen(CAPT_FILE_SUFFIX)] = 0x00;
+
+        if(strlen(tmp) >= MAX_CAMERA_NAME_LEN)
+        {
+            dbgError("cameraName[%s], length=%d, too larger! max value I allowed is %d! filename=[%s]\n",
+                tmp, strlen(tmp), MAX_CAMERA_NAME_LEN, pCurFile->d_name);
+
+            string curFilename(pCurFile->d_name);
+            delFilenameList.push_back(curFilename);
+
+            continue;
+        }
         string cameraName(tmp);
 
         CaptFileInfo curFileInfo(width, height, timestamp, cameraIp, cameraName);
@@ -138,6 +150,9 @@ static int initCaptFiles(string & captDirpath)
 
             continue;
         }
+        dbgDebug("insertCaptFileTask succeed when initCaptFiles. fileInfo:[w=%d, h=%d, t=%ld, ip=%lu]\n",
+            width, height, timestamp, cameraIp);
+        
         FileMgrSingleton::getInstance()->notifyCaptFileTask();
     }
 
@@ -180,10 +195,23 @@ int main(int argc, char ** argv)
     }
     dbgDebug("regitster to arc succeed.\n");
 
+    //Do init to mysql
+    ret = DbMysqlSingleton::getInstance()->login();
+    if(ret != 0)
+    {
+        dbgError("login to db mysql failed! ret=%d\n", ret);
+        return -2;
+    }
+    dbgDebug("login to db mysql succeed.\n");
+    DbMysqlSingleton::getInstance()->start();
+
     //if dir donot exist, just mkdir it
     string captDirpath(DEFAULT_CAPT_DIRPATH);
     if(access(captDirpath.c_str(), 0) != 0 && createDir(captDirpath) != 0)
     {
+        DbMysqlSingleton::getInstance()->logout();
+        DbMysqlSingleton::getInstance()->stop();
+        DbMysqlSingleton::getInstance()->join();
         dbgError("CaptDir [%s] donot exist, we create it failed!\n", captDirpath.c_str());
         delete pFaceOper;
         pFaceOper = NULL;
@@ -192,6 +220,9 @@ int main(int argc, char ** argv)
     string baseDirpath(DEFAULT_BASE_DIRPATH);
     if(access(baseDirpath.c_str(), 0) != 0 && createDir(baseDirpath) != 0)
     {
+        DbMysqlSingleton::getInstance()->logout();
+        DbMysqlSingleton::getInstance()->stop();
+        DbMysqlSingleton::getInstance()->join();
         dbgError("BaseDir [%s] donot exist, we create it failed!\n", baseDirpath.c_str());
         delete pFaceOper;
         pFaceOper = NULL;
@@ -207,6 +238,9 @@ int main(int argc, char ** argv)
         dbgError("initBaseFiles failed! ret=%d, baseDirpath=[%s]\n", ret, baseDirpath.c_str());
         FileMgrSingleton::getInstance()->stop();
         FileMgrSingleton::getInstance()->join();
+        DbMysqlSingleton::getInstance()->logout();
+        DbMysqlSingleton::getInstance()->stop();
+        DbMysqlSingleton::getInstance()->join();
         delete pFaceOper;
         pFaceOper = NULL;
         return -4;
@@ -219,6 +253,9 @@ int main(int argc, char ** argv)
         dbgError("initCaptFiles failed! ret=%d, captDirpath=[%s]\n", ret, captDirpath.c_str());
         FileMgrSingleton::getInstance()->stop();
         FileMgrSingleton::getInstance()->join();
+        DbMysqlSingleton::getInstance()->logout();
+        DbMysqlSingleton::getInstance()->stop();
+        DbMysqlSingleton::getInstance()->join();
         delete pFaceOper;
         pFaceOper = NULL;
         return -5;
@@ -230,6 +267,13 @@ int main(int argc, char ** argv)
     if(ret != 0)
     {
         dbgError("create server failed! ret=%d\n", ret);
+        FileMgrSingleton::getInstance()->stop();
+        FileMgrSingleton::getInstance()->join();
+        DbMysqlSingleton::getInstance()->logout();
+        DbMysqlSingleton::getInstance()->stop();
+        DbMysqlSingleton::getInstance()->join();
+        delete pFaceOper;
+        pFaceOper = NULL;
         return -6;
     }
     dbgDebug("create server succeed.\n");
@@ -252,6 +296,10 @@ int main(int argc, char ** argv)
 
     FileMgrSingleton::getInstance()->stop();
     FileMgrSingleton::getInstance()->join();
+
+    DbMysqlSingleton::getInstance()->logout();
+    DbMysqlSingleton::getInstance()->stop();
+    DbMysqlSingleton::getInstance()->join();
     
     delete pFaceOper;
     pFaceOper = NULL;

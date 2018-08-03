@@ -46,6 +46,7 @@ public:
     virtual void setCameraName(const string & name);
 
 public:
+    virtual list<FaceInfo> & getFaceInfoList();
     virtual void setFaceInfoList(list<FaceInfo> & l);
 
 private:

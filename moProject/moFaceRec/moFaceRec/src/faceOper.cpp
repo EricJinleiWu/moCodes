@@ -42,8 +42,6 @@ using namespace std;
 #define ARCSOFT_FACE_GENDER_WORKMEM_SIZE        (30 * 1024 * 1024)
 #define ARCSOFT_FACE_GENDER_IMG_DIR      "./faceGenderEstimationTstFiles"
 
-#define MAX_FACE_NUM    16
-
 
 BaseFaceInfo::BaseFaceInfo() : mWidth(0), mHeight(0), mName(UNKNOWN_PEOPLE_NAME),
     mFeatureLen(0), mpFeature(NULL), mDirpath("./"), mJpgFilename("")
@@ -148,9 +146,16 @@ int BaseFaceInfo::getFeatures(FaceOper * pFaceOper)
     {
         dbgError("tmp=[%s], donot in right jpg file name format, it should ends with [%s] as suffix.\n",
             tmp, JPG_SUFFIX);
-        return -3;
+        return -4;
     }
     tmp[strlen(tmp) - strlen(JPG_SUFFIX)] = 0x00;
+    //people name should not too large
+    if(strlen(tmp) >= MAX_PEOPLE_NAME_LEN)
+    {
+        dbgError("peopleName=[%s], length=%d, too large, max lenth I allowed is %d.\n",
+            tmp, strlen(tmp), MAX_PEOPLE_NAME_LEN);
+        return -5;
+    }
     dbgDebug("dirpath=[%s], jpgFilename=[%s], get params : width=%d, height=%d, name=[%s]\n",
         mDirpath.c_str(), mJpgFilename.c_str(), mWidth, mHeight, tmp);
     mName = tmp;
@@ -166,7 +171,7 @@ int BaseFaceInfo::getFeatures(FaceOper * pFaceOper)
     if(ret != 0)
     {
         dbgError("convert jpg to yuv failed! ret=%d, jpgFilepath=[%s]\n", ret, jpgFilepath.c_str());
-        return -4;
+        return -6;
     }
     dbgDebug("convert jpg to yuv succeed. jpgFilepath=[%s], yuvFileapth=[%s]\n",
         jpgFilepath.c_str(), tmpYuvFilepath.c_str());
@@ -177,7 +182,7 @@ int BaseFaceInfo::getFeatures(FaceOper * pFaceOper)
         dbgError("set yuv file params to FaceOper failed! ret=%d, yuvFilepath=[%s], width=%d, height=%d\n",
             ret, tmpYuvFilepath.c_str(), mWidth, mHeight);
         unlink(tmpYuvFilepath.c_str());
-        return -5;
+        return -7;
     }
     dbgDebug("set yuv file params to FaceOper succeed.\n");
     LPAFD_FSDK_FACERES faceResult;
@@ -187,7 +192,7 @@ int BaseFaceInfo::getFeatures(FaceOper * pFaceOper)
         dbgError("getFaceResult failed! ret=%d\n", ret);
         pFaceOper->clearYuvFile();
         unlink(tmpYuvFilepath.c_str());
-        return -6;
+        return -8;
     }
     dbgDebug("getFaceResult succeed.\n");
     //check just one face in or not
@@ -197,7 +202,7 @@ int BaseFaceInfo::getFeatures(FaceOper * pFaceOper)
             tmpYuvFilepath.c_str(), faceResult->nFace);
         pFaceOper->clearYuvFile();
         unlink(tmpYuvFilepath.c_str());
-        return -7;
+        return -9;
     }
     //get this face features
     if(mpFeature)
@@ -218,7 +223,7 @@ int BaseFaceInfo::getFeatures(FaceOper * pFaceOper)
         dbgError("getFaceFeature failed! ret=%d\n", ret);
         pFaceOper->clearYuvFile();
         unlink(tmpYuvFilepath.c_str());
-        return -8;
+        return -10;
     }
     dbgDebug("getFaceFeatures succeed.\n");
     pFaceOper->clearYuvFile();
@@ -822,6 +827,12 @@ int FaceOper::getFaceInfo(int & faceNum, list < FaceInfo > & faceInfoList, list<
         dbgWarn("Current yuv file [%s] donot detect face!\n", mCurYuvFilepath.c_str());
         return -4;
     }
+    if(faceResult->nFace > MAX_FACE_NUM)
+    {
+        dbgError("To current yuv file [%s], %d face being find, larger than max face number %d\n",
+            mCurYuvFilepath.c_str(), faceResult->nFace, MAX_FACE_NUM);
+        return -5;
+    }
     dbgDebug("AFD_FSDK_StillImageFaceDetection succeed, get %d faces in yuvFile [%s]\n",
         faceResult->nFace, mCurYuvFilepath.c_str());
     
@@ -836,7 +847,7 @@ int FaceOper::getFaceInfo(int & faceNum, list < FaceInfo > & faceInfoList, list<
     if(ret != 0)
     {
         dbgError("ASAE_FSDK_AgeEstimation_StaticImage failed! ret=%d\n", ret);
-        return -5;
+        return -6;
     }
     dbgDebug("ASAE_FSDK_AgeEstimation_StaticImage succeed.\n");
 
@@ -850,7 +861,7 @@ int FaceOper::getFaceInfo(int & faceNum, list < FaceInfo > & faceInfoList, list<
     if(ret != 0)
     {
         dbgError("ASGE_FSDK_GenderEstimation_StaticImage failed! ret=%d\n", ret);
-        return -5;
+        return -7;
     }
     dbgDebug("ASGE_FSDK_GenderEstimation_StaticImage succeed.\n");
 

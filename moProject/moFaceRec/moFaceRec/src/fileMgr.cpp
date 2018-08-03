@@ -10,6 +10,7 @@
 
 #include "fileMgr.h"
 #include "utils.h"
+#include "db.h"
 
 using namespace std;
 
@@ -126,6 +127,11 @@ void CaptFileInfo::setCameraIp(const unsigned long cameraIp)
 void CaptFileInfo::setCameraName(const string & name)
 {
     mCameraName = name;
+}
+
+list<FaceInfo> & CaptFileInfo::getFaceInfoList()
+{
+    return mFaceInfoList;
 }
 
 void CaptFileInfo::setFaceInfoList(list<FaceInfo> & l)
@@ -414,6 +420,27 @@ void FileMgr::run()
             dbgDebug("doCaptTask succeed. task ip=%lu, timestamp=%ld\n", curFileTaskInfo.getCameraIp(), 
                 curFileTaskInfo.getTimestamp());
 
+            //set this capture info to db now
+            DbItem dbItem;
+            dbItem.mTimestamp = curFileTaskInfo.getTimestamp();
+            dbItem.mCameraIp = curFileTaskInfo.getCameraIp();
+            dbItem.mCameraName = curFileTaskInfo.getCameraName();
+            dbItem.mPeopleNameVector.clear();
+            for(list<FaceInfo>::iterator it = curFileTaskInfo.getFaceInfoList().begin();
+                it != curFileTaskInfo.getFaceInfoList().end(); it++)
+            {
+                string curName = it->getName();
+                dbItem.mPeopleNameVector.push_back(curName);
+            }
+            ret = DbMysqlSingleton::getInstance()->insert(dbItem);
+            if(ret != 0)
+            {
+                dbgError("insert capture face info to db failed! ret=%d\n", ret);
+            }
+            else
+            {
+                dbgDebug("insert capture face info to db succeed.\n");
+            }
             insertDisplayFileInfo(curFileTaskInfo);
         }
     }
