@@ -34,6 +34,7 @@ ThirdPartyLibs.docx
 		xml£ºlibxml
 		opencv
 		grpc-c
+		ONVIF
 
 Tools.docx
 		git
