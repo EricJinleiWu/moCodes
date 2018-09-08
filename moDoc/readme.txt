@@ -33,8 +33,8 @@ ThirdPartyLibs.docx
 		syslog
 		xml£ºlibxml
 		opencv
-		grpc-c
 		ONVIF
+		ffmpeg
 
 Tools.docx
 		git
