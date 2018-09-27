@@ -1,0 +1,91 @@
+ffmpeg:
+	compile
+			
+			
+	use:jpg2yuv
+			av_register_all();
+			avformat_open_input(&pFormatCtx, szFileName, NULL, NULL);	//AVFormatContext *pFormatCtx = NULL;
+			av_find_stream_info(pFormatCtx);
+				查找是否存在视频帧
+				 for(i = 0; i < pFormatCtx->nb_streams; i++) {
+	        if(pFmtCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+	            videoStream = i;
+	            break;
+		        }
+		    }
+			AVCodec *pCodec = avcodec_find_decoder(pFmtCtx->streams[i]->codecpar->codec_id);
+			AVCodecContext * pCodecContext = avcodec_alloc_context3(pCodec);
+			avcodec_parameters_to_context(pCodecContext, pFmtCtx->streams[i]->codecpar);
+			avcodec_open2(pCodecContext, pCodec, NULL);
+			AVPacket * pPacket = av_packet_alloc();
+	    av_read_frame(pFmtCtx, pPacket);
+	    AVFrame *pFrame = av_frame_alloc();
+			avcodec_send_packet(pCodecContext, pPacket);
+			avcodec_receive_frame(pCodecContext, pFrame);
+			
+			//pFrame is the data we needed which in yuv format
+			av_frame_free(&pFrame);
+	    pFrame = NULL;
+	    av_packet_free(&pPacket);
+	    pPacket = NULL;
+	    avcodec_free_context(&pCodecContext);
+	    pCodecContext = NULL;
+	    avformat_close_input(&pFmtCtx);
+	    pFmtCtx = NULL;
+
+
+		mux（复用）：muxing.c流程
+				av_register_all();
+				avformat_alloc_output_context2(&oc, NULL, NULL, filename);	//AVFormatContext *oc;
+				AVOutputFormat *fmt = oc->oformat;
+		    /* Add the audio and video streams using the default format codecs
+		     * and initialize the codecs. */
+		    if (fmt->video_codec != AV_CODEC_ID_NONE) {
+		        add_stream(&video_st, oc, &video_codec, fmt->video_codec);	//OutputStream video_st = { 0 }, audio_st = { 0 }; AVCodec *audio_codec, *video_codec;
+		        have_video = 1;
+		        encode_video = 1;
+		    }
+		    if (fmt->audio_codec != AV_CODEC_ID_NONE) {
+		        add_stream(&audio_st, oc, &audio_codec, fmt->audio_codec);
+		        have_audio = 1;
+		        encode_audio = 1;
+		    }
+		    
+		    /* Now that all the parameters are set, we can open the audio and
+		     * video codecs and allocate the necessary encode buffers. */
+		    if (have_video)
+		        open_video(oc, video_codec, &video_st, opt);
+		
+		    if (have_audio)
+		        open_audio(oc, audio_codec, &audio_st, opt);
+		   	
+		   	av_dump_format(oc, 0, filename, 1);
+		   	avio_open(&oc->pb, filename, AVIO_FLAG_WRITE);
+		   	
+		   	avformat_write_header(oc, &opt);
+		   	
+		    while (encode_video || encode_audio) {
+		        /* select the stream to encode */
+		        if (encode_video &&
+		            (!encode_audio || av_compare_ts(video_st.next_pts, video_st.enc->time_base,
+		                                            audio_st.next_pts, audio_st.enc->time_base) <= 0)) {
+		            encode_video = !write_video_frame(oc, &video_st);
+		        } else {
+		            encode_audio = !write_audio_frame(oc, &audio_st);
+		        }
+		    }
+		    
+		    av_write_trailer(oc);
+		    
+		    /* Close each codec. */
+		    if (have_video)
+		        close_stream(oc, &video_st);
+		    if (have_audio)
+		        close_stream(oc, &audio_st);
+		
+		    if (!(fmt->flags & AVFMT_NOFILE))
+		        /* Close the output file. */
+		        avio_closep(&oc->pb);
+		
+		    /* free the stream */
+		    avformat_free_context(oc);
