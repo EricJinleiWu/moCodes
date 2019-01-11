@@ -203,49 +203,61 @@ int main(int argc, char **argv)
 #if 1
     JPEGCODEC_DATA_CONTENT srcContent, dstContent;
     memset(&srcContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));
-    memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));
-
-    //from file decompress to file
     strcpy(srcContent.filepath, "./jpgFiles/1.jpg");
-    strcpy(dstContent.filepath, "./dstFiles/1.yuv");
-    ret = jpegcodecDecompress(JCS_YCbCr, tstErrFunc, JPEGCODEC_DATA_POLICY_FILE, srcContent, JPEGCODEC_DATA_POLICY_FILE, dstContent);   //yuv444packed
-    printf(">>>>>> from jpg file, to yuv file, ret=%d\n", ret);
-    strcpy(dstContent.filepath, "./dstFiles/1.rgb");
-    ret = jpegcodecDecompress(JCS_RGB, tstErrFunc, JPEGCODEC_DATA_POLICY_FILE, srcContent, JPEGCODEC_DATA_POLICY_FILE, dstContent); //bgr888
-    printf(">>>>>> from jpg file, to rgb file, ret=%d\n", ret);
-    strcpy(dstContent.filepath, "./dstFiles/1.grayscale");
-    ret = jpegcodecDecompress(JCS_GRAYSCALE, tstErrFunc, JPEGCODEC_DATA_POLICY_FILE, srcContent, JPEGCODEC_DATA_POLICY_FILE, dstContent);
-    printf(">>>>>> from jpg file, to grayscale file, ret=%d\n", ret);
-
-    //from memory decomporess to file
-    int filesize = 0;
-    char * filecontent = getFileContent("./jpgFiles/1.jpg", &filesize);
-    if(NULL == filecontent)
-    {
-        dbgError("getFileContent failed!\n");
-        return -1;
-    }
-    dbgDebug("getFileContent succeed.\n");
     
-    srcContent.mem.pBuf = (unsigned char *)filecontent;
-    srcContent.mem.bufLen = filesize;
-    strcpy(dstContent.filepath, "./dstFiles/1_fromMemory.yuv");
-    ret = jpegcodecDecompress(JCS_YCbCr, NULL, JPEGCODEC_DATA_POLICY_MEM, srcContent, JPEGCODEC_DATA_POLICY_FILE, dstContent);
-    printf(">>>>>> from memory, to yuv file, ret=%d\n", ret);
-    strcpy(dstContent.filepath, "./dstFiles/1_fromMemory.rgb");
-    ret = jpegcodecDecompress(JCS_RGB, NULL, JPEGCODEC_DATA_POLICY_MEM, srcContent, JPEGCODEC_DATA_POLICY_FILE, dstContent);
-    printf(">>>>>> from memory, to rgb file, ret=%d\n", ret);
-    strcpy(dstContent.filepath, "./dstFiles/1_fromMemory.grayscale");
-    ret = jpegcodecDecompress(JCS_GRAYSCALE, NULL, JPEGCODEC_DATA_POLICY_MEM, srcContent, JPEGCODEC_DATA_POLICY_FILE, dstContent);
-    printf(">>>>>> from memory, to grayscale file, ret=%d\n", ret);
+    memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));    
+    strcpy(dstContent.filepath, "./dstFiles/1.rgb888");
+    jpegcodecDecompress(INOUT_COLOR_SPACE_RGB888, tstErrFunc, JPEGCODEC_DATA_POLICY_FILE, srcContent, dstContent);
+    
+    memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));    
+    strcpy(dstContent.filepath, "./dstFiles/1.yuv444");
+    jpegcodecDecompress(INOUT_COLOR_SPACE_YUV444, tstErrFunc, JPEGCODEC_DATA_POLICY_FILE, srcContent, dstContent);
 
-    free(filecontent);
-    filecontent = NULL;
+
+    memset(&srcContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));
+    strcpy(srcContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w256_h256.yuv");
+    memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));    
+    strcpy(dstContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w256_h256.jpeg");
+    jpegcodecCompress(tstErrFunc, INOUT_COLOR_SPACE_YUV420P, JPEGCODEC_DATA_POLICY_FILE, srcContent, 256, 256, 90, dstContent);
+    
+    memset(&srcContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));
+    strcpy(srcContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w251_h251.yuv");
+    memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));    
+    strcpy(dstContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w251_h251.jpeg");
+    jpegcodecCompress(tstErrFunc, INOUT_COLOR_SPACE_YUV420P, JPEGCODEC_DATA_POLICY_FILE, srcContent, 251, 251, 90, dstContent);
+    
+    memset(&srcContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));
+    strcpy(srcContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w250_h250.yuv");
+    memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));    
+    strcpy(dstContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w250_h250.jpeg");
+    jpegcodecCompress(tstErrFunc, INOUT_COLOR_SPACE_YUV420P, JPEGCODEC_DATA_POLICY_FILE, srcContent, 250, 250, 90, dstContent);
+    
+    memset(&srcContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));
+    strcpy(srcContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w250_h256.yuv");
+    memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));    
+    strcpy(dstContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w250_h256.jpeg");
+    jpegcodecCompress(tstErrFunc, INOUT_COLOR_SPACE_YUV420P, JPEGCODEC_DATA_POLICY_FILE, srcContent, 250, 256, 90, dstContent);
+    
+    memset(&srcContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));
+    strcpy(srcContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w251_h256.yuv");
+    memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));    
+    strcpy(dstContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w251_h256.jpeg");
+    jpegcodecCompress(tstErrFunc, INOUT_COLOR_SPACE_YUV420P, JPEGCODEC_DATA_POLICY_FILE, srcContent, 251, 256, 90, dstContent);
+    
+    memset(&srcContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));
+    strcpy(srcContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w250_h251.yuv");
+    memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));    
+    strcpy(dstContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w250_h251.jpeg");
+    jpegcodecCompress(tstErrFunc, INOUT_COLOR_SPACE_YUV420P, JPEGCODEC_DATA_POLICY_FILE, srcContent, 250, 251, 90, dstContent);
+    
+    memset(&srcContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));
+    strcpy(srcContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w251_h250.yuv");
+    memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));    
+    strcpy(dstContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w251_h250.jpeg");
+    jpegcodecCompress(tstErrFunc, INOUT_COLOR_SPACE_YUV420P, JPEGCODEC_DATA_POLICY_FILE, srcContent, 251, 250, 90, dstContent);
+    
 #endif
 
-#if 0
-    convertBgr2Rgb_8u("./dstFiles/1.rgb", "./dstFiles/1_convert.rgb");
-#endif
 
     return 0;
 }
