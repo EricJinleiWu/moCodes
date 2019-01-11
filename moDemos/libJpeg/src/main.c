@@ -214,6 +214,20 @@ int main(int argc, char **argv)
     jpegcodecDecompress(INOUT_COLOR_SPACE_YUV444, tstErrFunc, JPEGCODEC_DATA_POLICY_FILE, srcContent, dstContent);
 
 
+
+    memset(&srcContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));
+    strcpy(srcContent.filepath, "./dstFiles/1.yuv444");
+    memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));    
+    strcpy(dstContent.filepath, "./dstFiles/1.yuv444.jpeg");
+    jpegcodecCompress(tstErrFunc, INOUT_COLOR_SPACE_YUV444, JPEGCODEC_DATA_POLICY_FILE, srcContent, 250, 250, 90, dstContent);
+    
+    memset(&srcContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));
+    strcpy(srcContent.filepath, "./dstFiles/1.rgb888");
+    memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));    
+    strcpy(dstContent.filepath, "./dstFiles/1.rgb888.jpeg");
+    jpegcodecCompress(tstErrFunc, INOUT_COLOR_SPACE_RGB888, JPEGCODEC_DATA_POLICY_FILE, srcContent, 250, 250, 90, dstContent);
+
+
     memset(&srcContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));
     strcpy(srcContent.filepath, "./dstFiles/Kate_Capshaw_0001_yuv420p_w256_h256.yuv");
     memset(&dstContent, 0x00, sizeof(JPEGCODEC_DATA_CONTENT));    
