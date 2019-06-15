@@ -7,10 +7,7 @@
 #include <sys/types.h>
 #include <time.h>
 
-extern "C" {
 #include "libavformat/avformat.h"
-}
-
 #include "utils.h"
 
 /*

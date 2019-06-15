@@ -5,12 +5,17 @@ CC			:= gcc
 #src dir
 SRCDIR = ./
 
+#libJpeg directory
+LIBJPEG_OUTPUT_DIR = /home/wujl/MO/jpeg-9c/output/
+
 # INC DIRS. All algorithm should set header file in this directory.
 INCDIRS = -I./ \
-	  -I../include
+	  -I../include \
+	  -I$(LIBJPEG_OUTPUT_DIR)/include
 
 # System lib path
 LDFLAGS = -L../lib -lavcodec -lavformat -lavutil -lswresample
+LDFLAGS += -L$(LIBJPEG_OUTPUT_DIR)/lib -ljpeg
 LDFLAGS += -lpthread -lrt -ldl
 
 #Cflags
@@ -20,7 +25,7 @@ CFLAGS	= -g -ggdb -MMD -Wall -W
 PROGRAM_OBJ_DIR = ./obj
 
 # source file obj
-MAIN_OBJS = $(patsubst $(SRCDIR)/%.cpp, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(SRCDIR)/*.cpp))
+MAIN_OBJS = $(patsubst $(SRCDIR)/%.c, $(PROGRAM_OBJ_DIR)/%.o, $(wildcard $(SRCDIR)/*.c))
 
 #target is a lib
 TARGET_DIR = ./bin
@@ -30,7 +35,7 @@ TARGET = $(TARGET_DIR)/ffmpegMyTest
 APP: DEPENDS $(TARGET)
 $(TARGET): $(MAIN_OBJS)
 	@echo ">>> compiling $(TARGET) ..."
-	$(CXX) -o $@ $^ $(INCDIRS) $(LDFLAGS)
+	$(CC) -o $@ $^ $(INCDIRS) $(LDFLAGS)
       
 DEPENDS:
 	@echo "::: compiling depends ..."
@@ -38,9 +43,9 @@ DEPENDS:
 	@mkdir -p $(TARGET_DIR)
 
 # src --> obj.
-$(PROGRAM_OBJ_DIR)/%.o: $(SRCDIR)/%.cpp
+$(PROGRAM_OBJ_DIR)/%.o: $(SRCDIR)/%.c
 	@echo ">>> compiling $< ..."
-	$(CXX) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
+	$(CC) $(CFLAGS) $(INCDIRS) -fPIC -c $< -o $@
 	
 clean:
 	@rm -rf $(PROGRAM_OBJ_DIR)
